@@ -1,75 +1,79 @@
 #include "test_io.h"
+#include <string.h>
+#include <unistd.h>
 
-int test_qwenvl_inference(uint32_t handle) {
-    if (handle == 0) {
-        printf("❌ QwenVL handle invalid, skipping inference test\n");
-        return 1;
-    }
+// Test inference with a prompt
+int test_model_inference(uint32_t handle, const char* model_name) {
+    char request[1024];
+    snprintf(request, sizeof(request),
+        "{\"jsonrpc\":\"2.0\",\"id\":10,\"method\":\"run\",\"params\":{\"handle_id\":%u,\"prompt\":\"hello\"}}",
+        handle);
     
-    printf("\n🤖 Testing QwenVL inference with real prompt...\n");
-    char run_request[1024];
-    snprintf(run_request, sizeof(run_request),
-        "{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"run\",\"params\":{\"handle_id\":%u,\"prompt\":\"Xin chào, bạn có khỏe không?\"}}", handle);
+    printf("🤖 %s: \"hello\" → ", model_name);
+    fflush(stdout);
     
-    printf("Test 4a: QwenVL inference... ");
-    if (io_push_request(run_request) != 0) {
-        printf("FAIL - push failed\n");
-        return 1;
+    if (io_push_request(request) != 0) {
+        printf("❌ Push failed\n");
+        return 0;
     }
     
     char response[1024];
-    int retries = 100;
-    while (retries-- > 0) {
+    for (int i = 0; i < 50; i++) {
         if (io_pop_response(response, sizeof(response)) == 0) {
-            printf("Response: %s\n", response);
-            if (strstr(response, "\"text\"")) {
-                printf("✅ SUCCESS - QwenVL responded!\n");
+            if (strstr(response, "\"error\"")) {
+                printf("❌ Error in response: %s\n", response);
                 return 0;
-            } else if (strstr(response, "\"error\"")) {
-                printf("❌ FAILED - QwenVL inference error: %s\n", response);
-                return 1;
+            }
+            
+            const char* text_start = strstr(response, "\"text\":\"");
+            if (text_start) {
+                text_start += 8;
+                const char* text_end = strchr(text_start, '"');
+                if (text_end) {
+                    size_t len = text_end - text_start;
+                    if (len > 0 && len < 200) {
+                        printf("\"%.*s\"\n", (int)len, text_start);
+                        return 1;
+                    }
+                }
             }
         }
-        usleep(100000);
+        usleep(200000);
     }
     
-    printf("❌ FAILED - No response from QwenVL inference\n");
-    return 1;
+    printf("❌ Timeout\n");
+    return 0;
 }
 
-int test_lora_inference(uint32_t handle) {
-    if (handle == 0) {
-        printf("❌ LoRA handle invalid, skipping inference test\n");
-        return 1;
-    }
+// Cleanup model handle
+void test_cleanup_model(uint32_t handle, const char* model_name) {
+    if (handle == 0) return;
     
-    printf("\n🤖 Testing LoRA inference with real prompt...\n");
-    char lora_run[1024];
-    snprintf(lora_run, sizeof(lora_run),
-        "{\"jsonrpc\":\"2.0\",\"id\":4,\"method\":\"run\",\"params\":{\"handle_id\":%u,\"prompt\":\"Hi\"}}", handle);
+    printf("🧹 Cleaning up %s (handle=%u)...\n", model_name, handle);
     
-    printf("Test 4b: LoRA inference... ");
-    if (io_push_request(lora_run) != 0) {
-        printf("FAIL - push failed\n");
-        return 1;
-    }
+    char request[256];
+    snprintf(request, sizeof(request),
+        "{\"jsonrpc\":\"2.0\",\"id\":999,\"method\":\"destroy\",\"params\":{\"handle_id\":%u}}", handle);
     
-    char response[1024];
-    int retries = 100;
-    while (retries-- > 0) {
-        if (io_pop_response(response, sizeof(response)) == 0) {
-            printf("Response: %s\n", response);
-            if (strstr(response, "\"text\"")) {
-                printf("✅ SUCCESS - LoRA responded!\n");
-                return 0;
-            } else if (strstr(response, "\"error\"")) {
-                printf("❌ FAILED - LoRA inference error: %s\n", response);
-                return 1;
+    if (io_push_request(request) == 0) {
+        char response[512];
+        for (int i = 0; i < 50; i++) {
+            if (io_pop_response(response, sizeof(response)) == 0) {
+                if (strstr(response, "\"destroyed\"")) {
+                    printf("✅ %s cleanup successful\n", model_name);
+                    system_force_gc();
+                    return;
+                }
+                if (strstr(response, "\"error\"")) {
+                    printf("⚠️  %s cleanup error: %s\n", model_name, response);
+                    break;
+                }
             }
+            usleep(100000);
         }
-        usleep(100000);
     }
     
-    printf("❌ FAILED - No response from LoRA inference\n");
-    return 1;
+    printf("⚠️  %s cleanup timeout or failed\n", model_name);
+    system_force_gc();
 }
+

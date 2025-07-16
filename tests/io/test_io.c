@@ -4,8 +4,11 @@ int run_all_io_tests(void) {
     printf("🔍 Testing IO layer - Real Model Validation & Response Testing\n");
     printf("=============================================================\n\n");
     
-    uint32_t qwenvl_handle = 0;
-    uint32_t lora_handle = 0;
+    // Initial system cleanup
+    printf("🧹 Initial system memory cleanup...\n");
+    system_force_gc();
+    system_free_memory();
+    
     int failed = 0;
     int test_result = 0;
     
@@ -29,9 +32,9 @@ int run_all_io_tests(void) {
     }
     failed += test_result;
     
-    // Test 3: Test actual model loading
-    printf("Test 3a: QwenVL model loading... ");
-    test_result = test_qwenvl_loading(&qwenvl_handle);
+    // Test 3: Test model loading + inference (combined)
+    printf("Test 3a: QwenVL full test... ");
+    test_result = test_qwenvl_full();
     if (test_result == 0) {
         printf("✅ PASS\n");
     } else {
@@ -39,8 +42,8 @@ int run_all_io_tests(void) {
     }
     failed += test_result;
     
-    printf("Test 3b: LoRA model loading... ");
-    test_result = test_lora_loading(&lora_handle);
+    printf("Test 3b: LoRA full test... ");
+    test_result = test_lora_full();
     if (test_result == 0) {
         printf("✅ PASS\n");
     } else {
@@ -48,27 +51,8 @@ int run_all_io_tests(void) {
     }
     failed += test_result;
     
-    // Test 4: Test actual inference
-    printf("Test 4a: QwenVL inference... ");
-    test_result = test_qwenvl_inference(qwenvl_handle);
-    if (test_result == 0) {
-        printf("✅ PASS\n");
-    } else {
-        printf("❌ FAIL\n");
-    }
-    failed += test_result;
-    
-    printf("Test 4b: LoRA inference... ");
-    test_result = test_lora_inference(lora_handle);
-    if (test_result == 0) {
-        printf("✅ PASS\n");
-    } else {
-        printf("❌ FAIL\n");
-    }
-    failed += test_result;
-    
-    // Test 5: Test error cases
-    printf("Test 5: Error handling... ");
+    // Test 4: Test error cases
+    printf("Test 4: Error handling... ");
     test_result = test_error_cases();
     if (test_result == 0) {
         printf("✅ PASS\n");
@@ -77,9 +61,9 @@ int run_all_io_tests(void) {
     }
     failed += test_result;
     
-    // Test 6: Cleanup
-    printf("Test 6: Cleanup... ");
-    test_result = test_cleanup(qwenvl_handle, lora_handle);
+    // Test 5: Cleanup (no specific handles needed now)
+    printf("Test 5: Cleanup... ");
+    test_result = test_cleanup(0, 0);
     if (test_result == 0) {
         printf("✅ PASS\n");
     } else {
@@ -87,13 +71,19 @@ int run_all_io_tests(void) {
     }
     failed += test_result;
     
-    // Test 7: Shutdown
+    // Test 6: Shutdown
     printf("\n🛑 Testing shutdown...\n");
     io_shutdown();
     printf("✅ IO shutdown completed\n");
     
     // Print summary
-    print_test_summary(failed);
+    printf("\n📊 Test Summary:\n");
+    printf("===============\n");
+    if (failed == 0) {
+        printf("✅ All tests passed!\n");
+    } else {
+        printf("❌ %d test(s) failed\n", failed);
+    }
     
     return failed;
 }

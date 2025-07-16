@@ -206,9 +206,15 @@ void io_shutdown(void) {
     
     atomic_store(&g_io.running, 0);
     
-    // Wait for workers to finish
-    while (atomic_load(&g_io.active_workers) > 0) {
+    // Wait for workers to finish with timeout
+    int timeout = 3000; // 3 second timeout
+    while (atomic_load(&g_io.active_workers) > 0 && timeout-- > 0) {
         usleep(1000);
+    }
+    
+    if (atomic_load(&g_io.active_workers) > 0) {
+        printf("⚠️  Warning: %d workers still active after shutdown timeout\n", 
+               atomic_load(&g_io.active_workers));
     }
     
     // Clean up queues
