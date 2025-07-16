@@ -17,7 +17,7 @@ NANO_BIN = nano
 TEST_BIN = test
 
 # Source files
-IO_SOURCES = $(wildcard $(IO_DIR)/*.c)
+IO_SOURCES = $(wildcard $(IO_DIR)/*.c) $(wildcard $(IO_DIR)/operations/*.c)
 IO_OBJECTS = $(IO_SOURCES:$(IO_DIR)/%.c=$(IO_DIR)/obj/%.o)
 
 TEST_IO_SOURCES = $(wildcard $(TEST_IO_DIR)/*.c)
@@ -37,8 +37,14 @@ $(LIBIO): $(IO_OBJECTS)
 $(IO_DIR)/obj/%.o: $(IO_DIR)/%.c | $(IO_DIR)/obj
 	$(CC) $(CFLAGS) -fPIC -c $< -o $@
 
+$(IO_DIR)/obj/operations/%.o: $(IO_DIR)/operations/%.c | $(IO_DIR)/obj/operations
+	$(CC) $(CFLAGS) -fPIC -c $< -o $@
+
 $(IO_DIR)/obj:
 	mkdir -p $(IO_DIR)/obj
+
+$(IO_DIR)/obj/operations:
+	mkdir -p $(IO_DIR)/obj/operations
 
 $(NANO_BIN): $(LIBIO)
 	$(CC) $(CFLAGS) -o $@ $(SRC_DIR)/main.c $(LDFLAGS)
