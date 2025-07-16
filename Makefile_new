@@ -1,0 +1,90 @@
+# Makefile for New Architecture
+# Single root Makefile for the entire project
+
+CC = gcc
+CFLAGS = -Wall -Wextra -std=c99 -g
+LDFLAGS = -pthread
+RKLLM_LIB = -L./src_new/libs/rkllm -lrkllmrt
+RKLLM_PATH = ./src_new/libs/rkllm
+
+# Common directories
+COMMON_DIR = src_new/common
+IO_CORE_DIR = src_new/io/core
+IO_MAPPING_DIR = src_new/io/mapping
+NANO_SYSTEM_DIR = src_new/nano/system
+NANO_VALIDATION_DIR = src_new/nano/validation
+
+# Test directories
+TEST_DIR = tests_new
+
+.PHONY: all clean test test-common test-io test-nano test-all status help
+
+# Default target
+all: help
+
+# Help target
+help:
+	@echo "🔧 NANO PROJECT - NEW ARCHITECTURE BUILD SYSTEM"
+	@echo "==============================================="
+	@echo "Available targets:"
+	@echo "  test-all      - Run all tests"
+	@echo "  test-common   - Test common utilities"
+	@echo "  test-io       - Test IO components"
+	@echo "  test-nano     - Test nano components"
+	@echo "  clean         - Clean all build artifacts"
+	@echo "  status        - Show migration status"
+	@echo "  help          - Show this help"
+
+# Test all components
+test-all:
+	@echo "🧪 Running all tests..."
+	@./test_all_new.sh
+
+# Test common utilities
+test-common:
+	@echo "🧪 Testing common utilities..."
+	@cd $(TEST_DIR)/common/test_json_utils && make test
+
+# Test IO components
+test-io:
+	@echo "🧪 Testing IO components..."
+	@cd $(TEST_DIR)/io/test_queue && make test
+	@cd $(TEST_DIR)/io/test_worker_pool && make test
+	@cd $(TEST_DIR)/io/test_io && make test
+	@cd $(TEST_DIR)/io/test_handle_pool && make test
+	@cd $(TEST_DIR)/io/test_rkllm_proxy && make test
+
+# Test nano components
+test-nano:
+	@echo "🧪 Testing nano components..."
+	@cd $(TEST_DIR)/nano/test_system && make test
+	@cd $(TEST_DIR)/nano/test_validation && make test
+
+# Clean all build artifacts
+clean:
+	@echo "🧹 Cleaning build artifacts..."
+	@find $(TEST_DIR) -name "*.o" -delete
+	@find $(TEST_DIR) -name "test_*" -type f -executable -delete
+	@find $(TEST_DIR) -name "*.tmp" -delete
+	@echo "✅ Clean completed"
+
+# Show migration status
+status:
+	@./migration_status.sh
+
+# Quick test (for development)
+quick-test:
+	@echo "⚡ Quick test (essential components only)..."
+	@cd $(TEST_DIR)/common/test_json_utils && make test
+	@cd $(TEST_DIR)/io/test_queue && make test
+	@cd $(TEST_DIR)/io/test_handle_pool && make test
+	@echo "✅ Quick test completed"
+
+# Validate architecture
+validate:
+	@echo "🔍 Validating architecture..."
+	@echo "Checking file sizes..."
+	@find src_new -name "*.c" -exec wc -l {} \; | awk '{if($$1>100) print "⚠️  " $$2 " has " $$1 " lines (>100)"; else print "✅ " $$2 " has " $$1 " lines"}'
+	@echo "Checking include dependencies..."
+	@find src_new -name "*.h" | wc -l | awk '{print "📁 Total headers: " $$1}'
+	@find src_new -name "*.c" | wc -l | awk '{print "📁 Total source files: " $$1}'
