@@ -27,7 +27,7 @@ tôi muốn io nó không thực hiện tính toán gì, nó chỉ queue rồi c
 
 MỘT SỐ VẤN ĐỀ LIÊN QUAN
 
-Trong các máy tính có phần cứng mạnh (như Orange Pi 5 Plus với 32GB RAM) thì có thể chạy tới 2 hoặc 3 model như @/models/qwenvl/model.rkllm song song, vì vậy cần thiết kế io làm sao để nó có thể chạy và quản lý song song nhiều LLMHandles mà không bị gặp các sự cố, đặc biệt các sự cố về memory.
+Trong các máy tính có phần cứng mạnh (như máy này Orange Pi 5 Plus với 32GB RAM đang thuộc loại mạnh nhất) thì có thể chạy tới 2 hoặc 3 model như @/models/qwenvl/model.rkllm song song, vì vậy cần thiết kế io làm sao để nó có thể chạy và quản lý song song nhiều LLMHandles mà không bị gặp các sự cố, đặc biệt các sự cố về memory.
 
 Cần phải hạn chế tối đa số dòng code. Nhưng quan trọng nhất là phải đạt được hiệu quả tối đa. Vì khi code ngày càng nhiều, chi phí duy trì, chi phí quản lý và phát triển rất cao.
 
@@ -40,28 +40,4 @@ Phần io hiện tại là phần cần được chú trọng nhiều nhất. V�
 CÁC MODELS ĐỂ TEST
 
 @/models/qwenvl/ chứa model để chạy các test cho model thường
-@/models/lora chứa model kiểu lora để test các chức năng liên quan đến lora
-
-TREE HIỆN TẠI
-
-x@orangepi5-plus:~/Projects/nano$ tree
-.
-├── build.sh
-├── LICENSE
-├── models
-│   ├── lora
-│   │   ├── lora.rkllm
-│   │   └── model.rkllm
-│   └── qwenvl
-│       └── model.rkllm
-├── nano
-├── plan.md
-├── requirements.md
-└── src
-    ├── libs
-    │   └── rkllm
-    │       ├── librkllmrt.so
-    │       └── rkllm.h
-    └── main.c
-
-7 directories, 11 files
+@/models/lora chứa 2 file, model và lora, để test các chức năng liên quan đến lora
