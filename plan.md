@@ -307,8 +307,8 @@ src/
 ├── io/                    # Core IO layer
 ├── nano/                  # MCP gateway
 ├── common/               # Shared utilities
-├── config/               # Configuration files
-└── tests/                # Test suite
+└── config/               # Configuration files
+tests/                # Test suite
 ```
 
 ## 13. Success Criteria

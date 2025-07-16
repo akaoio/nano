@@ -19,6 +19,7 @@ int execute_method(const char* method, uint32_t handle_id, const char* params, c
 
 // Available operations
 int method_init(uint32_t handle_id, const char* params, char* result, size_t result_size);
+int method_lora_init(uint32_t handle_id, const char* params, char* result, size_t result_size);
 int method_run(uint32_t handle_id, const char* params, char* result, size_t result_size);
 int method_destroy(uint32_t handle_id, const char* params, char* result, size_t result_size);
 int method_status(uint32_t handle_id, const char* params, char* result, size_t result_size);

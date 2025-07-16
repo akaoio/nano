@@ -1,4 +1,5 @@
 #include "test_io.h"
+#include <unistd.h>
 
 int test_error_cases(void) {
     printf("\n❌ Testing error cases...\n");
