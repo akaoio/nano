@@ -6,6 +6,15 @@
 #include <stddef.h>
 #include <pthread.h>
 
+// C23 compatibility
+#if __STDC_VERSION__ >= 202311L
+#define NODISCARD [[nodiscard]]
+#define MAYBE_UNUSED [[maybe_unused]]
+#else
+#define NODISCARD __attribute__((warn_unused_result))
+#define MAYBE_UNUSED __attribute__((unused))
+#endif
+
 #define IO_OK 0
 #define IO_ERROR -1
 #define IO_TIMEOUT -2
@@ -24,14 +33,14 @@ typedef struct {
  * @brief Initialize IO system
  * @return IO_OK on success, IO_ERROR on failure
  */
-int io_init(void);
+NODISCARD int io_init(void);
 
 /**
  * @brief Push JSON request to processing queue
  * @param json_request JSON-RPC request string
  * @return IO_OK on success, error code on failure
  */
-int io_push_request(const char* json_request);
+NODISCARD int io_push_request(const char* json_request);
 
 /**
  * @brief Pop JSON response from response queue
@@ -39,7 +48,7 @@ int io_push_request(const char* json_request);
  * @param max_len Maximum buffer length
  * @return IO_OK on success, error code on failure
  */
-int io_pop_response(char* json_response, size_t max_len);
+NODISCARD int io_pop_response(char* json_response, size_t max_len);
 
 /**
  * @brief Shutdown IO system
@@ -47,6 +56,6 @@ int io_pop_response(char* json_response, size_t max_len);
 void io_shutdown(void);
 
 // Internal functions
-int io_parse_json_request(const char* json_request, uint32_t* request_id, 
+NODISCARD int io_parse_json_request(const char* json_request, uint32_t* request_id, 
                          uint32_t* handle_id, char* method, char* params);
 void* io_worker_thread(void* arg);

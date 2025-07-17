@@ -1,4 +1,6 @@
 #include "handle_pool.h"
+#include "../../../common/constants.h"
+#include "../../../common/c23_utils.h"
 #include <string.h>
 #include <stdio.h>
 #include <time.h>
@@ -7,7 +9,7 @@
 handle_pool_t g_handle_pool;
 
 int handle_pool_init(handle_pool_t* pool) {
-    if (!pool) return -1;
+    RETURN_IF_NULL(pool);
     
     memset(pool, 0, sizeof(*pool));
     pool->next_id = 1;
@@ -16,7 +18,7 @@ int handle_pool_init(handle_pool_t* pool) {
     for (int i = 0; i < MAX_HANDLES; i++) {
         pool->slots[i].id = 0;
         pool->slots[i].active = false;
-        pool->slots[i].handle = NULL;
+        pool->slots[i].handle = nullptr;
         pool->slots[i].memory_usage = 0;
         pool->slots[i].last_used = 0;
     }
@@ -25,18 +27,19 @@ int handle_pool_init(handle_pool_t* pool) {
 }
 
 uint32_t handle_pool_create(handle_pool_t* pool, const char* model_path) {
-    if (!pool || !model_path) return 0;
+    if (!IS_VALID_PTR(pool) || !IS_VALID_PTR(model_path)) return 0;
     
     // Find first available slot
     for (int i = 0; i < MAX_HANDLES; i++) {
         if (!pool->slots[i].active) {
             pool->slots[i].id = pool->next_id++;
             pool->slots[i].active = true;
-            strncpy(pool->slots[i].model_path, model_path, sizeof(pool->slots[i].model_path) - 1);
+            strncpy(pool->slots[i].model_path, model_path, 
+                   MIN(SAFE_STRLEN(model_path), sizeof(pool->slots[i].model_path) - 1));
             pool->slots[i].model_path[sizeof(pool->slots[i].model_path) - 1] = '\0';
             pool->slots[i].memory_usage = 0;
-            pool->slots[i].last_used = (uint64_t)time(NULL);
-            pool->slots[i].handle = NULL; // Will be set by rkllm_init
+            pool->slots[i].last_used = (uint64_t)time(nullptr);
+            pool->slots[i].handle = nullptr; // Will be set by rkllm_init
             
             return pool->slots[i].id;
         }
@@ -46,13 +49,13 @@ uint32_t handle_pool_create(handle_pool_t* pool, const char* model_path) {
 }
 
 int handle_pool_destroy(handle_pool_t* pool, uint32_t handle_id) {
-    if (!pool || handle_id == 0) return -1;
+    if (!IS_VALID_PTR(pool) || !is_valid_handle_id(handle_id)) return -1;
     
     for (int i = 0; i < MAX_HANDLES; i++) {
         if (pool->slots[i].active && pool->slots[i].id == handle_id) {
             pool->slots[i].active = false;
             pool->slots[i].id = 0;
-            pool->slots[i].handle = NULL;
+            pool->slots[i].handle = nullptr;
             pool->total_memory -= pool->slots[i].memory_usage;
             pool->slots[i].memory_usage = 0;
             return 0;
@@ -68,7 +71,7 @@ int handle_pool_set_handle(handle_pool_t* pool, uint32_t handle_id, LLMHandle ha
     for (int i = 0; i < MAX_HANDLES; i++) {
         if (pool->slots[i].active && pool->slots[i].id == handle_id) {
             pool->slots[i].handle = handle;
-            pool->slots[i].last_used = (uint64_t)time(NULL);
+            pool->slots[i].last_used = (uint64_t)time(nullptr);
             return 0;
         }
     }
@@ -77,16 +80,16 @@ int handle_pool_set_handle(handle_pool_t* pool, uint32_t handle_id, LLMHandle ha
 }
 
 LLMHandle* handle_pool_get(handle_pool_t* pool, uint32_t handle_id) {
-    if (!pool || handle_id == 0) return NULL;
+    if (!pool || handle_id == 0) return nullptr;
     
     for (int i = 0; i < MAX_HANDLES; i++) {
         if (pool->slots[i].active && pool->slots[i].id == handle_id) {
-            pool->slots[i].last_used = (uint64_t)time(NULL);
+            pool->slots[i].last_used = (uint64_t)time(nullptr);
             return &pool->slots[i].handle;
         }
     }
     
-    return NULL;
+    return nullptr;
 }
 
 bool handle_pool_is_valid(handle_pool_t* pool, uint32_t handle_id) {

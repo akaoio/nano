@@ -1,5 +1,6 @@
 #include "nano.h"
 #include "../../../common/common.h"
+#include "../../../common/constants.h"
 #include "../../../io/core/io/io.h"
 #include "../../../io/mapping/rkllm_proxy/rkllm_proxy.h"
 #include <stdio.h>
@@ -8,7 +9,11 @@
 #include <unistd.h>
 #include <pthread.h>
 
-nano_core_t g_nano = {0};
+nano_core_t g_nano = {
+    .initialized = false,
+    .running = false,
+    .transport_count = 0
+};
 
 static void* transport_worker(void* arg);
 
@@ -54,7 +59,7 @@ int nano_run(void) {
     // Create worker threads for each transport
     pthread_t workers[8];
     for (int i = 0; i < g_nano.transport_count; i++) {
-        if (pthread_create(&workers[i], NULL, transport_worker, g_nano.transports[i]) != 0) {
+        if (pthread_create(&workers[i], nullptr, transport_worker, g_nano.transports[i]) != 0) {
             g_nano.running = false;
             return -1;
         }
@@ -62,7 +67,7 @@ int nano_run(void) {
     
     // Wait for all workers to complete
     for (int i = 0; i < g_nano.transport_count; i++) {
-        pthread_join(workers[i], NULL);
+        pthread_join(workers[i], nullptr);
     }
     
     return 0;
@@ -101,11 +106,11 @@ int nano_process_message(const mcp_message_t* request, mcp_message_t* response) 
         char error[256];
         snprintf(error, sizeof(error), "{\"code\":-32601,\"message\":\"Method not found: %s\"}", 
                 request->method ? request->method : "null");
-        mcp_message_create(response, MCP_RESPONSE, request->id, NULL, error);
+        mcp_message_create(response, MCP_RESPONSE, request->id, nullptr, error);
         return -1;
     }
     
-    // Create RKLLM request
+    // Create RKLLM request using designated initializers
     rkllm_request_t rkllm_request = {
         .operation = operation,
         .handle_id = 0, // Will be extracted from params if needed
@@ -113,19 +118,22 @@ int nano_process_message(const mcp_message_t* request, mcp_message_t* response) 
         .params_size = request->params ? strlen(request->params) : 0
     };
     
-    // Execute operation
-    rkllm_result_t rkllm_result = {0};
+    // Execute operation using designated initializers
+    rkllm_result_t rkllm_result = {
+        .result_data = nullptr,
+        .result_size = 0
+    };
     int ret = rkllm_proxy_execute(&rkllm_request, &rkllm_result);
     
     // Create response
     if (ret == 0) {
-        mcp_message_create(response, MCP_RESPONSE, request->id, NULL, 
+        mcp_message_create(response, MCP_RESPONSE, request->id, nullptr, 
                           rkllm_result.result_data ? rkllm_result.result_data : "null");
     } else {
         char error[8256];
         snprintf(error, sizeof(error), "{\"code\":%d,\"message\":\"%s\"}", ret, 
                 rkllm_result.result_data ? rkllm_result.result_data : "Operation failed");
-        mcp_message_create(response, MCP_RESPONSE, request->id, NULL, error);
+        mcp_message_create(response, MCP_RESPONSE, request->id, nullptr, error);
     }
     
     // Cleanup
@@ -138,8 +146,20 @@ static void* transport_worker(void* arg) {
     mcp_transport_t* transport = (mcp_transport_t*)arg;
     
     while (g_nano.running) {
-        mcp_message_t request = {0};
-        mcp_message_t response = {0};
+        mcp_message_t request = {
+            .type = MCP_REQUEST,
+            .id = 0,
+            .method = nullptr,
+            .params = nullptr,
+            .params_len = 0
+        };
+        mcp_message_t response = {
+            .type = MCP_RESPONSE,
+            .id = 0,
+            .method = nullptr,
+            .params = nullptr,
+            .params_len = 0
+        };
         
         // Receive message with timeout
         if (transport->recv(&request, 1000) == 0) {
@@ -155,5 +175,5 @@ static void* transport_worker(void* arg) {
         }
     }
     
-    return NULL;
+    return nullptr;
 }

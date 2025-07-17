@@ -155,7 +155,10 @@ int main(int argc, char* argv[]) {
     printf("🔄 Running... (Press Ctrl+C to stop)\n");
     
     // Run nano
-    nano_run();
+    int run_result = nano_run();
+    if (run_result != 0) {
+        fprintf(stderr, "⚠️  Nano run failed with code %d\n", run_result);
+    }
     
     printf("🛑 Shutting down nano...\n");
     nano_shutdown();

@@ -37,7 +37,7 @@ void rkllm_proxy_shutdown(void) {
             if (handle) {
                 rkllm_destroy(handle);
             }
-            handle_pool_destroy(&g_handle_pool, g_handle_pool.slots[i].id);
+            (void)handle_pool_destroy(&g_handle_pool, g_handle_pool.slots[i].id);
         }
     }
     

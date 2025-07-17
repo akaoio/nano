@@ -1,26 +1,31 @@
 #ifndef CONSTANTS_H
 #define CONSTANTS_H
 
+// Pure C23 implementation - no fallback support
+
 // Worker pool configuration
-#define MAX_WORKERS 5
+constexpr int MAX_WORKERS = 5;
 
 // Queue configuration
-#define QUEUE_SIZE 1024
-#define REQUEST_TIMEOUT_MS 30000
+constexpr int QUEUE_SIZE = 1024;
+constexpr int REQUEST_TIMEOUT_MS = 30000;
 
 // Handle pool configuration
-#define MAX_HANDLES 8
+constexpr int MAX_HANDLES = 8;
 
 // Memory limits
-#define MAX_REQUEST_SIZE 4096
-#define MAX_RESPONSE_SIZE 8192
+constexpr int MAX_REQUEST_SIZE = 4096;
+constexpr int MAX_RESPONSE_SIZE = 8192;
 
 // Error codes
-#define ERR_OK 0
-#define ERR_INVALID_PARAM -1
-#define ERR_QUEUE_FULL -2
-#define ERR_QUEUE_EMPTY -3
-#define ERR_TIMEOUT -4
-#define ERR_MEMORY_LIMIT -5
+constexpr int ERR_OK = 0;
+constexpr int ERR_INVALID_PARAM = -1;
+constexpr int ERR_QUEUE_FULL = -2;
+constexpr int ERR_QUEUE_EMPTY = -3;
+constexpr int ERR_TIMEOUT = -4;
+constexpr int ERR_MEMORY_LIMIT = -5;
+
+// Additional type-safe utilities are defined in c23_utils.h
+#include "c23_utils.h"
 
 #endif /* CONSTANTS_H */

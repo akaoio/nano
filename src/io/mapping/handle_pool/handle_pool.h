@@ -6,6 +6,15 @@
 #include "../../../libs/rkllm/rkllm.h"
 
 #include "../../../common/constants.h"
+
+// C23 compatibility
+#if __STDC_VERSION__ >= 202311L
+#define NODISCARD [[nodiscard]]
+#define MAYBE_UNUSED [[maybe_unused]]
+#else
+#define NODISCARD __attribute__((warn_unused_result))
+#define MAYBE_UNUSED __attribute__((unused))
+#endif
 #define MAX_MODEL_PATH 256
 
 typedef struct {
@@ -31,7 +40,7 @@ extern handle_pool_t g_handle_pool;
  * @param pool Handle pool to initialize
  * @return 0 on success, -1 on error
  */
-int handle_pool_init(handle_pool_t* pool);
+NODISCARD int handle_pool_init(handle_pool_t* pool);
 
 /**
  * @brief Create new handle
@@ -39,7 +48,7 @@ int handle_pool_init(handle_pool_t* pool);
  * @param model_path Path to model file
  * @return Handle ID on success, 0 on error
  */
-uint32_t handle_pool_create(handle_pool_t* pool, const char* model_path);
+NODISCARD uint32_t handle_pool_create(handle_pool_t* pool, const char* model_path);
 
 /**
  * @brief Destroy handle
@@ -47,7 +56,7 @@ uint32_t handle_pool_create(handle_pool_t* pool, const char* model_path);
  * @param handle_id Handle ID to destroy
  * @return 0 on success, -1 on error
  */
-int handle_pool_destroy(handle_pool_t* pool, uint32_t handle_id);
+NODISCARD int handle_pool_destroy(handle_pool_t* pool, uint32_t handle_id);
 
 /**
  * @brief Set handle for existing slot
@@ -56,7 +65,7 @@ int handle_pool_destroy(handle_pool_t* pool, uint32_t handle_id);
  * @param handle Handle to set
  * @return 0 on success, -1 on error
  */
-int handle_pool_set_handle(handle_pool_t* pool, uint32_t handle_id, LLMHandle handle);
+NODISCARD int handle_pool_set_handle(handle_pool_t* pool, uint32_t handle_id, LLMHandle handle);
 
 /**
  * @brief Get handle by ID
@@ -64,7 +73,7 @@ int handle_pool_set_handle(handle_pool_t* pool, uint32_t handle_id, LLMHandle ha
  * @param handle_id Handle ID
  * @return Handle pointer or NULL
  */
-LLMHandle* handle_pool_get(handle_pool_t* pool, uint32_t handle_id);
+NODISCARD LLMHandle* handle_pool_get(handle_pool_t* pool, uint32_t handle_id);
 
 /**
  * @brief Check if handle is valid
@@ -72,7 +81,7 @@ LLMHandle* handle_pool_get(handle_pool_t* pool, uint32_t handle_id);
  * @param handle_id Handle ID
  * @return true if valid, false otherwise
  */
-bool handle_pool_is_valid(handle_pool_t* pool, uint32_t handle_id);
+NODISCARD bool handle_pool_is_valid(handle_pool_t* pool, uint32_t handle_id);
 
 /**
  * @brief Get memory usage for handle
@@ -80,21 +89,21 @@ bool handle_pool_is_valid(handle_pool_t* pool, uint32_t handle_id);
  * @param handle_id Handle ID
  * @return Memory usage in bytes
  */
-size_t handle_pool_get_memory_usage(handle_pool_t* pool, uint32_t handle_id);
+NODISCARD size_t handle_pool_get_memory_usage(handle_pool_t* pool, uint32_t handle_id);
 
 /**
  * @brief Get total memory usage
  * @param pool Handle pool
  * @return Total memory usage in bytes
  */
-size_t handle_pool_get_total_memory(handle_pool_t* pool);
+NODISCARD size_t handle_pool_get_total_memory(handle_pool_t* pool);
 
 /**
  * @brief Cleanup inactive handles
  * @param pool Handle pool
  * @return 0 on success, -1 on error
  */
-int handle_pool_cleanup(handle_pool_t* pool);
+NODISCARD int handle_pool_cleanup(handle_pool_t* pool);
 
 // Global handle pool instance
 extern handle_pool_t g_handle_pool;

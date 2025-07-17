@@ -110,14 +110,14 @@ int rkllm_op_init(uint32_t* handle_id, const char* params_json, rkllm_result_t* 
     int rkllm_ret = rkllm_init(&llm_handle, &param, rkllm_proxy_global_callback);
     
     if (rkllm_ret != 0 || llm_handle == NULL) {
-        handle_pool_destroy(&g_handle_pool, new_handle_id);
+        (void)handle_pool_destroy(&g_handle_pool, new_handle_id);
         result->result_data = rkllm_proxy_create_error_result(-1, "Failed to initialize RKLLM handle");
         result->result_size = strlen(result->result_data);
         return -1;
     }
     
     // Set the actual handle in the pool
-    handle_pool_set_handle(&g_handle_pool, new_handle_id, llm_handle);
+    (void)handle_pool_set_handle(&g_handle_pool, new_handle_id, llm_handle);
     
     *handle_id = new_handle_id;
     
