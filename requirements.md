@@ -62,8 +62,7 @@ models/
 
 ## NGUYÊN TẮC THIẾT KẾ
 
-1. **Modular**: Mỗi thành phần build/test độc lập
-2. **Minimal Code**: Tối thiểu LOC, tối đa hiệu quả  
+1. **Minimal Code**: Tối thiểu LOC, tối đa hiệu quả  
 3. **No Technical Debt**: Không mockup, implementation thật 100%
 
 ## WORKFLOW DEVELOPMENT
