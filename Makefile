@@ -1,75 +1,174 @@
-# Root Makefile for nano + io project
+# Makefile for NANO project - New Architecture
+# Modern C build system with comprehensive source file support
 
 CC = gcc
-CFLAGS = -std=c2x -Wall -Wextra -O2 -I./src/libs/rkllm -I./tests/io
-LDFLAGS = -L./src/io -L./src/libs/rkllm -Wl,-rpath,./src/io -Wl,-rpath,./src/libs/rkllm -lio -lrkllmrt -lpthread
+CFLAGS = -std=gnu2x -Wall -Wextra -Werror -O2 -g
+LDFLAGS = -lpthread -ldl -Lsrc/libs/rkllm -lrkllmrt -Wl,-rpath,src/libs/rkllm
 
 # Directories
 SRC_DIR = src
-IO_DIR = $(SRC_DIR)/io
-NANO_DIR = $(SRC_DIR)/nano
-TEST_DIR = tests
-TEST_IO_DIR = $(TEST_DIR)/io
+BUILD_DIR = build
+TESTS_DIR = tests
+MODELS_DIR = models
 
-# Targets
-LIBIO = $(IO_DIR)/libio.so
-NANO_BIN = nano
-TEST_BIN = test
+# Source files (without main.c)
+COMMON_SRCS = $(SRC_DIR)/common/json_utils/json_utils.c \
+              $(SRC_DIR)/common/memory_utils/memory_utils.c \
+              $(SRC_DIR)/common/string_utils/string_utils.c
 
-# Source files
-IO_SOURCES = $(wildcard $(IO_DIR)/*.c) $(wildcard $(IO_DIR)/operations/*.c)
-IO_OBJECTS = $(IO_SOURCES:$(IO_DIR)/%.c=$(IO_DIR)/obj/%.o)
+IO_CORE_SRCS = $(SRC_DIR)/io/core/queue/queue.c \
+               $(SRC_DIR)/io/core/worker_pool/worker_pool.c \
+               $(SRC_DIR)/io/core/io/io.c \
+               $(SRC_DIR)/io/core/io/io_worker.c \
+               $(SRC_DIR)/io/operations.c
 
-TEST_IO_SOURCES = $(wildcard $(TEST_IO_DIR)/*.c)
-TEST_SOURCES = $(TEST_DIR)/test.c
+IO_MAPPING_SRCS = $(SRC_DIR)/io/mapping/handle_pool/handle_pool.c \
+                  $(SRC_DIR)/io/mapping/handle_pool/handle_pool_global.c \
+                  $(SRC_DIR)/io/mapping/handle_pool/handle_pool_utils.c \
+                  $(SRC_DIR)/io/mapping/rkllm_proxy/rkllm_proxy.c \
+                  $(SRC_DIR)/io/mapping/rkllm_proxy/rkllm_operations.c
 
-.PHONY: all clean test io nano
+NANO_SYSTEM_SRCS = $(SRC_DIR)/nano/system/system_info/system_info.c \
+                   $(SRC_DIR)/nano/system/system_info/system_memory.c \
+                   $(SRC_DIR)/nano/system/system_info/system_model.c \
+                   $(SRC_DIR)/nano/system/resource_mgr/resource_mgr.c
 
-all: io nano
+NANO_VALIDATION_SRCS = $(SRC_DIR)/nano/validation/model_checker/model_compatibility.c
 
-io: $(LIBIO)
+NANO_TRANSPORT_SRCS = $(SRC_DIR)/nano/transport/mcp_base/mcp_base.c \
+                      $(SRC_DIR)/nano/transport/udp_transport/udp_transport.c \
+                      $(SRC_DIR)/nano/transport/tcp_transport/tcp_transport.c \
+                      $(SRC_DIR)/nano/transport/http_transport/http_transport.c \
+                      $(SRC_DIR)/nano/transport/ws_transport/ws_transport.c \
+                      $(SRC_DIR)/nano/transport/stdio_transport/stdio_transport.c
 
-nano: $(NANO_BIN)
+NANO_CORE_SRCS = $(SRC_DIR)/nano/core/nano/nano.c
 
-$(LIBIO): $(IO_OBJECTS)
-	$(CC) -shared -fPIC -o $@ $^ -L$(SRC_DIR)/libs/rkllm -Wl,-rpath,$(SRC_DIR)/libs/rkllm -lrkllmrt
+# Library source files (without main functions)
+LIB_SRCS = $(COMMON_SRCS) $(IO_CORE_SRCS) $(IO_MAPPING_SRCS) $(NANO_SYSTEM_SRCS) \
+           $(NANO_VALIDATION_SRCS) $(NANO_TRANSPORT_SRCS) $(NANO_CORE_SRCS)
 
-$(IO_DIR)/obj/%.o: $(IO_DIR)/%.c | $(IO_DIR)/obj
-	$(CC) $(CFLAGS) -fPIC -c $< -o $@
+# Test source files
+TEST_SRCS = $(TESTS_DIR)/common/test_json_utils.c \
+            $(TESTS_DIR)/io/test_io/test_io.c \
+            $(TESTS_DIR)/nano/test_validation/test_validation.c \
+            $(TESTS_DIR)/nano/test_system/test_system.c \
+            $(TESTS_DIR)/integration/test_qwenvl/test_qwenvl.c \
+            $(TESTS_DIR)/integration/test_lora/test_lora.c
 
-$(IO_DIR)/obj/operations/%.o: $(IO_DIR)/operations/%.c | $(IO_DIR)/obj/operations
-	$(CC) $(CFLAGS) -fPIC -c $< -o $@
+# Object files
+LIB_OBJS = $(LIB_SRCS:$(SRC_DIR)/%.c=$(BUILD_DIR)/%.o)
+TEST_OBJS = $(TEST_SRCS:$(TESTS_DIR)/%.c=$(BUILD_DIR)/tests/%.o)
 
-$(IO_DIR)/obj:
-	mkdir -p $(IO_DIR)/obj
+# Include paths
+INCLUDES = -I$(SRC_DIR) -I$(SRC_DIR)/libs/rkllm -I$(SRC_DIR)/common \
+           -I$(SRC_DIR)/io/core -I$(SRC_DIR)/io/mapping \
+           -I$(SRC_DIR)/nano/system -I$(SRC_DIR)/nano/validation \
+           -I$(SRC_DIR)/nano/transport -I$(SRC_DIR)/nano/core
 
-$(IO_DIR)/obj/operations:
-	mkdir -p $(IO_DIR)/obj/operations
+# Main targets
+NANO_TARGET = nano
+IO_TARGET = io
+TEST_TARGET = test_suite
 
-$(NANO_BIN): $(LIBIO)
-	$(CC) $(CFLAGS) -o $@ $(SRC_DIR)/main.c $(LDFLAGS)
+.PHONY: all clean test run-test check-syntax help
 
-test: $(LIBIO) $(TEST_BIN)
+all: $(NANO_TARGET) $(IO_TARGET) $(TEST_TARGET)
 
-$(TEST_BIN): $(TEST_SOURCES) $(TEST_IO_SOURCES)
-	$(CC) $(CFLAGS) -o $@ $(TEST_SOURCES) $(TEST_IO_SOURCES) $(LDFLAGS)
+# Create build directory structure
+$(BUILD_DIR):
+	@mkdir -p $(BUILD_DIR)
+	@mkdir -p $(BUILD_DIR)/common/json_utils
+	@mkdir -p $(BUILD_DIR)/common/memory_utils
+	@mkdir -p $(BUILD_DIR)/common/string_utils
+	@mkdir -p $(BUILD_DIR)/io/core/queue
+	@mkdir -p $(BUILD_DIR)/io/core/worker_pool
+	@mkdir -p $(BUILD_DIR)/io/core/io
+	@mkdir -p $(BUILD_DIR)/io/mapping/handle_pool
+	@mkdir -p $(BUILD_DIR)/io/mapping/rkllm_proxy
+	@mkdir -p $(BUILD_DIR)/nano/system/system_info
+	@mkdir -p $(BUILD_DIR)/nano/system/resource_mgr
+	@mkdir -p $(BUILD_DIR)/nano/validation/model_checker
+	@mkdir -p $(BUILD_DIR)/nano/transport/mcp_base
+	@mkdir -p $(BUILD_DIR)/nano/transport/udp_transport
+	@mkdir -p $(BUILD_DIR)/nano/transport/tcp_transport
+	@mkdir -p $(BUILD_DIR)/nano/transport/http_transport
+	@mkdir -p $(BUILD_DIR)/nano/transport/ws_transport
+	@mkdir -p $(BUILD_DIR)/nano/transport/stdio_transport
+	@mkdir -p $(BUILD_DIR)/nano/core/nano
+	@mkdir -p $(BUILD_DIR)/tests
+	@mkdir -p $(BUILD_DIR)/tests/common
+	@mkdir -p $(BUILD_DIR)/tests/io/test_io
+	@mkdir -p $(BUILD_DIR)/tests/nano/test_validation
+	@mkdir -p $(BUILD_DIR)/tests/nano/test_system
+	@mkdir -p $(BUILD_DIR)/tests/integration/test_qwenvl
+	@mkdir -p $(BUILD_DIR)/tests/integration/test_lora
 
+# Build nano target
+$(NANO_TARGET): $(BUILD_DIR) $(LIB_OBJS) $(BUILD_DIR)/main.o
+	$(CC) $(LIB_OBJS) $(BUILD_DIR)/main.o $(LDFLAGS) -o $@
+	@echo "✅ Built $(NANO_TARGET) successfully"
+
+# Build io target (same as nano but with different entry point)
+$(IO_TARGET): $(BUILD_DIR) $(LIB_OBJS) $(BUILD_DIR)/main.o
+	$(CC) $(LIB_OBJS) $(BUILD_DIR)/main.o $(LDFLAGS) -o $@
+	@echo "✅ Built $(IO_TARGET) successfully"
+
+# Build test target
+$(TEST_TARGET): $(BUILD_DIR) $(LIB_OBJS) $(TEST_OBJS) $(BUILD_DIR)/tests/test.o
+	$(CC) $(LIB_OBJS) $(TEST_OBJS) $(BUILD_DIR)/tests/test.o $(LDFLAGS) -o $@
+	@echo "✅ Built $(TEST_TARGET) successfully"
+
+# Compile main.c
+$(BUILD_DIR)/main.o: $(SRC_DIR)/main.c
+	$(CC) $(CFLAGS) $(INCLUDES) -c $< -o $@
+
+# Compile test.c
+$(BUILD_DIR)/tests/test.o: $(TESTS_DIR)/test.c
+	$(CC) $(CFLAGS) $(INCLUDES) -c $< -o $@
+
+# Compile library object files
+$(BUILD_DIR)/%.o: $(SRC_DIR)/%.c
+	$(CC) $(CFLAGS) $(INCLUDES) -c $< -o $@
+
+# Compile test object files  
+$(BUILD_DIR)/tests/%.o: $(TESTS_DIR)/%.c
+	$(CC) $(CFLAGS) $(INCLUDES) -c $< -o $@
+
+# Test targets
+test: $(TEST_TARGET)
+	@echo "🧪 Running test suite..."
+	./$(TEST_TARGET)
+
+# Run tests shortcut
+run-test: test
+
+# Syntax check
+check-syntax:
+	@echo "🔍 Checking syntax..."
+	@for file in $(LIB_SRCS) $(SRC_DIR)/main.c $(TESTS_DIR)/test.c; do \
+		if [ -f "$$file" ]; then \
+			echo "Checking $$file..."; \
+			$(CC) $(CFLAGS) $(INCLUDES) -fsyntax-only "$$file" || exit 1; \
+		fi; \
+	done
+	@echo "✅ All syntax checks passed"
+
+# Clean build artifacts
 clean:
-	rm -rf $(IO_DIR)/obj $(LIBIO) $(NANO_BIN) $(TEST_BIN)
-	@echo "Clean completed"
+	rm -rf $(BUILD_DIR) $(NANO_TARGET) $(IO_TARGET) $(TEST_TARGET)
+	@echo "🧹 Cleaned build artifacts"
 
-install: all
-	cp $(LIBIO) /usr/local/lib/
-	cp $(NANO_BIN) /usr/local/bin/
-	ldconfig
-	@echo "Installation completed"
-
+# Help
 help:
+	@echo "🔧 NANO PROJECT BUILD SYSTEM"
+	@echo "============================"
 	@echo "Available targets:"
-	@echo "  all    - Build both libio.so and nano executable"
-	@echo "  io     - Build only libio.so"
-	@echo "  nano   - Build only nano executable"
-	@echo "  test   - Build and run tests"
-	@echo "  clean  - Clean all build artifacts"
-	@echo "  install - Install to system"
-	@echo "  help   - Show this help"
+	@echo "  all          - Build nano, io, and test executables"
+	@echo "  nano         - Build nano executable"
+	@echo "  io           - Build io executable"
+	@echo "  test         - Build and run test suite"
+	@echo "  run-test     - Same as test"
+	@echo "  check-syntax - Check syntax of all source files"
+	@echo "  clean        - Clean all build artifacts"
+	@echo "  help         - Show this help"
