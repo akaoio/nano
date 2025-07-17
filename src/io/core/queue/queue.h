@@ -4,7 +4,7 @@
 #include <stdint.h>
 #include <stddef.h>
 
-#include "../../../common/constants.h"
+#include "../../../common/core.h"
 
 typedef struct {
     uint32_t handle_id;

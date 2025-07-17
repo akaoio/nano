@@ -1,6 +1,5 @@
 #include "nano.h"
-#include "../../../common/common.h"
-#include "../../../common/constants.h"
+#include "../../../common/core.h"
 #include "../../../io/core/io/io.h"
 #include "../../../io/mapping/rkllm_proxy/rkllm_proxy.h"
 #include <stdio.h>
