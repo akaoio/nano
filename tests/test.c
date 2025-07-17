@@ -15,7 +15,7 @@ typedef struct {
     const char* name;
     int (*run_test)(void);
     int result;
-} test_suite_t;
+} test_t;
 
 int main(void) {
     printf("🔧 NANO PROJECT TEST SUITE\n");
@@ -24,7 +24,7 @@ int main(void) {
     printf("Build target: io, nano, test\n\n");
     
     // Define test suites
-    test_suite_t suites[] = {
+    test_t suites[] = {
         {"Common Utilities", test_common_json_utils, 0},
         {"IO Layer", test_io_layer, 0},
         {"Nano Validation", test_nano_validation, 0},
