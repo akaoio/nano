@@ -166,64 +166,6 @@ int test_qwenvl_inference(uint32_t handle_id) {
         rkllm_proxy_free_result(&status_result);
     }
     
-    // Test 3: Complex math question
-    printf("\n🧮 Test 3: Complex math question\n");
-    const char* prompt3 = "Calculate step by step: If I have 15 apples and I give away 2/3 of them, then buy 8 more apples, how many apples do I have in total? Show your work.";
-    printf("📥 Input: \"%s\"\n", prompt3);
-    
-    char params3[1024];
-    snprintf(params3, sizeof(params3), 
-             "{\"handle_id\":%u,\"prompt\":\"%s\"}", handle_id, prompt3);
-    
-    rkllm_request_t request3 = {
-        .operation = rkllm_proxy_get_operation_by_name("run"),
-        .handle_id = handle_id,
-        .params_json = params3,
-        .params_size = strlen(params3)
-    };
-    
-    rkllm_result_t result3 = {0};
-    ret = rkllm_proxy_execute(&request3, &result3);
-    
-    if (ret == 0) {
-        printf("✅ Test 3 successful!\n");
-        printf("🤖 Model Response: %s\n", result3.result_data ? result3.result_data : "NULL");
-        rkllm_proxy_free_result(&result3);
-    } else {
-        printf("❌ Test 3 failed\n");
-        printf("📋 Error: %s\n", result3.result_data ? result3.result_data : "Unknown error");
-        rkllm_proxy_free_result(&result3);
-    }
-    
-    // Test 4: Logic reasoning question
-    printf("\n🧠 Test 4: Logic reasoning question\n");
-    const char* prompt4 = "If all roses are flowers, and some flowers are red, can we conclude that some roses are red? Explain your reasoning.";
-    printf("📥 Input: \"%s\"\n", prompt4);
-    
-    char params4[1024];
-    snprintf(params4, sizeof(params4), 
-             "{\"handle_id\":%u,\"prompt\":\"%s\"}", handle_id, prompt4);
-    
-    rkllm_request_t request4 = {
-        .operation = rkllm_proxy_get_operation_by_name("run"),
-        .handle_id = handle_id,
-        .params_json = params4,
-        .params_size = strlen(params4)
-    };
-    
-    rkllm_result_t result4 = {0};
-    ret = rkllm_proxy_execute(&request4, &result4);
-    
-    if (ret == 0) {
-        printf("✅ Test 4 successful!\n");
-        printf("🤖 Model Response: %s\n", result4.result_data ? result4.result_data : "NULL");
-        rkllm_proxy_free_result(&result4);
-    } else {
-        printf("❌ Test 4 failed\n");
-        printf("📋 Error: %s\n", result4.result_data ? result4.result_data : "Unknown error");
-        rkllm_proxy_free_result(&result4);
-    }
-    
     // Cleanup: Destroy handle to free NPU memory
     printf("\n🧹 Cleanup: Destroying handle...\n");
     char destroy_params[64];

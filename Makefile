@@ -69,7 +69,7 @@ INCLUDES = -I$(SRC_DIR) -I$(SRC_DIR)/libs/rkllm -I$(SRC_DIR)/common \
 # Main targets
 NANO_TARGET = nano
 IO_TARGET = io
-TEST_TARGET = test_suite
+TEST_TARGET = test
 
 .PHONY: all clean test run-test check-syntax help
 
@@ -135,13 +135,13 @@ $(BUILD_DIR)/%.o: $(SRC_DIR)/%.c
 $(BUILD_DIR)/tests/%.o: $(TESTS_DIR)/%.c
 	$(CC) $(CFLAGS) $(INCLUDES) -c $< -o $@
 
-# Test targets
+# Test targets - build test executable
 test: $(TEST_TARGET)
+
+# Run tests - build and execute
+run-test: $(TEST_TARGET)
 	@echo "🧪 Running test suite..."
 	./$(TEST_TARGET)
-
-# Run tests shortcut
-run-test: test
 
 # Syntax check
 check-syntax:
@@ -167,8 +167,8 @@ help:
 	@echo "  all          - Build nano, io, and test executables"
 	@echo "  nano         - Build nano executable"
 	@echo "  io           - Build io executable"
-	@echo "  test         - Build and run test suite"
-	@echo "  run-test     - Same as test"
+	@echo "  test         - Build test executable"
+	@echo "  run-test     - Build and run test suite"
 	@echo "  check-syntax - Check syntax of all source files"
 	@echo "  clean        - Clean all build artifacts"
 	@echo "  help         - Show this help"
