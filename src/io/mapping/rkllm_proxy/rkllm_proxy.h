@@ -86,6 +86,29 @@ const char* rkllm_proxy_get_operation_name(rkllm_operation_t op);
 rkllm_operation_t rkllm_proxy_get_operation_by_name(const char* name);
 
 /**
+ * @brief Get handle from handle ID
+ * @param handle_id Handle ID
+ * @return LLMHandle or NULL if not found
+ */
+LLMHandle rkllm_proxy_get_handle(uint32_t handle_id);
+
+/**
+ * @brief Create JSON result
+ * @param status Status code
+ * @param data Data string
+ * @return Allocated JSON result string
+ */
+char* rkllm_proxy_create_json_result(int status, const char* data);
+
+/**
+ * @brief Create error result
+ * @param status Error status code
+ * @param error_msg Error message
+ * @return Allocated error result string
+ */
+char* rkllm_proxy_create_error_result(int status, const char* error_msg);
+
+/**
  * @brief Free result data
  * @param result Result to free
  */

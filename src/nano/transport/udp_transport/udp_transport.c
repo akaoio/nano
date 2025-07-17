@@ -86,11 +86,10 @@ int udp_transport_recv(mcp_message_t* message, int timeout_ms) {
     
     ssize_t received = recvfrom(g_config.socket_fd, buffer, sizeof(buffer) - 1, 0,
                                (struct sockaddr*)&from_addr, &from_len);
-    if (received <= 0) {
+    
+    if (standard_buffer_processing(buffer, sizeof(buffer), received) != 0) {
         return -1;
     }
-    
-    buffer[received] = '\0';
     
     // Parse JSON-RPC message
     return mcp_parse_json_rpc(buffer, message);

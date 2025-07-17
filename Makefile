@@ -14,7 +14,10 @@ MODELS_DIR = models
 # Source files (without main.c)
 COMMON_SRCS = $(SRC_DIR)/common/json_utils/json_utils.c \
               $(SRC_DIR)/common/memory_utils/memory_utils.c \
-              $(SRC_DIR)/common/string_utils/string_utils.c
+              $(SRC_DIR)/common/string_utils/string_utils.c \
+              $(SRC_DIR)/common/error_utils/error_utils.c \
+              $(SRC_DIR)/common/handle_utils/handle_utils.c \
+              $(SRC_DIR)/common/transport_utils/transport_utils.c
 
 IO_CORE_SRCS = $(SRC_DIR)/io/core/queue/queue.c \
                $(SRC_DIR)/io/core/worker_pool/worker_pool.c \
@@ -80,6 +83,9 @@ $(BUILD_DIR):
 	@mkdir -p $(BUILD_DIR)/common/json_utils
 	@mkdir -p $(BUILD_DIR)/common/memory_utils
 	@mkdir -p $(BUILD_DIR)/common/string_utils
+	@mkdir -p $(BUILD_DIR)/common/error_utils
+	@mkdir -p $(BUILD_DIR)/common/handle_utils
+	@mkdir -p $(BUILD_DIR)/common/transport_utils
 	@mkdir -p $(BUILD_DIR)/io/core/queue
 	@mkdir -p $(BUILD_DIR)/io/core/worker_pool
 	@mkdir -p $(BUILD_DIR)/io/core/io

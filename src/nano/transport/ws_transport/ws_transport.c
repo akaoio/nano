@@ -88,17 +88,10 @@ int ws_transport_recv(mcp_message_t* message, int timeout_ms) {
     // Read data
     char buffer[8192];
     ssize_t received = recv(g_config.socket_fd, buffer, sizeof(buffer) - 1, 0);
-    if (received <= 0) {
+    
+    if (standard_buffer_processing(buffer, sizeof(buffer), received) != 0) {
         g_config.connected = false;
         return -1;
-    }
-    
-    buffer[received] = '\0';
-    
-    // Remove trailing newline
-    size_t len = strlen(buffer);
-    if (len > 0 && buffer[len-1] == '\n') {
-        buffer[len-1] = '\0';
     }
     
     // Parse JSON-RPC message

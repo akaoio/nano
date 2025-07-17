@@ -1,8 +1,7 @@
 #include "rkllm_operations.h"
 #include "rkllm_proxy.h"
 #include "../handle_pool/handle_pool.h"
-#include "../../../common/json_utils/json_utils.h"
-#include "../../../common/memory_utils/memory_utils.h"
+#include "../../../common/core.h"
 #include "../../../libs/rkllm/rkllm.h"
 #include <string.h>
 #include <stdlib.h>
@@ -68,34 +67,15 @@ int rkllm_op_init(uint32_t* handle_id, const char* params_json, rkllm_result_t* 
     // Expected format: {"model_path": "path/to/model.rkllm", "param": {...}}
     char model_path[512] = {0};
     
-    // Simple JSON parsing for model_path
-    const char* path_start = strstr(params_json, "\"model_path\":");
-    if (path_start) {
-        path_start = strchr(path_start + 12, '"'); // Skip "model_path": part
-        if (path_start) {
-            path_start++; // Skip opening quote
-            const char* path_end = strchr(path_start, '"');
-            if (path_end) {
-                size_t path_len = path_end - path_start;
-                if (path_len < sizeof(model_path)) {
-                    strncpy(model_path, path_start, path_len);
-                    model_path[path_len] = '\0';
-                }
-            }
-        }
-    }
-    
-    if (strlen(model_path) == 0) {
-        result->result_data = rkllm_proxy_create_error_result(-1, "model_path required");
-        result->result_size = strlen(result->result_data);
+    if (json_extract_string_safe(params_json, "model_path", model_path, sizeof(model_path)) != 0) {
+        SET_ERROR_RESULT(result, -1, "model_path required");
         return -1;
     }
     
     // Create handle in pool
     uint32_t new_handle_id = handle_pool_create(&g_handle_pool, model_path);
     if (new_handle_id == 0) {
-        result->result_data = rkllm_proxy_create_error_result(-1, "Failed to create handle");
-        result->result_size = strlen(result->result_data);
+        SET_ERROR_RESULT(result, -1, "Failed to create handle");
         return -1;
     }
     
@@ -111,8 +91,7 @@ int rkllm_op_init(uint32_t* handle_id, const char* params_json, rkllm_result_t* 
     
     if (rkllm_ret != 0 || llm_handle == NULL) {
         (void)handle_pool_destroy(&g_handle_pool, new_handle_id);
-        result->result_data = rkllm_proxy_create_error_result(-1, "Failed to initialize RKLLM handle");
-        result->result_size = strlen(result->result_data);
+        SET_ERROR_RESULT(result, -1, "Failed to initialize RKLLM handle");
         return -1;
     }
     
@@ -162,33 +141,15 @@ int rkllm_op_run(uint32_t handle_id, const char* params_json, rkllm_result_t* re
         return -1;
     }
     
-    LLMHandle handle = rkllm_proxy_get_handle(handle_id);
-    if (!handle) {
-        result->result_data = rkllm_proxy_create_error_result(-1, "Invalid handle");
-        result->result_size = strlen(result->result_data);
-        return -1;
-    }
+    LLMHandle handle = get_validated_handle_or_error(handle_id, result);
+    if (!handle) return -1;
     
     // Parse JSON parameters for RKLLMInput and RKLLMInferParam
     // Extract prompt from JSON
     char prompt[1024] = "Hello, how are you?"; // Default prompt
     
-    // Simple JSON parsing for prompt
-    const char* prompt_start = strstr(params_json, "\"prompt\":");
-    if (prompt_start) {
-        prompt_start = strchr(prompt_start + 8, '"'); // Skip "prompt":
-        if (prompt_start) {
-            prompt_start++; // Skip opening quote
-            const char* prompt_end = strchr(prompt_start, '"');
-            if (prompt_end) {
-                size_t prompt_len = prompt_end - prompt_start;
-                if (prompt_len < sizeof(prompt)) {
-                    strncpy(prompt, prompt_start, prompt_len);
-                    prompt[prompt_len] = '\0';
-                }
-            }
-        }
-    }
+    // Parse prompt if provided
+    json_extract_string_safe(params_json, "prompt", prompt, sizeof(prompt));
     
     // Create input structure
     RKLLMInput input = {0};
@@ -298,12 +259,8 @@ int rkllm_op_abort(uint32_t handle_id, const char* params_json, rkllm_result_t* 
         return -1;
     }
     
-    LLMHandle handle = rkllm_proxy_get_handle(handle_id);
-    if (!handle) {
-        result->result_data = rkllm_proxy_create_error_result(-1, "Invalid handle");
-        result->result_size = strlen(result->result_data);
-        return -1;
-    }
+    LLMHandle handle = get_validated_handle_or_error(handle_id, result);
+    if (!handle) return -1;
     
     int status = rkllm_abort(handle);
     
@@ -324,12 +281,8 @@ int rkllm_op_is_running(uint32_t handle_id, const char* params_json, rkllm_resul
         return -1;
     }
     
-    LLMHandle handle = rkllm_proxy_get_handle(handle_id);
-    if (!handle) {
-        result->result_data = rkllm_proxy_create_error_result(-1, "Invalid handle");
-        result->result_size = strlen(result->result_data);
-        return -1;
-    }
+    LLMHandle handle = get_validated_handle_or_error(handle_id, result);
+    if (!handle) return -1;
     
     int is_running = rkllm_is_running(handle);
     
@@ -346,30 +299,14 @@ int rkllm_op_load_lora(uint32_t handle_id, const char* params_json, rkllm_result
         return -1;
     }
     
-    LLMHandle handle = rkllm_proxy_get_handle(handle_id);
-    if (!handle) {
-        result->result_data = rkllm_proxy_create_error_result(-1, "Invalid handle");
-        result->result_size = strlen(result->result_data);
-        return -1;
-    }
+    LLMHandle handle = get_validated_handle_or_error(handle_id, result);
+    if (!handle) return -1;
     
     // Parse lora adapter parameters from JSON
-    const char* path_start = strstr(params_json, "\"path\":");
     char lora_path[256] = "models/lora/lora.rkllm"; // Default path
-    if (path_start) {
-        path_start = strchr(path_start + 6, '"');
-        if (path_start) {
-            path_start++;
-            const char* path_end = strchr(path_start, '"');
-            if (path_end) {
-                size_t path_len = path_end - path_start;
-                if (path_len < sizeof(lora_path)) {
-                    strncpy(lora_path, path_start, path_len);
-                    lora_path[path_len] = '\0';
-                }
-            }
-        }
-    }
+    
+    // Try to get path from JSON, keep default if not found
+    json_extract_string_safe(params_json, "path", lora_path, sizeof(lora_path));
     
     RKLLMLoraAdapter adapter = {0};
     adapter.lora_adapter_path = lora_path;
@@ -394,30 +331,14 @@ int rkllm_op_load_prompt_cache(uint32_t handle_id, const char* params_json, rkll
         return -1;
     }
     
-    LLMHandle handle = rkllm_proxy_get_handle(handle_id);
-    if (!handle) {
-        result->result_data = rkllm_proxy_create_error_result(-1, "Invalid handle");
-        result->result_size = strlen(result->result_data);
-        return -1;
-    }
+    LLMHandle handle = get_validated_handle_or_error(handle_id, result);
+    if (!handle) return -1;
     
     // Parse prompt cache path from JSON
-    const char* path_start = strstr(params_json, "\"path\":");
     char cache_path[256] = "cache/prompt.cache"; // Default path
-    if (path_start) {
-        path_start = strchr(path_start + 6, '"');
-        if (path_start) {
-            path_start++;
-            const char* path_end = strchr(path_start, '"');
-            if (path_end) {
-                size_t path_len = path_end - path_start;
-                if (path_len < sizeof(cache_path)) {
-                    strncpy(cache_path, path_start, path_len);
-                    cache_path[path_len] = '\0';
-                }
-            }
-        }
-    }
+    
+    // Try to get path from JSON, keep default if not found
+    json_extract_string_safe(params_json, "path", cache_path, sizeof(cache_path));
     
     int status = rkllm_load_prompt_cache(handle, cache_path);
     
@@ -438,12 +359,8 @@ int rkllm_op_release_prompt_cache(uint32_t handle_id, const char* params_json, r
         return -1;
     }
     
-    LLMHandle handle = rkllm_proxy_get_handle(handle_id);
-    if (!handle) {
-        result->result_data = rkllm_proxy_create_error_result(-1, "Invalid handle");
-        result->result_size = strlen(result->result_data);
-        return -1;
-    }
+    LLMHandle handle = get_validated_handle_or_error(handle_id, result);
+    if (!handle) return -1;
     
     int status = rkllm_release_prompt_cache(handle);
     

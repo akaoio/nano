@@ -100,21 +100,31 @@ int str_builder_init(str_builder_t* builder, size_t initial_capacity) {
     return 0;
 }
 
+// Helper function for capacity expansion
+static int str_builder_ensure_capacity(str_builder_t* builder, size_t needed_size) {
+    if (builder->size + needed_size + 1 <= builder->capacity) {
+        return 0; // Already enough capacity
+    }
+    
+    size_t new_capacity = builder->capacity * 2;
+    if (new_capacity < builder->size + needed_size + 1) {
+        new_capacity = builder->size + needed_size + 1;
+    }
+    
+    char* new_buffer = mem_realloc(builder->buffer, new_capacity);
+    if (!new_buffer) return -1;
+    
+    builder->buffer = new_buffer;
+    builder->capacity = new_capacity;
+    return 0;
+}
+
 int str_builder_append(str_builder_t* builder, const char* str) {
     if (!builder || !str) return -1;
     
     size_t str_len = strlen(str);
-    if (builder->size + str_len + 1 > builder->capacity) {
-        size_t new_capacity = builder->capacity * 2;
-        if (new_capacity < builder->size + str_len + 1) {
-            new_capacity = builder->size + str_len + 1;
-        }
-        
-        char* new_buffer = mem_realloc(builder->buffer, new_capacity);
-        if (!new_buffer) return -1;
-        
-        builder->buffer = new_buffer;
-        builder->capacity = new_capacity;
+    if (str_builder_ensure_capacity(builder, str_len) != 0) {
+        return -1;
     }
     
     memcpy(builder->buffer + builder->size, str, str_len);
@@ -137,17 +147,8 @@ int str_builder_append_format(str_builder_t* builder, const char* format, ...) {
     if (needed < 0) return -1;
     
     // Ensure capacity
-    if (builder->size + needed + 1 > builder->capacity) {
-        size_t new_capacity = builder->capacity * 2;
-        if (new_capacity < builder->size + needed + 1) {
-            new_capacity = builder->size + needed + 1;
-        }
-        
-        char* new_buffer = mem_realloc(builder->buffer, new_capacity);
-        if (!new_buffer) return -1;
-        
-        builder->buffer = new_buffer;
-        builder->capacity = new_capacity;
+    if (str_builder_ensure_capacity(builder, needed) != 0) {
+        return -1;
     }
     
     // Format string

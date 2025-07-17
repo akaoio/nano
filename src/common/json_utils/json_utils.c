@@ -60,3 +60,40 @@ bool json_get_bool(const char* json, const char* key, bool default_val) {
     
     return (strcmp(value, "true") == 0 || strcmp(value, "1") == 0);
 }
+
+int json_extract_string_safe(const char* json, const char* key, char* buffer, size_t buffer_size) {
+    if (!json || !key || !buffer || buffer_size == 0) return -1;
+    
+    char key_str[256];
+    snprintf(key_str, sizeof(key_str), "\"%s\":", key);
+    const char* start = strstr(json, key_str);
+    if (!start) return -1;
+    
+    start += strlen(key_str);
+    while (*start == ' ' || *start == '\t' || *start == '\n' || *start == '\r') start++;
+    
+    if (*start != '"') return -1;
+    start++;
+    
+    const char* end = strchr(start, '"');
+    if (!end) return -1;
+    
+    size_t length = end - start;
+    if (length >= buffer_size) return -1;
+    
+    strncpy(buffer, start, length);
+    buffer[length] = '\0';
+    return 0;
+}
+
+int json_extract_strings(const char* json, const char* keys[], char* buffers[], size_t buffer_sizes[], int count) {
+    if (!json || !keys || !buffers || !buffer_sizes || count <= 0) return 0;
+    
+    int extracted = 0;
+    for (int i = 0; i < count; i++) {
+        if (json_extract_string_safe(json, keys[i], buffers[i], buffer_sizes[i]) == 0) {
+            extracted++;
+        }
+    }
+    return extracted;
+}
