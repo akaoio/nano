@@ -1,12 +1,34 @@
 #pragma once
 
+// Core C23 utilities, constants, and common includes
+// Unified header replacing common.h, constants.h, and c23_utils.h
+
 #include <stddef.h>
 #include <stdint.h>
 #include <stdbool.h>
 #include <string.h>
 #include <stdlib.h>
 
-// Pure C23 implementation - no compatibility layer needed
+// Common utility modules
+#include "json_utils/json_utils.h"
+#include "memory_utils/memory_utils.h"
+#include "string_utils/string_utils.h"
+
+// System constants using C23 constexpr
+constexpr int MAX_WORKERS = 5;
+constexpr int QUEUE_SIZE = 1024;
+constexpr int REQUEST_TIMEOUT_MS = 30000;
+constexpr int MAX_HANDLES = 8;
+constexpr int MAX_REQUEST_SIZE = 4096;
+constexpr int MAX_RESPONSE_SIZE = 8192;
+
+// Error codes
+constexpr int ERR_OK = 0;
+constexpr int ERR_INVALID_PARAM = -1;
+constexpr int ERR_QUEUE_FULL = -2;
+constexpr int ERR_QUEUE_EMPTY = -3;
+constexpr int ERR_TIMEOUT = -4;
+constexpr int ERR_MEMORY_LIMIT = -5;
 
 // Type-safe utility macros using C23 _Generic
 #define SAFE_MALLOC(type, count) _Generic((type*)0, \
@@ -81,7 +103,7 @@
     } \
 } while(0)
 
-// Pure C23 utility functions with attributes
+// C23 utility functions with attributes
 [[nodiscard]] static inline bool is_valid_handle_id(uint32_t id) {
     return id > 0 && id < UINT32_MAX;
 }

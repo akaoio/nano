@@ -4,7 +4,7 @@
 #include "nano/transport/udp_transport/udp_transport.h"
 #include "nano/transport/http_transport/http_transport.h"
 #include "nano/transport/ws_transport/ws_transport.h"
-#include "common/common.h"
+#include "common/core.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

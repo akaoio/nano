@@ -5,7 +5,7 @@
 #include <stddef.h>
 #include "../../../libs/rkllm/rkllm.h"
 
-#include "../../../common/constants.h"
+#include "../../../common/core.h"
 
 // C23 compatibility
 #if __STDC_VERSION__ >= 202311L
