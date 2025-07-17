@@ -127,9 +127,9 @@ int test_integration_lora(void) {
         return 1;
     }
     
-    // Add delay to allow previous test cleanup
+    // Add extended delay to allow NPU memory cleanup
     printf("⏳ Waiting for memory cleanup...\n");
-    sleep(5); // Increase from 2 to 5 seconds for NPU memory cleanup
+    sleep(10); // Extended delay for NPU memory to be fully released
     
     int loading_result = test_lora_model_loading();
     

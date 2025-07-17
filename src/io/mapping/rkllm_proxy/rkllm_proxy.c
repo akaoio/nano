@@ -3,6 +3,7 @@
 #include "../handle_pool/handle_pool.h"
 #include "../../../common/memory_utils/memory_utils.h"
 #include "../../../common/string_utils/string_utils.h"
+#include "../../../libs/rkllm/rkllm.h"
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -29,9 +30,13 @@ void rkllm_proxy_shutdown(void) {
         return;
     }
     
-    // Cleanup all handles
+    // Properly destroy all RKLLM handles to free NPU memory
     for (int i = 0; i < MAX_HANDLES; i++) {
         if (g_handle_pool.slots[i].active) {
+            LLMHandle handle = g_handle_pool.slots[i].handle;
+            if (handle) {
+                rkllm_destroy(handle);
+            }
             handle_pool_destroy(&g_handle_pool, g_handle_pool.slots[i].id);
         }
     }
