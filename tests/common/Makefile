@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS = -Wall -Wextra -std=c99 -g
+CFLAGS = -Wall -Wextra -std=c2x -g
 INCLUDES = -I../../src/common
 
 # Common utilities test
