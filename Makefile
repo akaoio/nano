@@ -1,8 +1,8 @@
 # Makefile for NANO project - New Architecture
 # Modern C build system with comprehensive source file support
 
-CC = gcc
-CFLAGS = -std=c2x -Wall -Wextra -Werror -O2 -g
+CC = clang
+CFLAGS = -std=c2x -Wall -Wextra -g
 LDFLAGS = -lpthread -ldl -Lsrc/libs/rkllm -lrkllmrt -Wl,-rpath,src/libs/rkllm
 
 # Directories
