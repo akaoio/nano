@@ -3,6 +3,7 @@
 #include "../handle_pool/handle_pool.h"
 #include "../../../common/json_utils/json_utils.h"
 #include "../../../common/memory_utils/memory_utils.h"
+#include "../../../libs/rkllm/rkllm.h"
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -136,6 +137,14 @@ int rkllm_op_destroy(uint32_t handle_id, const char* params_json, rkllm_result_t
         return -1;
     }
     
+    // Get handle before destroying from pool
+    LLMHandle handle = rkllm_proxy_get_handle(handle_id);
+    if (handle) {
+        // Properly destroy RKLLM handle to free NPU memory
+        rkllm_destroy(handle);
+    }
+    
+    // Remove from handle pool
     int status = handle_pool_destroy(&g_handle_pool, handle_id);
     
     if (status == 0) {

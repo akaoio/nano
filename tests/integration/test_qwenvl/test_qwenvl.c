@@ -205,7 +205,7 @@ int test_integration_qwenvl(void) {
     // Explicit cleanup to free NPU memory
     printf("🧹 Cleaning up QwenVL resources...\n");
     rkllm_proxy_shutdown();
-    sleep(2); // Allow NPU memory to be freed
+    sleep(5); // Allow NPU memory to be fully released
     
     printf("\n🎉 QwenVL integration test completed!\n");
     return loading_result;
