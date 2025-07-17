@@ -16,6 +16,11 @@ Clients → [UDP|TCP|HTTP|WS|STDIO] → NANO → IO → RKLLM
 - **Thread-safe**: Atomic operations, 5 worker threads
 - **Memory managed**: Pool-based allocation, NPU memory detection
 
+### Function Prefix Handling
+- **Nano requests**: Send function names WITHOUT "rkllm_" prefix
+- **IO mapping**: Automatically prepends "rkllm_" to call correct RKLLM functions
+- **Example**: Nano sends "init" → IO calls "rkllm_init"
+
 ### Public Interface
 ```c
 // io.h
@@ -103,7 +108,7 @@ typedef struct {
 
 ## 6. Test Suite Structure
 
-### Test Coverage (6/6 passing)
+### Test Coverage
 ```
 ✅ Common Utilities    - JSON parsing, memory utils
 ✅ IO Layer           - Queue operations, worker pool
@@ -180,10 +185,3 @@ models/                  # Model files
 - **RAM**: 16GB+ recommended for QwenVL
 - **NPU**: 3 cores minimum
 - **Storage**: Models directory with .rkllm files
-
----
-
-**System Status**: 🎉 **PRODUCTION READY**  
-**Code Quality**: 9.5/10  
-**Test Coverage**: 6/6 suites passing  
-**Architecture Compliance**: 99%
