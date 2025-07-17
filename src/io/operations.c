@@ -30,62 +30,26 @@ int io_parse_json_request(const char* json_request, uint32_t* request_id,
     method[0] = '\0';
     params[0] = '\0';
     
-    // Parse JSON-RPC request
+    // Parse JSON-RPC request using centralized json_utils
     // Expected format: {"jsonrpc":"2.0","id":1,"method":"init","params":{...}}
     
     // Extract ID
-    const char* id_start = strstr(json_request, "\"id\":");
-    if (id_start) {
-        *request_id = (uint32_t)strtoul(id_start + 5, NULL, 10);
-    }
+    *request_id = json_get_uint32(json_request, "id", 0);
     
     // Extract method
-    const char* method_start = strstr(json_request, "\"method\":");
-    if (method_start) {
-        method_start = strchr(method_start + 8, '"'); // Skip "method": part
-        if (method_start) {
-            method_start++; // Skip opening quote
-            const char* method_end = strchr(method_start, '"');
-            if (method_end) {
-                size_t method_len = method_end - method_start;
-                if (method_len < 256) { // Assuming 256 is max method length
-                    strncpy(method, method_start, method_len);
-                    method[method_len] = '\0';
-                }
-            }
-        }
+    if (json_extract_string_safe(json_request, "method", method, 256) != 0) {
+        return -1;
     }
     
-    // Extract params
-    const char* params_start = strstr(json_request, "\"params\":");
-    if (params_start) {
-        params_start = strchr(params_start, '{');
-        if (params_start) {
-            // Find matching closing brace
-            int brace_count = 1;
-            const char* params_end = params_start + 1;
-            while (*params_end && brace_count > 0) {
-                if (*params_end == '{') brace_count++;
-                else if (*params_end == '}') brace_count--;
-                params_end++;
-            }
-            
-            if (brace_count == 0) {
-                size_t params_len = params_end - params_start;
-                if (params_len < 2048) { // Assuming 2048 is max params length
-                    strncpy(params, params_start, params_len);
-                    params[params_len] = '\0';
-                }
-            }
-        }
+    // Extract params object
+    if (json_extract_object(json_request, "params", params, 2048) != 0) {
+        // No params is valid for some methods
+        params[0] = '\0';
     }
     
     // Extract handle_id from params if present
     if (strlen(params) > 0) {
-        const char* handle_start = strstr(params, "\"handle_id\":");
-        if (handle_start) {
-            *handle_id = (uint32_t)strtoul(handle_start + 12, NULL, 10);
-        }
+        *handle_id = json_get_uint32(params, "handle_id", 0);
     }
     
     return 0;

@@ -2,6 +2,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <stdint.h>
 
 const char* json_get_string(const char* json, const char* key, char* buffer, size_t buffer_size) {
     if (!json || !key || !buffer || buffer_size == 0) return NULL;
@@ -96,4 +97,42 @@ int json_extract_strings(const char* json, const char* keys[], char* buffers[], 
         }
     }
     return extracted;
+}
+
+int json_extract_object(const char* json, const char* key, char* buffer, size_t buffer_size) {
+    if (!json || !key || !buffer || buffer_size == 0) return -1;
+    
+    char key_str[256];
+    snprintf(key_str, sizeof(key_str), "\"%s\":", key);
+    const char* start = strstr(json, key_str);
+    if (!start) return -1;
+    
+    start += strlen(key_str);
+    while (*start == ' ' || *start == '\t' || *start == '\n' || *start == '\r') start++;
+    
+    if (*start != '{') return -1;
+    
+    // Find matching closing brace
+    int brace_count = 1;
+    const char* end = start + 1;
+    while (*end && brace_count > 0) {
+        if (*end == '{') brace_count++;
+        else if (*end == '}') brace_count--;
+        end++;
+    }
+    
+    if (brace_count != 0) return -1;
+    
+    size_t length = end - start;
+    if (length >= buffer_size) return -1;
+    
+    strncpy(buffer, start, length);
+    buffer[length] = '\0';
+    return 0;
+}
+
+uint32_t json_get_uint32(const char* json, const char* key, uint32_t default_val) {
+    char buffer[64];
+    const char* value = json_get_string(json, key, buffer, sizeof(buffer));
+    return value ? (uint32_t)strtoul(value, NULL, 10) : default_val;
 }

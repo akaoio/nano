@@ -102,10 +102,12 @@ int nano_process_message(const mcp_message_t* request, mcp_message_t* response) 
     // Get operation from method name
     rkllm_operation_t operation = rkllm_proxy_get_operation_by_name(request->method);
     if (operation == OP_MAX) {
-        char error[256];
-        snprintf(error, sizeof(error), "{\"code\":-32601,\"message\":\"Method not found: %s\"}", 
+        char error_msg[256];
+        snprintf(error_msg, sizeof(error_msg), "Method not found: %s", 
                 request->method ? request->method : "null");
-        mcp_message_create(response, MCP_RESPONSE, request->id, nullptr, error);
+        char* error_result = create_error_result(-32601, error_msg);
+        mcp_message_create(response, MCP_RESPONSE, request->id, nullptr, error_result);
+        mem_free(error_result);
         return -1;
     }
     
@@ -129,10 +131,10 @@ int nano_process_message(const mcp_message_t* request, mcp_message_t* response) 
         mcp_message_create(response, MCP_RESPONSE, request->id, nullptr, 
                           rkllm_result.result_data ? rkllm_result.result_data : "null");
     } else {
-        char error[8256];
-        snprintf(error, sizeof(error), "{\"code\":%d,\"message\":\"%s\"}", ret, 
-                rkllm_result.result_data ? rkllm_result.result_data : "Operation failed");
-        mcp_message_create(response, MCP_RESPONSE, request->id, nullptr, error);
+        const char* error_msg = rkllm_result.result_data ? rkllm_result.result_data : "Operation failed";
+        char* error_result = create_error_result(ret, error_msg);
+        mcp_message_create(response, MCP_RESPONSE, request->id, nullptr, error_result);
+        mem_free(error_result);
     }
     
     // Cleanup

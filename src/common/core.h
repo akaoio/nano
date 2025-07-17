@@ -33,42 +33,12 @@ constexpr int ERR_QUEUE_EMPTY = -3;
 constexpr int ERR_TIMEOUT = -4;
 constexpr int ERR_MEMORY_LIMIT = -5;
 
-// Type-safe utility macros using C23 _Generic
-#define SAFE_MALLOC(type, count) _Generic((type*)0, \
-    char*: (type*)malloc(sizeof(type) * (count)), \
-    int*: (type*)malloc(sizeof(type) * (count)), \
-    uint32_t*: (type*)malloc(sizeof(type) * (count)), \
-    uint64_t*: (type*)malloc(sizeof(type) * (count)), \
-    default: (type*)malloc(sizeof(type) * (count)))
+// Note: Memory allocation functions are provided by memory_utils.h
+// Use mem_alloc(), mem_realloc(), mem_free() for memory management
 
-#define SAFE_REALLOC(ptr, type, count) _Generic((ptr), \
-    char*: (type*)realloc(ptr, sizeof(type) * (count)), \
-    int*: (type*)realloc(ptr, sizeof(type) * (count)), \
-    uint32_t*: (type*)realloc(ptr, sizeof(type) * (count)), \
-    uint64_t*: (type*)realloc(ptr, sizeof(type) * (count)), \
-    default: (type*)realloc(ptr, sizeof(type) * (count)))
 
-#define SAFE_MEMCPY(dest, src, count) _Generic((dest), \
-    char*: memcpy(dest, src, (count) * sizeof(*(dest))), \
-    int*: memcpy(dest, src, (count) * sizeof(*(dest))), \
-    uint32_t*: memcpy(dest, src, (count) * sizeof(*(dest))), \
-    uint64_t*: memcpy(dest, src, (count) * sizeof(*(dest))), \
-    default: memcpy(dest, src, (count) * sizeof(*(dest))))
-
-#define SAFE_ZERO(ptr, count) _Generic((ptr), \
-    char*: memset(ptr, 0, (count) * sizeof(*(ptr))), \
-    int*: memset(ptr, 0, (count) * sizeof(*(ptr))), \
-    uint32_t*: memset(ptr, 0, (count) * sizeof(*(ptr))), \
-    uint64_t*: memset(ptr, 0, (count) * sizeof(*(ptr))), \
-    default: memset(ptr, 0, (count) * sizeof(*(ptr))))
-
-#define SAFE_COMPARE(a, b) _Generic((a), \
-    char*: strcmp(a, b), \
-    const char*: strcmp(a, b), \
-    int: ((a) == (b)) ? 0 : ((a) < (b)) ? -1 : 1, \
-    uint32_t: ((a) == (b)) ? 0 : ((a) < (b)) ? -1 : 1, \
-    uint64_t: ((a) == (b)) ? 0 : ((a) < (b)) ? -1 : 1, \
-    default: memcmp(&(a), &(b), sizeof(a)))
+// Note: String comparison functions are provided by string_utils.h
+// Use str_compare() for string operations
 
 #define SAFE_INDEX(arr, idx, len) _Generic((arr), \
     char*: ((idx) >= 0 && (idx) < (len)) ? &(arr)[idx] : nullptr, \
@@ -77,15 +47,8 @@ constexpr int ERR_MEMORY_LIMIT = -5;
     uint64_t*: ((idx) >= 0 && (idx) < (len)) ? &(arr)[idx] : nullptr, \
     default: ((idx) >= 0 && (idx) < (len)) ? &(arr)[idx] : nullptr)
 
-#define SAFE_STRDUP(str) _Generic((str), \
-    char*: strdup(str), \
-    const char*: strdup(str), \
-    default: strdup(str))
-
-#define SAFE_STRLEN(str) _Generic((str), \
-    char*: strlen(str), \
-    const char*: strlen(str), \
-    default: strlen(str))
+// Note: String utilities are provided by string_utils.h
+// Use str_copy(), str_length(), str_compare() for string operations
 
 // Additional utility macros
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
