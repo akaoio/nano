@@ -11,11 +11,8 @@ TARGET = test_lora
 SOURCES = test_lora.c \
           ../../../src/io/mapping/handle_pool/handle_pool.c \
           ../../../src/io/mapping/handle_pool/handle_pool_utils.c \
-          ../../../src/io/mapping/handle_pool/handle_pool_global.c \
           ../../../src/io/mapping/rkllm_proxy/rkllm_proxy.c \
-          ../../../src/io/mapping/rkllm_proxy/rkllm_methods.c \
-          ../../../src/io/mapping/rkllm_proxy/rkllm_advanced.c \
-          ../../../src/io/mapping/rkllm_proxy/rkllm_callback.c \
+          ../../../src/io/mapping/rkllm_proxy/rkllm_operations.c \
           ../../../src/common/json_utils/json_utils.c
 
 all: $(TARGET)

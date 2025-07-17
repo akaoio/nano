@@ -5,7 +5,6 @@ SRC_DIR = ../../../src/io/core
 TARGET = test_io
 SOURCES = test_io.c \
           $(SRC_DIR)/io/io.c \
-          $(SRC_DIR)/io/io_json.c \
           $(SRC_DIR)/io/io_worker.c \
           $(SRC_DIR)/queue/queue.c \
           $(SRC_DIR)/worker_pool/worker_pool.c

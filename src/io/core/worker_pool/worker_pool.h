@@ -4,8 +4,6 @@
 #include <pthread.h>
 #include "../queue/queue.h"
 
-#define MAX_WORKERS 5
-
 typedef struct {
     pthread_t threads[MAX_WORKERS];
     volatile int running;

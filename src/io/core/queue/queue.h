@@ -4,9 +4,7 @@
 #include <stdint.h>
 #include <stddef.h>
 
-#define QUEUE_SIZE 1024
-#define MAX_WORKERS 5
-#define REQUEST_TIMEOUT_MS 30000
+#include "../../../common/constants.h"
 
 typedef struct {
     uint32_t handle_id;

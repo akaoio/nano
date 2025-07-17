@@ -3,6 +3,9 @@
 #include <stdio.h>
 #include <time.h>
 
+// Global handle pool instance
+handle_pool_t g_handle_pool;
+
 int handle_pool_init(handle_pool_t* pool) {
     if (!pool) return -1;
     

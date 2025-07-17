@@ -5,7 +5,7 @@
 #include <stddef.h>
 #include "../../../libs/rkllm/rkllm.h"
 
-#define MAX_HANDLES 8
+#include "../../../common/constants.h"
 #define MAX_MODEL_PATH 256
 
 typedef struct {
@@ -22,6 +22,9 @@ typedef struct {
     uint32_t next_id;
     size_t total_memory;
 } handle_pool_t;
+
+// Global handle pool instance
+extern handle_pool_t g_handle_pool;
 
 /**
  * @brief Initialize handle pool

@@ -6,9 +6,7 @@ COMMON_DIR = ../../../src/common
 TARGET = test_rkllm_proxy
 SOURCES = test_rkllm_proxy.c \
           $(SRC_DIR)/rkllm_proxy/rkllm_proxy.c \
-          $(SRC_DIR)/rkllm_proxy/rkllm_methods.c \
-          $(SRC_DIR)/rkllm_proxy/rkllm_advanced.c \
-          $(SRC_DIR)/rkllm_proxy/rkllm_callback.c \
+          $(SRC_DIR)/rkllm_proxy/rkllm_operations.c \
           $(SRC_DIR)/handle_pool/handle_pool.c \
           $(SRC_DIR)/handle_pool/handle_pool_utils.c \
           $(COMMON_DIR)/json_utils/json_utils.c
