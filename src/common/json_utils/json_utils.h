@@ -48,3 +48,24 @@ float json_get_float(const char* json, const char* key, float default_val);
  * @return Boolean value or default_val
  */
 bool json_get_bool(const char* json, const char* key, bool default_val);
+
+/**
+ * @brief Extract string value from JSON by key (safe, null-terminated)
+ * @param json JSON string to parse
+ * @param key Key to search for
+ * @param buffer Buffer to store result
+ * @param buffer_size Size of buffer
+ * @return 0 on success, -1 on failure
+ */
+int json_extract_string_safe(const char* json, const char* key, char* buffer, size_t buffer_size);
+
+/**
+ * @brief Extract multiple string values from JSON
+ * @param json JSON string to parse
+ * @param keys Array of keys to search for
+ * @param buffers Array of buffers to store results
+ * @param buffer_sizes Array of buffer sizes
+ * @param count Number of keys/buffers
+ * @return Number of successfully extracted values
+ */
+int json_extract_strings(const char* json, const char* keys[], char* buffers[], size_t buffer_sizes[], int count);

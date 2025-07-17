@@ -13,6 +13,9 @@
 #include "json_utils/json_utils.h"
 #include "memory_utils/memory_utils.h"
 #include "string_utils/string_utils.h"
+#include "error_utils/error_utils.h"
+#include "handle_utils/handle_utils.h"
+#include "transport_utils/transport_utils.h"
 
 // System constants using C23 constexpr
 constexpr int MAX_WORKERS = 5;
@@ -104,9 +107,7 @@ constexpr int ERR_MEMORY_LIMIT = -5;
 } while(0)
 
 // C23 utility functions with attributes
-[[nodiscard]] static inline bool is_valid_handle_id(uint32_t id) {
-    return id > 0 && id < UINT32_MAX;
-}
+// Note: is_valid_handle_id is defined in handle_utils.h to avoid duplication
 
 [[nodiscard]] static inline bool is_valid_buffer_size(size_t size) {
     return size > 0 && size <= MAX_REQUEST_SIZE;

@@ -54,11 +54,8 @@ int stdio_transport_recv(mcp_message_t* message, int timeout_ms) {
         return -1;
     }
     
-    // Remove trailing newline
-    size_t len = strlen(buffer);
-    if (len > 0 && buffer[len-1] == '\n') {
-        buffer[len-1] = '\0';
-    }
+    // Process buffer (remove trailing newline)
+    process_received_buffer(buffer, strlen(buffer));
     
     // Parse JSON-RPC message
     return mcp_parse_json_rpc(buffer, message);
