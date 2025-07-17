@@ -23,9 +23,26 @@ int system_detect(system_info_t* info) {
     info->cpu_cores = sysconf(_SC_NPROCESSORS_ONLN);
     if (info->cpu_cores == 0) info->cpu_cores = 8; // Default for RK3588
     
-    // RK3588 NPU detection - be more conservative with NPU memory
+    // RK3588 NPU detection - try to get actual NPU memory from system
     info->npu_cores = 3; // RK3588 has 3 NPU cores
-    info->npu_memory_mb = 8192; // Increase to 8GB for large models
+    
+    // Try to detect actual NPU memory, fall back to 8GB if detection fails
+    // Check if we can read from NPU device info
+    FILE* npu_info = fopen("/sys/class/devfreq/fdab0000.npu/available_frequencies", "r");
+    if (npu_info) {
+        fclose(npu_info);
+        // NPU is available, but we need to determine memory size
+        // For RK3588, standard configurations are 8GB or 16GB NPU memory
+        // Try to infer from total system RAM
+        if (info->total_ram_mb >= 30000) {
+            // Systems with 32GB+ RAM often have larger NPU memory
+            info->npu_memory_mb = 16384; // Try 16GB for high-end systems
+        } else {
+            info->npu_memory_mb = 8192; // Standard 8GB
+        }
+    } else {
+        info->npu_memory_mb = 8192; // Fallback to 8GB
+    }
     
     printf("🔍 System: %u CPU cores, %u NPU cores, %luMB NPU memory\n", 
            info->cpu_cores, info->npu_cores, info->npu_memory_mb);
