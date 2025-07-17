@@ -1,6 +1,7 @@
 #define _GNU_SOURCE
 #include "io.h"
 #include "../../operations.h"
+#include "../../../common/constants.h"
 #include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -26,7 +27,7 @@ int io_init(void) {
     
     // Start worker threads
     for (int i = 0; i < MAX_WORKERS; i++) {
-        if (pthread_create(&g_io_context.workers[i], NULL, io_worker_thread, NULL) == 0) {
+        if (pthread_create(&g_io_context.workers[i], nullptr, io_worker_thread, nullptr) == 0) {
             atomic_fetch_add(&g_io_context.active_workers, 1);
         }
     }
@@ -46,13 +47,13 @@ int io_push_request(const char* json_request) {
         return IO_ERROR;
     }
     
-    // Create queue item
+    // Create queue item using designated initializers
     queue_item_t item = {
         .handle_id = handle_id,
         .request_id = request_id,
         .params = strdup(params),
         .params_len = strlen(params),
-        .timestamp = (uint64_t)time(NULL)
+        .timestamp = (uint64_t)time(nullptr)
     };
     snprintf(item.method, sizeof(item.method), "%s", method);
     
