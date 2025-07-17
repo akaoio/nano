@@ -55,3 +55,7 @@ dkms.conf
 *.dwo
 
 models/
+build/
+/nano
+/io
+/test_suite
