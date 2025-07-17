@@ -7,6 +7,11 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
+// Forward declarations for static functions
+static int get_file_size_mb(const char* path);
+static bool file_exists_and_readable(const char* path);
+static int check_system_resources(const char* model_path, compatibility_result_t* result);
+
 // Extract model version from file
 int model_check_version(const char* model_path, model_version_info_t* version) {
     if (!model_path || !version) return -1;
@@ -148,9 +153,9 @@ int model_check_lora_compatibility(const char* base_model_path, const char* lora
     
     // LoRA typically needs base model + adapter in NPU memory
     int required_npu_memory_mb = ((base_size + lora_size) * 3) / 2;  // 1.5x overhead
-    if (required_npu_memory_mb > sys_info.npu_memory_mb) {
+    if ((uint64_t)required_npu_memory_mb > sys_info.npu_memory_mb) {
         snprintf(result->error_message, sizeof(result->error_message),
-                "Insufficient NPU memory for LoRA: need %dMB, have %dMB", 
+                "Insufficient NPU memory for LoRA: need %dMB, have %luMB", 
                 required_npu_memory_mb, sys_info.npu_memory_mb);
         return -1;
     }
@@ -184,7 +189,7 @@ int model_check_lora_compatibility(const char* base_model_path, const char* lora
     
     printf("✅ LoRA compatibility check passed: Base=%s, LoRA=%s\n", 
            base_model_path, lora_path);
-    printf("🔍 Required NPU memory: %dMB, Available: %dMB\n",
+    printf("🔍 Required NPU memory: %dMB, Available: %luMB\n",
            required_npu_memory_mb, sys_info.npu_memory_mb);
     
     return 0;
@@ -233,18 +238,18 @@ static int check_system_resources(const char* model_path, compatibility_result_t
     
     // Check NPU memory (models typically need 1.5x file size in NPU memory)
     int required_npu_memory_mb = (model_size_mb * 3) / 2;  // 1.5x overhead
-    if (required_npu_memory_mb > sys_info.npu_memory_mb) {
+    if ((uint64_t)required_npu_memory_mb > sys_info.npu_memory_mb) {
         snprintf(result->error_message, sizeof(result->error_message),
-                "Insufficient NPU memory: need %dMB, have %dMB", 
+                "Insufficient NPU memory: need %dMB, have %luMB", 
                 required_npu_memory_mb, sys_info.npu_memory_mb);
         return -1;
     }
     
     // Check RAM (need at least 2GB free for model loading)
-    if (sys_info.ram_available_mb < 2048) {
+    if (sys_info.available_ram_mb < 2048) {
         snprintf(result->error_message, sizeof(result->error_message),
-                "Insufficient RAM: need 2048MB, have %dMB available", 
-                sys_info.ram_available_mb);
+                "Insufficient RAM: need 2048MB, have %luMB available", 
+                sys_info.available_ram_mb);
         return -1;
     }
     
@@ -255,7 +260,7 @@ static int check_system_resources(const char* model_path, compatibility_result_t
         return -1;
     }
     
-    printf("🔍 Model size: %dMB, Required NPU memory: %dMB, Available: %dMB\n",
+    printf("🔍 Model size: %dMB, Required NPU memory: %dMB, Available: %luMB\n",
            model_size_mb, required_npu_memory_mb, sys_info.npu_memory_mb);
     
     return 0;

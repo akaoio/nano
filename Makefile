@@ -2,7 +2,7 @@
 # Modern C build system with comprehensive source file support
 
 CC = gcc
-CFLAGS = -std=gnu2x -Wall -Wextra -Werror -O2 -g
+CFLAGS = -std=c2x -Wall -Wextra -Werror -O2 -g
 LDFLAGS = -lpthread -ldl -Lsrc/libs/rkllm -lrkllmrt -Wl,-rpath,src/libs/rkllm
 
 # Directories
@@ -23,7 +23,6 @@ IO_CORE_SRCS = $(SRC_DIR)/io/core/queue/queue.c \
                $(SRC_DIR)/io/operations.c
 
 IO_MAPPING_SRCS = $(SRC_DIR)/io/mapping/handle_pool/handle_pool.c \
-                  $(SRC_DIR)/io/mapping/handle_pool/handle_pool_global.c \
                   $(SRC_DIR)/io/mapping/handle_pool/handle_pool_utils.c \
                   $(SRC_DIR)/io/mapping/rkllm_proxy/rkllm_proxy.c \
                   $(SRC_DIR)/io/mapping/rkllm_proxy/rkllm_operations.c
@@ -33,7 +32,7 @@ NANO_SYSTEM_SRCS = $(SRC_DIR)/nano/system/system_info/system_info.c \
                    $(SRC_DIR)/nano/system/system_info/system_model.c \
                    $(SRC_DIR)/nano/system/resource_mgr/resource_mgr.c
 
-NANO_VALIDATION_SRCS = $(SRC_DIR)/nano/validation/model_checker/model_compatibility.c
+NANO_VALIDATION_SRCS = $(SRC_DIR)/nano/validation/model_checker/model_checker.c
 
 NANO_TRANSPORT_SRCS = $(SRC_DIR)/nano/transport/mcp_base/mcp_base.c \
                       $(SRC_DIR)/nano/transport/udp_transport/udp_transport.c \
