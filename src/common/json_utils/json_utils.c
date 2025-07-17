@@ -48,19 +48,7 @@ double json_get_double(const char* json, const char* key, double default_val) {
     return value ? atof(value) : default_val;
 }
 
-float json_get_float(const char* json, const char* key, float default_val) {
-    char buffer[64];
-    const char* value = json_get_string(json, key, buffer, sizeof(buffer));
-    return value ? (float)atof(value) : default_val;
-}
 
-bool json_get_bool(const char* json, const char* key, bool default_val) {
-    char buffer[64];
-    const char* value = json_get_string(json, key, buffer, sizeof(buffer));
-    if (!value) return default_val;
-    
-    return (strcmp(value, "true") == 0 || strcmp(value, "1") == 0);
-}
 
 int json_extract_string_safe(const char* json, const char* key, char* buffer, size_t buffer_size) {
     if (!json || !key || !buffer || buffer_size == 0) return -1;
@@ -87,17 +75,6 @@ int json_extract_string_safe(const char* json, const char* key, char* buffer, si
     return 0;
 }
 
-int json_extract_strings(const char* json, const char* keys[], char* buffers[], size_t buffer_sizes[], int count) {
-    if (!json || !keys || !buffers || !buffer_sizes || count <= 0) return 0;
-    
-    int extracted = 0;
-    for (int i = 0; i < count; i++) {
-        if (json_extract_string_safe(json, keys[i], buffers[i], buffer_sizes[i]) == 0) {
-            extracted++;
-        }
-    }
-    return extracted;
-}
 
 int json_extract_object(const char* json, const char* key, char* buffer, size_t buffer_size) {
     if (!json || !key || !buffer || buffer_size == 0) return -1;
