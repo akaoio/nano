@@ -1,5 +1,6 @@
 #include "../test_system.h"
-#include "../../../src/nano/system/system.h"
+#include "../../../src/nano/system/system_info/system_info.h"
+#include "../../../src/nano/system/resource_mgr/resource_mgr.h"
 #include <assert.h>
 #include <stdio.h>
 #include <string.h>

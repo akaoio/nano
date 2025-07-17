@@ -1,13 +1,9 @@
 #include "udp_transport.h"
 #include "../../../common/core.h"
+#include "../../../common/transport_utils/transport_utils.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
-#include <sys/socket.h>
-#include <sys/select.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
 
 static udp_transport_config_t g_config = {0};
 
@@ -18,28 +14,20 @@ int udp_transport_init(void* config) {
     g_config = *cfg;
     
     // Create UDP socket
-    g_config.socket_fd = socket(AF_INET, SOCK_DGRAM, 0);
+    g_config.socket_fd = create_udp_socket();
     if (g_config.socket_fd < 0) {
         return -1;
     }
     
     // Setup address
-    memset(&g_config.addr, 0, sizeof(g_config.addr));
-    g_config.addr.sin_family = AF_INET;
-    g_config.addr.sin_port = htons(g_config.port);
-    
-    if (g_config.host) {
-        if (inet_pton(AF_INET, g_config.host, &g_config.addr.sin_addr) <= 0) {
-            close(g_config.socket_fd);
-            return -1;
-        }
-    } else {
-        g_config.addr.sin_addr.s_addr = INADDR_ANY;
+    if (setup_socket_address(&g_config.addr, g_config.host, g_config.port) != 0) {
+        close_socket(g_config.socket_fd);
+        return -1;
     }
     
     // Bind for receiving
-    if (bind(g_config.socket_fd, (struct sockaddr*)&g_config.addr, sizeof(g_config.addr)) < 0) {
-        close(g_config.socket_fd);
+    if (setup_server_socket(g_config.socket_fd, &g_config.addr, false) != 0) {
+        close_socket(g_config.socket_fd);
         return -1;
     }
     
@@ -64,17 +52,8 @@ int udp_transport_send(const mcp_message_t* message) {
 int udp_transport_recv(mcp_message_t* message, int timeout_ms) {
     if (!g_config.initialized || !message) return -1;
     
-    // Use select for timeout
-    fd_set readfds;
-    struct timeval timeout;
-    
-    FD_ZERO(&readfds);
-    FD_SET(g_config.socket_fd, &readfds);
-    
-    timeout.tv_sec = timeout_ms / 1000;
-    timeout.tv_usec = (timeout_ms % 1000) * 1000;
-    
-    int result = select(g_config.socket_fd + 1, &readfds, NULL, NULL, &timeout);
+    // Check if socket is ready for reading
+    int result = socket_select_read(g_config.socket_fd, timeout_ms);
     if (result <= 0) {
         return -1; // Timeout or error
     }
@@ -96,10 +75,8 @@ int udp_transport_recv(mcp_message_t* message, int timeout_ms) {
 }
 
 void udp_transport_shutdown(void) {
-    if (g_config.socket_fd >= 0) {
-        close(g_config.socket_fd);
-        g_config.socket_fd = -1;
-    }
+    close_socket(g_config.socket_fd);
+    g_config.socket_fd = -1;
     
     str_free(g_config.host);
     g_config.host = NULL;

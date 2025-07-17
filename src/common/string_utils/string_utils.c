@@ -16,16 +16,6 @@ char* str_copy(const char* src) {
     return dest;
 }
 
-char* str_copy_n(const char* src, size_t n) {
-    if (!src) return NULL;
-    
-    char* dest = mem_alloc(n + 1);
-    if (!dest) return NULL;
-    
-    strncpy(dest, src, n);
-    dest[n] = '\0';
-    return dest;
-}
 
 void str_free(char* str) {
     mem_free(str);
@@ -69,24 +59,7 @@ bool str_ends_with(const char* str, const char* suffix) {
     return strcmp(str + str_len - suffix_len, suffix) == 0;
 }
 
-char* str_find(const char* haystack, const char* needle) {
-    if (!haystack || !needle) return NULL;
-    return strstr(haystack, needle);
-}
 
-char* str_find_last(const char* haystack, const char* needle) {
-    if (!haystack || !needle) return NULL;
-    
-    char* last_found = NULL;
-    char* current = strstr(haystack, needle);
-    
-    while (current) {
-        last_found = current;
-        current = strstr(current + 1, needle);
-    }
-    
-    return last_found;
-}
 
 int str_builder_init(str_builder_t* builder, size_t initial_capacity) {
     if (!builder) return -1;
@@ -160,16 +133,6 @@ int str_builder_append_format(str_builder_t* builder, const char* format, ...) {
     return 0;
 }
 
-char* str_builder_finalize(str_builder_t* builder) {
-    if (!builder) return NULL;
-    
-    char* result = builder->buffer;
-    builder->buffer = NULL;
-    builder->size = 0;
-    builder->capacity = 0;
-    
-    return result;
-}
 
 void str_builder_destroy(str_builder_t* builder) {
     if (builder) {
@@ -180,33 +143,5 @@ void str_builder_destroy(str_builder_t* builder) {
     }
 }
 
-char* str_trim(char* str) {
-    if (!str) return NULL;
-    
-    // Trim left
-    while (isspace(*str)) str++;
-    
-    // Trim right
-    char* end = str + strlen(str) - 1;
-    while (end > str && isspace(*end)) end--;
-    
-    end[1] = '\0';
-    return str;
-}
 
-char* str_trim_left(char* str) {
-    if (!str) return NULL;
-    
-    while (isspace(*str)) str++;
-    return str;
-}
 
-char* str_trim_right(char* str) {
-    if (!str) return NULL;
-    
-    char* end = str + strlen(str) - 1;
-    while (end > str && isspace(*end)) end--;
-    
-    end[1] = '\0';
-    return str;
-}

@@ -1,13 +1,9 @@
 #include "tcp_transport.h"
 #include "../../../common/core.h"
+#include "../../../common/transport_utils/transport_utils.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
-#include <sys/socket.h>
-#include <sys/select.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
 
 static tcp_transport_config_t g_config = {0};
 
@@ -17,42 +13,30 @@ int tcp_transport_init(void* config) {
     tcp_transport_config_t* cfg = (tcp_transport_config_t*)config;
     g_config = *cfg;
     
-    // Create socket
-    g_config.socket_fd = socket(AF_INET, SOCK_STREAM, 0);
+    // Create TCP socket
+    g_config.socket_fd = create_tcp_socket();
     if (g_config.socket_fd < 0) {
         return -1;
     }
     
     struct sockaddr_in addr;
-    memset(&addr, 0, sizeof(addr));
-    addr.sin_family = AF_INET;
-    addr.sin_port = htons(g_config.port);
+    const char* host = g_config.is_server ? NULL : g_config.host;
+    
+    if (setup_socket_address(&addr, host, g_config.port) != 0) {
+        close_socket(g_config.socket_fd);
+        return -1;
+    }
     
     if (g_config.is_server) {
         // Server mode
-        addr.sin_addr.s_addr = INADDR_ANY;
-        
-        int opt = 1;
-        setsockopt(g_config.socket_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
-        
-        if (bind(g_config.socket_fd, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
-            close(g_config.socket_fd);
-            return -1;
-        }
-        
-        if (listen(g_config.socket_fd, 1) < 0) {
-            close(g_config.socket_fd);
+        if (setup_server_socket(g_config.socket_fd, &addr, true) != 0) {
+            close_socket(g_config.socket_fd);
             return -1;
         }
     } else {
         // Client mode
-        if (inet_pton(AF_INET, g_config.host, &addr.sin_addr) <= 0) {
-            close(g_config.socket_fd);
-            return -1;
-        }
-        
-        if (connect(g_config.socket_fd, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
-            close(g_config.socket_fd);
+        if (connect_socket(g_config.socket_fd, &addr) != 0) {
+            close_socket(g_config.socket_fd);
             return -1;
         }
     }
@@ -80,17 +64,8 @@ int tcp_transport_send(const mcp_message_t* message) {
 int tcp_transport_recv(mcp_message_t* message, int timeout_ms) {
     if (!g_config.initialized || !message) return -1;
     
-    // Use select for timeout
-    fd_set readfds;
-    struct timeval timeout;
-    
-    FD_ZERO(&readfds);
-    FD_SET(g_config.socket_fd, &readfds);
-    
-    timeout.tv_sec = timeout_ms / 1000;
-    timeout.tv_usec = (timeout_ms % 1000) * 1000;
-    
-    int result = select(g_config.socket_fd + 1, &readfds, NULL, NULL, &timeout);
+    // Check if socket is ready for reading
+    int result = socket_select_read(g_config.socket_fd, timeout_ms);
     if (result <= 0) {
         return -1; // Timeout or error
     }
@@ -108,10 +83,8 @@ int tcp_transport_recv(mcp_message_t* message, int timeout_ms) {
 }
 
 void tcp_transport_shutdown(void) {
-    if (g_config.socket_fd >= 0) {
-        close(g_config.socket_fd);
-        g_config.socket_fd = -1;
-    }
+    close_socket(g_config.socket_fd);
+    g_config.socket_fd = -1;
     
     str_free(g_config.host);
     g_config.host = NULL;
