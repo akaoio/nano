@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS = -Wall -Wextra -std=c99 -g
+CFLAGS = -Wall -Wextra -std=c2x -g
 INCLUDE_DIRS = -I../../../src/io/core/queue
 SRC_DIR = ../../../src/io/core/queue
 TARGET = test_queue

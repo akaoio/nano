@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS = -Wall -Wextra -std=c99 -g
+CFLAGS = -Wall -Wextra -std=c2x -g
 INCLUDE_DIRS = -I../../../src/nano/validation
 SRC_DIR = ../../../src/nano/validation/model_checker
 TARGET = test_validation

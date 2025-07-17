@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS = -Wall -Wextra -std=c99 -g
+CFLAGS = -Wall -Wextra -std=c2x -g
 INCLUDE_DIRS = -I../../../src/io/mapping/rkllm_proxy -I../../../src/io/mapping/handle_pool -I../../../src/common -I../../../src/libs
 SRC_DIR = ../../../src/io/mapping
 COMMON_DIR = ../../../src/common

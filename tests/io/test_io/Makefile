@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS = -Wall -Wextra -std=c99 -g -pthread
+CFLAGS = -Wall -Wextra -std=c2x -g -pthread
 INCLUDE_DIRS = -I../../../src/io/core/io -I../../../src/io/core/queue -I../../../src/io/core/worker_pool
 SRC_DIR = ../../../src/io/core
 TARGET = test_io
