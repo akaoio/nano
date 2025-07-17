@@ -26,3 +26,5 @@ LLMHandle get_validated_handle(uint32_t handle_id);
  * @return LLMHandle on success, NULL on failure (result populated)
  */
 LLMHandle get_validated_handle_or_error(uint32_t handle_id, void* result);
+
+
