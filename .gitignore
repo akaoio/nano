@@ -58,4 +58,10 @@ models/
 build/
 /nano
 /io
-/test_suite
+/test
+
+# Test executables
+tests/**/test_*
+!tests/**/*.c
+!tests/**/*.h
+!tests/**/Makefile
