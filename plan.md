@@ -52,19 +52,6 @@
 - **Thread-safe**: Mỗi handle có worker thread riêng
 - **Memory efficient**: Pool-based allocation, không dynamic allocation
 
-### 1.2 Cấu trúc file
-```
-src/io/
-├── io.h              // Public interface (4 hàm duy nhất)
-├── io.c              // Core implementation
-├── handle_pool.h     // Handle management
-├── handle_pool.c     // Handle pool implementation
-├── queue.h           // Lock-free queue
-├── queue.c           // Queue implementation
-├── operations.h      // RKLLM operation mapping
-└── operations.c      // Auto-generated operations
-```
-
 ### 1.3 Public Interface (chỉ 4 hàm)
 ```c
 // io.h
@@ -94,25 +81,6 @@ void io_shutdown(void);
 - **Stateless**: Không lưu trạng thái, chỉ forward requests
 - **Error handling**: MCP compliant error responses
 
-### 2.2 Cấu trúc file
-```
-src/nano/
-├── nano.h              // Public interface
-├── nano.c              // Core nano logic
-├── mcp/
-│   ├── mcp.h           // MCP protocol definitions
-│   ├── mcp.c           // MCP implementation
-│   └── json_rpc.h      // JSON-RPC parser
-├── transports/
-│   ├── transport.h     // Transport interface
-│   ├── stdio.c         // STDIO transport
-│   ├── tcp.c           // TCP transport
-│   ├── udp.c           // UDP transport
-│   ├── http.c          // HTTP transport
-│   └── ws.c            // WebSocket transport
-└── main.c              // Entry point
-```
-
 ### 2.3 Transport Interface
 ```c
 // transport.h
@@ -122,50 +90,6 @@ typedef struct {
     int (*recv)(char* buffer, size_t len);
     void (*close)(void);
 } transport_ops_t;
-```
-
-## 3. Build System Modular
-
-### 3.1 Makefile structure
-```makefile
-# Build từng component riêng
-libio.so: src/io/*.c
-	gcc -std=c23 -shared -fPIC -o $@ $^ -lrkllmrt
-
-libnano.so: src/nano/*.c src/nano/transports/*.c
-	gcc -std=c23 -shared -fPIC -o $@ $^ -ljson-c
-
-nano: src/main.c libio.so libnano.so
-	gcc -std=c23 -o $@ $< -L. -lio -lnano
-
-# Test riêng từng component
-test-io: tests/io/test_io.c libio.so
-	gcc -std=c23 -o $@ $< -L. -lio
-
-test-nano: tests/test_nano.c libnano.so
-	gcc -std=c23 -o $@ $< -L. -lnano
-```
-
-### 3.2 Test structure
-```
-tests/
-├── test.c                 # Main test entry point
-├── io/                    # IO layer tests
-│   ├── test_io.c          # Main IO test runner
-│   ├── test_io.h          # IO test header
-│   ├── test_io_init.c     # IO initialization tests
-│   ├── test_model_files.c # Model file tests
-│   ├── test_qwenvl_loading.c # QwenVL loading tests
-│   ├── test_lora_loading.c   # LoRA loading tests
-│   ├── test_inference.c      # Inference tests
-│   ├── test_error_cases.c    # Error handling tests
-│   └── test_cleanup.c        # Cleanup tests
-├── models/
-│   ├── test_qwenvl.json   # Test config cho qwenvl
-│   └── test_lora.json     # Test config cho lora
-└── fixtures/
-    ├── sample_requests.json
-    └── expected_responses.json
 ```
 
 ## 4. C23 Features sử dụng
@@ -267,11 +191,14 @@ tests/
 
 ### 10.1 Build targets
 ```bash
-make libio.so      # Build IO library
-make libnano.so    # Build Nano library
-make nano          # Build executable
-make test          # Run all tests
-make install       # Install to system
+  make all          - Build nano, io, and test executables
+	make nano         - Build nano executable
+	make io           - Build io executable
+	make test         - Build and run test suite
+	make run-test     - Same as test
+	make check-syntax - Check syntax of all source files
+	make clean        - Clean all build artifacts
+	make help         - Show this help
 ```
 
 ### 10.2 Runtime configuration
@@ -307,8 +234,11 @@ src/
 ├── io/                    # Core IO layer
 ├── nano/                  # MCP gateway
 ├── common/               # Shared utilities
+├── libs/               # external libs
 └── config/               # Configuration files
 tests/                # Test suite
+build/
+models/
 ```
 
 ## 13. Success Criteria

@@ -1,0 +1,8 @@
+{
+    "files.associations": {
+        "rkllm.h": "c",
+        "model_checker.h": "c",
+        "functional": "c",
+        "test_system.h": "c"
+    }
+}
