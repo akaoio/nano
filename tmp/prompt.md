@@ -19,51 +19,39 @@ Generate report.md
 
 
 
+========================================
 
-Code Quality Issues
 
-  🚨 Significant Code Duplication
-  (25+ instances)
 
-  1. JSON Parsing Logic - 25+
-  duplications
-  // Pattern repeated across
-  rkllm_operations.c
-  const char* field_start =
-  strstr(params_json, "\"field\":");
-  if (field_start) {
-      field_start =
-  strchr(field_start + 8, '"');
-      // ... extraction logic
-  }
 
-  2. Error Handling Patterns - 30+
-  duplications
-  result->result_data =
-  rkllm_proxy_create_error_result(-1,
-   "Error message");
-  result->result_size =
-  strlen(result->result_data);
 
-  3. Handle Validation - 13
-  duplications
-  LLMHandle handle =
-  rkllm_proxy_get_handle(handle_id);
-  if (!handle) {
-      result->result_data =
-  rkllm_proxy_create_error_result(-1,
-   "Invalid handle");
-      return -1;
-  }
+Cần phải viết ngay 1 lọat test dành riêng cho IO, và một loạt test dành riêng cho NANO. Để đảm bảo IO và NANO phải hoạt động theo như đúng thiết kế. 
 
-  4. Transport Buffer Processing - 4
-  duplications across transport files
+HIỆN NAY ĐANG CÓ CÁC VẤN ĐỀ:
 
-  🧹 Cleanup Recommendations
+Phát Hiện Quan Trọng: IO Layer Không Được Sử Dụng
 
-  - High Priority: Consolidate JSON
-  parsing into utility functions
-  - Medium Priority: Create error
-  handling macros
-  - Low Priority: Extract common
-  validation patterns
+**QUAN TRỌNG**: Theo phân tích code, hệ thống hiện tại **KHÔNG SỬ DỤNG** IO layer với queue như đã thiết kế:
+
+- `nano_process_message()` gọi trực tiếp `rkllm_proxy_execute()`
+- `rkllm_proxy_execute()` gọi trực tiếp các operation handlers
+- Operation handlers gọi trực tiếp RKLLM functions
+- **KHÔNG CÓ** `io_push_request()` hay `io_pop_response()` nào được sử dụng
+
+```c
+// Trong nano.c
+int nano_process_message(const mcp_message_t* request, mcp_message_t* response) {
+    // Tạo rkllm_request_t
+    rkllm_request_t rkllm_request = {...};
+    
+    // Gọi trực tiếp RKLLM proxy
+    int ret = rkllm_proxy_execute(&rkllm_request, &rkllm_result);
+    
+    // Trả response
+    return 0;
+}
+```
+
+IO Có vẻ như cần được thiết kế lại? Hay là NANO đang cần được thiết kế lại?
+Mọi thứ phải đúng như PLAN, PRD, RULES 
+analysis.md đang cho thấy rất nhiều vấn đề nghiêm trọng!!! IO và NANO đang không hoạt động đúng như thiết kế! Cần sửa ngay!

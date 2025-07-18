@@ -111,34 +111,34 @@ int nano_process_message(const mcp_message_t* request, mcp_message_t* response) 
         return -1;
     }
     
-    // Create RKLLM request using designated initializers
-    rkllm_request_t rkllm_request = {
-        .operation = operation,
-        .handle_id = 0, // Will be extracted from params if needed
-        .params_json = request->params,
-        .params_size = request->params ? strlen(request->params) : 0
-    };
+    // *** ARCHITECTURAL FIX: Use IO layer instead of direct RKLLM calls ***
+    // Create JSON-RPC request for IO layer
+    char json_request[4096];
+    snprintf(json_request, sizeof(json_request),
+             "{\"jsonrpc\":\"2.0\",\"id\":%u,\"method\":\"%s\",\"params\":%s}",
+             request->id, request->method, request->params ? request->params : "{}");
     
-    // Execute operation using designated initializers
-    rkllm_result_t rkllm_result = {
-        .result_data = nullptr,
-        .result_size = 0
-    };
-    int ret = rkllm_proxy_execute(&rkllm_request, &rkllm_result);
-    
-    // Create response
-    if (ret == 0) {
-        mcp_message_create(response, MCP_RESPONSE, request->id, nullptr, 
-                          rkllm_result.result_data ? rkllm_result.result_data : "null");
-    } else {
-        const char* error_msg = rkllm_result.result_data ? rkllm_result.result_data : "Operation failed";
-        char* error_result = create_error_result(ret, error_msg);
+    // Push request to IO layer
+    int push_result = io_push_request(json_request);
+    if (push_result != IO_OK) {
+        char* error_result = create_error_result(-32603, "IO layer error");
         mcp_message_create(response, MCP_RESPONSE, request->id, nullptr, error_result);
         mem_free(error_result);
+        return -1;
     }
     
-    // Cleanup
-    rkllm_proxy_free_result(&rkllm_result);
+    // Pop response from IO layer
+    char json_response[4096];
+    int pop_result = io_pop_response(json_response, sizeof(json_response));
+    if (pop_result != IO_OK) {
+        char* error_result = create_error_result(-32603, "IO layer timeout");
+        mcp_message_create(response, MCP_RESPONSE, request->id, nullptr, error_result);
+        mem_free(error_result);
+        return -1;
+    }
+    
+    // Parse JSON response and create MCP response
+    mcp_message_create(response, MCP_RESPONSE, request->id, nullptr, json_response);
     
     return 0;
 }
