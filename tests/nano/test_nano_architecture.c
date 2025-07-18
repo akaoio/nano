@@ -18,13 +18,13 @@ void test_nano_uses_io_layer() {
     assert(io_init() == IO_OK);
     assert(nano_init() == 0);
     
-    // Create MCP request
+    // Create MCP request with real model
     mcp_message_t request = {
         .type = MCP_REQUEST,
         .id = 1,
         .method = str_copy("init"),
-        .params = str_copy("{\"model_path\":\"test.rkllm\"}"),
-        .params_len = strlen("{\"model_path\":\"test.rkllm\"}")
+        .params = str_copy("{\"model_path\":\"models/lora/model.rkllm\"}"),
+        .params_len = strlen("{\"model_path\":\"models/lora/model.rkllm\"}")
     };
     
     mcp_message_t response = {0};
@@ -35,10 +35,25 @@ void test_nano_uses_io_layer() {
     // Give IO time to process
     sleep(1);
     
-    // Check that response comes from IO layer
-    assert(result == 0);
+    // Check that response comes from IO layer - STRICT CHECK
     assert(response.type == MCP_RESPONSE);
     assert(response.id == 1);
+    
+    if (result == 0) {
+        printf("✅ NANO processed request successfully\n");
+    } else {
+        printf("❌ NANO returned error - NPU memory issues\n");
+        printf("❌ This indicates real system problems, not 'expected behavior'\n");
+        
+        // Cleanup
+        mcp_message_destroy(&request);
+        mcp_message_destroy(&response);
+        nano_shutdown();
+        io_shutdown();
+        
+        // Force test failure
+        assert(0 && "NANO failed due to NPU memory issues");
+    }
     
     printf("✅ NANO correctly uses IO layer\n");
     
@@ -58,24 +73,39 @@ void test_nano_mcp_compliance() {
     assert(nano_init() == 0);
     assert(io_init() == IO_OK);
     
-    // Test valid MCP request
+    // Test valid MCP request with real model
     mcp_message_t request = {
         .type = MCP_REQUEST,
         .id = 42,
         .method = str_copy("init"),
-        .params = str_copy("{\"model_path\":\"test.rkllm\"}"),
-        .params_len = strlen("{\"model_path\":\"test.rkllm\"}")
+        .params = str_copy("{\"model_path\":\"models/lora/model.rkllm\"}"),
+        .params_len = strlen("{\"model_path\":\"models/lora/model.rkllm\"}")
     };
     
     mcp_message_t response = {0};
     
     int result = nano_process_message(&request, &response);
-    assert(result == 0);
     
-    // Verify MCP response format
+    // Verify MCP response format (regardless of success/failure)
     assert(response.type == MCP_RESPONSE);
     assert(response.id == 42); // Must match request ID
     assert(response.params != nullptr);
+    
+    if (result == 0) {
+        printf("✅ MCP request processed successfully\n");
+    } else {
+        printf("❌ MCP request failed - NPU memory issues\n");
+        printf("❌ This indicates real system problems\n");
+        
+        // Cleanup
+        mcp_message_destroy(&request);
+        mcp_message_destroy(&response);
+        nano_shutdown();
+        io_shutdown();
+        
+        // Force test failure
+        assert(0 && "MCP request failed due to NPU memory issues");
+    }
     
     printf("✅ MCP response format correct\n");
     
@@ -152,8 +182,8 @@ void test_nano_error_propagation() {
         .type = MCP_REQUEST,
         .id = 1,
         .method = str_copy("init"),
-        .params = str_copy("{\"model_path\":\"test.rkllm\"}"),
-        .params_len = strlen("{\"model_path\":\"test.rkllm\"}")
+        .params = str_copy("{\"model_path\":\"models/lora/model.rkllm\"}"),
+        .params_len = strlen("{\"model_path\":\"models/lora/model.rkllm\"}")
     };
     
     mcp_message_t response = {0};
