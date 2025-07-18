@@ -2,7 +2,7 @@
 # Modern C build system with comprehensive source file support
 
 CC = clang
-CFLAGS = -std=c2x -Wall -Wextra -g
+CFLAGS = -std=c23 -Wall -Wextra -g
 LDFLAGS = -lpthread -ldl -Lsrc/libs/rkllm -lrkllmrt -Wl,-rpath,src/libs/rkllm
 
 # Directories
@@ -53,8 +53,11 @@ LIB_SRCS = $(COMMON_SRCS) $(IO_CORE_SRCS) $(IO_MAPPING_SRCS) $(NANO_SYSTEM_SRCS)
 # Test source files
 TEST_SRCS = $(TESTS_DIR)/common/test_json_utils.c \
             $(TESTS_DIR)/io/test_io/test_io.c \
+            $(TESTS_DIR)/io/test_io_architecture.c \
+            $(TESTS_DIR)/io/test_io_architecture_strict.c \
             $(TESTS_DIR)/nano/test_validation/test_validation.c \
             $(TESTS_DIR)/nano/test_system/test_system.c \
+            $(TESTS_DIR)/nano/test_nano_architecture.c \
             $(TESTS_DIR)/integration/test_qwenvl/test_qwenvl.c \
             $(TESTS_DIR)/integration/test_lora/test_lora.c
 
@@ -104,8 +107,10 @@ $(BUILD_DIR):
 	@mkdir -p $(BUILD_DIR)/tests
 	@mkdir -p $(BUILD_DIR)/tests/common
 	@mkdir -p $(BUILD_DIR)/tests/io/test_io
+	@mkdir -p $(BUILD_DIR)/tests/io
 	@mkdir -p $(BUILD_DIR)/tests/nano/test_validation
 	@mkdir -p $(BUILD_DIR)/tests/nano/test_system
+	@mkdir -p $(BUILD_DIR)/tests/nano
 	@mkdir -p $(BUILD_DIR)/tests/integration/test_qwenvl
 	@mkdir -p $(BUILD_DIR)/tests/integration/test_lora
 

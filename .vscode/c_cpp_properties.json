@@ -1,0 +1,20 @@
+{
+    "configurations": [
+        {
+            "name": "Linux",
+            "compilerPath": "/usr/bin/clang-19",
+            "cStandard": "c23",
+            "intelliSenseMode": "linux-clang-arm64",
+            "includePath": [
+                "${workspaceFolder}/**",
+                "/usr/include",
+                "/usr/lib/llvm-19/lib/clang/19/include",
+                "/usr/include/aarch64-linux-gnu"
+            ],
+            "compilerArgs": [
+                "-std=c23"
+            ]
+        }
+    ],
+    "version": 4
+}
