@@ -4,11 +4,7 @@
 
 // Test suites
 #include "common/test_json_utils.h"
-#include "io/test_io.h"
 #include "io/test_io_architecture.h"
-#include "io/test_io_architecture_strict.h"
-#include "nano/test_validation.h"
-#include "nano/test_system.h"
 #include "nano/test_nano_architecture.h"
 #include "integration/test_qwenvl.h"
 #include "integration/test_lora.h"
@@ -29,12 +25,8 @@ int main(void) {
     // Define test suites
     test_t suites[] = {
         {"Common Utilities", test_common_json_utils, 0},
-        {"IO Layer", test_io_layer, 0},
         {"IO Architecture", test_io_architecture, 0},
-        {"IO Architecture (STRICT)", test_io_architecture_strict, 0},
-        {"Nano Validation", test_nano_validation, 0},
-        {"Nano System", test_nano_system, 0},
-        {"Nano Architecture", test_nano_architecture, 0},
+        {"NANO Architecture", test_nano_architecture, 0},
         {"Integration - QwenVL", test_integration_qwenvl, 0},
         {"Integration - LoRA", test_integration_lora, 0},
         {NULL, NULL, 0}

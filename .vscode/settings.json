@@ -1,9 +1,0 @@
-{
-    "files.associations": {
-        "rkllm.h": "c",
-        "model_checker.h": "c",
-        "functional": "c",
-        "test_system.h": "c",
-        "test_io_architecture.h": "c"
-    }
-}

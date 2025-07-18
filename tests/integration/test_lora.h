@@ -1,4 +1,4 @@
 #pragma once
 
-// LoRA integration test functions
+// LoRA integration test function
 int test_integration_lora(void);
