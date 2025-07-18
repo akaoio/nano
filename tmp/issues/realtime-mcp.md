@@ -26,7 +26,7 @@ Các bước:
   - Sau khi trả xong chunk cuối cùng (có end:true) thì server giải phóng hoàn tòan bộ nhớ liên quan tới đoạn stream vừa rồi
   - Sau khi client đã lấy chunk cuối cùng, thì nếu client quay lại lấy tiếp sẽ nhận được phản hồi "stream session not exists or expired"
 
-# GIẢI PHÁP NÀY LÀ TRUYỀN REALTIME QUA HTTP TRÊN GIAO THỨC MCP
+# GIẢI PHÁP NÀY LÀ TRUYỀN STREAM REALTIME QUA HTTP TRÊN GIAO THỨC MCP
 
 ## Đối với Websocket thì chúng ta stream chunk từ MCP Server về cho MCP Client như thế nào?
 
