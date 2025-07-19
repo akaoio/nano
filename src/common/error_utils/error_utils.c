@@ -1,4 +1,5 @@
 #include "error_utils.h"
+#include <json-c/json.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -6,21 +7,33 @@
 char* create_error_result(int code, const char* message) {
     if (!message) message = "Unknown error";
     
-    size_t len = snprintf(NULL, 0, "{\"error\":{\"code\":%d,\"message\":\"%s\"}}", code, message);
-    char* result = malloc(len + 1);
-    if (!result) return NULL;
+    json_object *root = json_object_new_object();
+    json_object *error = json_object_new_object();
+    json_object *code_obj = json_object_new_int(code);
+    json_object *message_obj = json_object_new_string(message);
     
-    snprintf(result, len + 1, "{\"error\":{\"code\":%d,\"message\":\"%s\"}}", code, message);
+    json_object_object_add(error, "code", code_obj);
+    json_object_object_add(error, "message", message_obj);
+    json_object_object_add(root, "error", error);
+    
+    const char *json_str = json_object_to_json_string(root);
+    char *result = strdup(json_str);
+    
+    json_object_put(root);
     return result;
 }
 
 char* create_success_result(const char* message) {
     if (!message) message = "Success";
     
-    size_t len = snprintf(NULL, 0, "{\"result\":\"%s\"}", message);
-    char* result = malloc(len + 1);
-    if (!result) return NULL;
+    json_object *root = json_object_new_object();
+    json_object *result_obj = json_object_new_string(message);
     
-    snprintf(result, len + 1, "{\"result\":\"%s\"}", message);
+    json_object_object_add(root, "result", result_obj);
+    
+    const char *json_str = json_object_to_json_string(root);
+    char *result = strdup(json_str);
+    
+    json_object_put(root);
     return result;
 }

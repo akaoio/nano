@@ -5,6 +5,7 @@
 #include "../../src/nano/transport/udp_transport/udp_transport.h"
 #include "../../src/nano/transport/ws_transport/ws_transport.h"
 #include "../../src/common/core.h"
+#include <json-c/json.h>
 #include <assert.h>
 #include <stdio.h>
 #include <string.h>
@@ -18,14 +19,22 @@ void test_nano_uses_io_layer() {
     assert(io_init() == IO_OK);
     assert(nano_init() == 0);
     
-    // Create MCP request with real model
+    // Create MCP request using json-c
+    json_object *params_json = json_object_new_object();
+    json_object *model_path = json_object_new_string("models/lora/model.rkllm");
+    json_object_object_add(params_json, "model_path", model_path);
+    
+    const char *params_str = json_object_to_json_string(params_json);
+    
     mcp_message_t request = {
         .type = MCP_REQUEST,
         .id = 1,
         .method = str_copy("init"),
-        .params = str_copy("{\"model_path\":\"models/lora/model.rkllm\"}"),
-        .params_len = strlen("{\"model_path\":\"models/lora/model.rkllm\"}")
+        .params = str_copy(params_str),
+        .params_len = strlen(params_str)
     };
+    
+    json_object_put(params_json);
     
     mcp_message_t response = {0};
     
@@ -73,14 +82,22 @@ void test_nano_mcp_compliance() {
     assert(nano_init() == 0);
     assert(io_init() == IO_OK);
     
-    // Test valid MCP request with real model
+    // Test valid MCP request using json-c
+    json_object *params_json = json_object_new_object();
+    json_object *model_path = json_object_new_string("models/lora/model.rkllm");
+    json_object_object_add(params_json, "model_path", model_path);
+    
+    const char *params_str = json_object_to_json_string(params_json);
+    
     mcp_message_t request = {
         .type = MCP_REQUEST,
         .id = 42,
         .method = str_copy("init"),
-        .params = str_copy("{\"model_path\":\"models/lora/model.rkllm\"}"),
-        .params_len = strlen("{\"model_path\":\"models/lora/model.rkllm\"}")
+        .params = str_copy(params_str),
+        .params_len = strlen(params_str)
     };
+    
+    json_object_put(params_json);
     
     mcp_message_t response = {0};
     
@@ -109,14 +126,19 @@ void test_nano_mcp_compliance() {
     
     printf("✅ MCP response format correct\n");
     
-    // Test invalid method
+    // Test invalid method using json-c
+    json_object *empty_params = json_object_new_object();
+    const char *empty_params_str = json_object_to_json_string(empty_params);
+    
     mcp_message_t invalid_request = {
         .type = MCP_REQUEST,
         .id = 43,
         .method = str_copy("invalid_method"),
-        .params = str_copy("{}"),
-        .params_len = 2
+        .params = str_copy(empty_params_str),
+        .params_len = strlen(empty_params_str)
     };
+    
+    json_object_put(empty_params);
     
     mcp_message_t error_response = {0};
     result = nano_process_message(&invalid_request, &error_response);
@@ -178,13 +200,22 @@ void test_nano_error_propagation() {
     assert(nano_init() == 0);
     // Deliberately NOT initializing IO to test error propagation
     
+    // Create request using json-c
+    json_object *params_json = json_object_new_object();
+    json_object *model_path = json_object_new_string("models/lora/model.rkllm");
+    json_object_object_add(params_json, "model_path", model_path);
+    
+    const char *params_str = json_object_to_json_string(params_json);
+    
     mcp_message_t request = {
         .type = MCP_REQUEST,
         .id = 1,
         .method = str_copy("init"),
-        .params = str_copy("{\"model_path\":\"models/lora/model.rkllm\"}"),
-        .params_len = strlen("{\"model_path\":\"models/lora/model.rkllm\"}")
+        .params = str_copy(params_str),
+        .params_len = strlen(params_str)
     };
+    
+    json_object_put(params_json);
     
     mcp_message_t response = {0};
     

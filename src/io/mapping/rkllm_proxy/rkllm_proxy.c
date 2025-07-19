@@ -4,6 +4,7 @@
 #include "../../../common/memory_utils/memory_utils.h"
 #include "../../../common/string_utils/string_utils.h"
 #include "../../../libs/rkllm/rkllm.h"
+#include <json-c/json.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -124,29 +125,42 @@ LLMHandle rkllm_proxy_get_handle(uint32_t handle_id) {
     return handle_ptr ? *handle_ptr : NULL;
 }
 
-// Helper function to create JSON result
+// Helper function to create JSON result using json-c
 char* rkllm_proxy_create_json_result(int status, const char* data) {
-    static char result_buffer[4096];
+    json_object *result = json_object_new_object();
+    json_object *status_obj = json_object_new_int(status);
+    
+    json_object_object_add(result, "status", status_obj);
     
     if (data) {
-        snprintf(result_buffer, sizeof(result_buffer), 
-                "{\"status\":%d,\"data\":%s}", status, data);
-    } else {
-        snprintf(result_buffer, sizeof(result_buffer), 
-                "{\"status\":%d}", status);
+        json_object *data_obj = json_tokener_parse(data);
+        if (!data_obj) {
+            data_obj = json_object_new_string(data);
+        }
+        json_object_object_add(result, "data", data_obj);
     }
     
-    return strdup(result_buffer);
+    const char *json_str = json_object_to_json_string(result);
+    char *result_str = strdup(json_str);
+    
+    json_object_put(result);
+    return result_str;
 }
 
-// Helper function to create JSON error result
+// Helper function to create JSON error result using json-c
 char* rkllm_proxy_create_error_result(int status, const char* error_msg) {
-    static char result_buffer[4096];
+    json_object *result = json_object_new_object();
+    json_object *status_obj = json_object_new_int(status);
+    json_object *error_obj = json_object_new_string(error_msg ? error_msg : "Unknown error");
     
-    snprintf(result_buffer, sizeof(result_buffer), 
-            "{\"status\":%d,\"error\":\"%s\"}", status, error_msg ? error_msg : "Unknown error");
+    json_object_object_add(result, "status", status_obj);
+    json_object_object_add(result, "error", error_obj);
     
-    return strdup(result_buffer);
+    const char *json_str = json_object_to_json_string(result);
+    char *result_str = strdup(json_str);
+    
+    json_object_put(result);
+    return result_str;
 }
 
 // Global callback function for RKLLM results

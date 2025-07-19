@@ -3,7 +3,6 @@
 #include <string.h>
 
 // Test suites
-#include "common/test_json_utils.h"
 #include "io/test_io_architecture.h"
 #include "nano/test_nano_architecture.h"
 #include "integration/test_qwenvl.h"
@@ -24,7 +23,6 @@ int main(void) {
     
     // Define test suites
     test_t suites[] = {
-        {"Common Utilities", test_common_json_utils, 0},
         {"IO Architecture", test_io_architecture, 0},
         {"NANO Architecture", test_nano_architecture, 0},
         {"Integration - QwenVL", test_integration_qwenvl, 0},

@@ -1,7 +1,7 @@
 #pragma once
 
 #include "rkllm_proxy.h"
-#include "../../../common/json_utils/json_utils.h"
+#include <json-c/json.h>
 
 // RKLLM Operations - Individual operation handlers
 // Each operation has a handler function that:

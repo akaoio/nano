@@ -2,7 +2,7 @@
     "configurations": [
         {
             "name": "Linux",
-            "compilerPath": "/usr/bin/clang-19",
+            "compilerPath": "/usr/bin/clang",
             "cStandard": "c23",
             "intelliSenseMode": "linux-clang-arm64",
             "includePath": [
@@ -13,7 +13,11 @@
             ],
             "compilerArgs": [
                 "-std=c23"
-            ]
+            ],
+            "cppStandard": "c++23",
+            "browse": {
+                "databaseFilename": "${workspaceFolder}/.vscode/browse.vc.db"
+            }
         }
     ],
     "version": 4

@@ -1,11 +1,14 @@
 #define _GNU_SOURCE
 #include "worker_pool.h"
+#include "../queue/queue.h"
 #include "../../operations.h"
+#include "../../../common/core.h"
+#include <json-c/json.h>
+#include <pthread.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include <stdio.h>
-#include <pthread.h>
 
 // Forward declaration
 static void* worker_thread(void* arg);
@@ -44,15 +47,28 @@ static void* worker_thread(void* arg) {
         queue_item_t item;
         
         if (queue_pop(pool->request_queue, &item) == 0) {
-            // Reconstruct full JSON-RPC request
-            char json_request[8192];
-            snprintf(json_request, sizeof(json_request),
-                    "{\"jsonrpc\":\"2.0\",\"id\":%u,\"method\":\"%s\",\"params\":%s}",
-                    item.request_id, item.method, item.params);
+            // Reconstruct full JSON-RPC request using json-c
+            json_object *request = json_object_new_object();
+            json_object *jsonrpc = json_object_new_string("2.0");
+            json_object *id = json_object_new_int(item.request_id);
+            json_object *method = json_object_new_string(item.method);
+            json_object *params = json_tokener_parse(item.params);
+            if (!params) {
+                params = json_object_new_string(item.params);
+            }
+            
+            json_object_object_add(request, "jsonrpc", jsonrpc);
+            json_object_object_add(request, "id", id);
+            json_object_object_add(request, "method", method);
+            json_object_object_add(request, "params", params);
+            
+            const char *json_request_str = json_object_to_json_string(request);
             
             // Process request using io_process_request
             char response[16384];
-            io_process_request(json_request, response, sizeof(response));
+            io_process_request(json_request_str, response, sizeof(response));
+            
+            json_object_put(request);
             
             // Push to response queue
             queue_item_t resp_item = {
