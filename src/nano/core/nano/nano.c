@@ -2,7 +2,7 @@
 #include "nano.h"
 #include "../../../common/core.h"
 #include "../../../io/core/io/io.h"
-#include "../../../io/mapping/rkllm_proxy/rkllm_proxy.h"
+// Removed proxy layer include - using direct IO operations
 #include <json-c/json.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -16,8 +16,8 @@ nano_core_t g_nano = {
     .initialized = false,
     .running = false,
     .transport_count = 0,
-    .response_callback = nullptr,
-    .response_userdata = nullptr
+    .response_callback = NULL,
+    .response_userdata = NULL
 };
 
 // Forward declaration for callback
@@ -33,10 +33,7 @@ int nano_init(void) {
         return -1;
     }
     
-    // Initialize RKLLM proxy
-    if (rkllm_proxy_init() != 0) {
-        return -1;
-    }
+    // No longer need proxy initialization - using direct IO operations
     
     g_nano.initialized = true;
     g_nano.running = false;
@@ -67,7 +64,7 @@ int nano_run(void) {
     // Create worker threads for each transport
     pthread_t workers[8];
     for (int i = 0; i < g_nano.transport_count; i++) {
-        if (pthread_create(&workers[i], nullptr, transport_worker, g_nano.transports[i]) != 0) {
+        if (pthread_create(&workers[i], NULL, transport_worker, g_nano.transports[i]) != 0) {
             g_nano.running = false;
             return -1;
         }
@@ -75,7 +72,7 @@ int nano_run(void) {
     
     // Wait for all workers to complete
     for (int i = 0; i < g_nano.transport_count; i++) {
-        pthread_join(workers[i], nullptr);
+        pthread_join(workers[i], NULL);
     }
     
     return 0;
@@ -98,7 +95,6 @@ void nano_shutdown(void) {
     }
     
     // Shutdown subsystems
-    rkllm_proxy_shutdown();
     io_shutdown();
     
     g_nano.initialized = false;
@@ -108,15 +104,10 @@ void nano_shutdown(void) {
 int nano_process_message(const mcp_message_t* request, mcp_message_t* response) {
     if (!request || !response) return -1;
     
-    // Get operation from method name
-    rkllm_operation_t operation = rkllm_proxy_get_operation_by_name(request->method);
-    if (operation == OP_MAX) {
-        char error_msg[256];
-        snprintf(error_msg, sizeof(error_msg), "Method not found: %s", 
-                request->method ? request->method : "null");
-        char* error_result = create_error_result(-32601, error_msg);
-        mcp_message_create(response, MCP_RESPONSE, request->id, nullptr, error_result);
-        mem_free(error_result);
+    // Simplified method validation for lightweight approach
+    if (!request->method) {
+        char* error_result = "{\"error\":{\"code\":-32601,\"message\":\"Method not found\"}}"; 
+        mcp_message_create(response, MCP_RESPONSE, request->id, NULL, error_result);
         return -1;
     }
     
@@ -147,16 +138,15 @@ int nano_process_message(const mcp_message_t* request, mcp_message_t* response) 
     // Push request to IO layer (async processing)
     int push_result = io_push_request(json_request_str);
     if (push_result != IO_OK) {
-        char* error_result = create_error_result(-32603, "IO layer error");
-        mcp_message_create(response, MCP_RESPONSE, request->id, nullptr, error_result);
-        mem_free(error_result);
+        char* error_result = "{\"error\":{\"code\":-32603,\"message\":\"IO layer error\"}}";
+        mcp_message_create(response, MCP_RESPONSE, request->id, NULL, error_result);
         json_object_put(request_obj);
         return -1;
     }
     
     // For synchronous interface, create immediate success response
     // The actual response will be delivered via callback for streaming
-    mcp_message_create(response, MCP_RESPONSE, request->id, nullptr, "{\"status\":\"processing\",\"message\":\"Request submitted successfully\"}");
+    mcp_message_create(response, MCP_RESPONSE, request->id, NULL, "{\"status\":\"processing\",\"message\":\"Request submitted successfully\"}");
     
     json_object_put(request_obj);
     return 0;
@@ -166,9 +156,8 @@ int nano_process_message(const mcp_message_t* request, mcp_message_t* response) 
 int nano_process_message_async(const mcp_message_t* request) {
     if (!request) return -1;
     
-    // Get operation from method name
-    rkllm_operation_t operation = rkllm_proxy_get_operation_by_name(request->method);
-    if (operation == OP_MAX) {
+    // Simplified method validation for lightweight approach
+    if (!request->method) {
         return -1;
     }
     
@@ -213,7 +202,7 @@ static void nano_io_response_callback(const char* json_response, void* userdata)
     mcp_message_t response = {0};
     
     // For now, create a simple response - this can be enhanced for streaming
-    mcp_message_create(&response, MCP_RESPONSE, 0, nullptr, json_response);
+    mcp_message_create(&response, MCP_RESPONSE, 0, NULL, json_response);
     
     // Call the registered response callback immediately
     nano->response_callback(&response, nano->response_userdata);
@@ -237,15 +226,15 @@ static void* transport_worker(void* arg) {
         mcp_message_t request = {
             .type = MCP_REQUEST,
             .id = 0,
-            .method = nullptr,
-            .params = nullptr,
+            .method = NULL,
+            .params = NULL,
             .params_len = 0
         };
         mcp_message_t response = {
             .type = MCP_RESPONSE,
             .id = 0,
-            .method = nullptr,
-            .params = nullptr,
+            .method = NULL,
+            .params = NULL,
             .params_len = 0
         };
         
@@ -263,5 +252,5 @@ static void* transport_worker(void* arg) {
         }
     }
     
-    return nullptr;
+    return NULL;
 }
