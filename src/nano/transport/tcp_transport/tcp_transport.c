@@ -83,10 +83,12 @@ int tcp_transport_recv(mcp_message_t* message, int timeout_ms) {
 }
 
 void tcp_transport_shutdown(void) {
-    close_socket(g_config.socket_fd);
-    g_config.socket_fd = -1;
+    if (g_config.socket_fd >= 0) {
+        close_socket(g_config.socket_fd);
+        g_config.socket_fd = -1;
+    }
     
-    str_free(g_config.host);
+    // Don't free host - it wasn't allocated by us
     g_config.host = nullptr;
     g_config.running = false;
     g_config.initialized = false;

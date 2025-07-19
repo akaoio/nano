@@ -147,9 +147,18 @@ int nano_process_message(const mcp_message_t* request, mcp_message_t* response) 
         return -1;
     }
     
-    // Pop response from IO layer
+    // Pop response from IO layer with retries for long operations
     char json_response[4096];
-    int pop_result = io_pop_response(json_response, sizeof(json_response));
+    int pop_result = IO_TIMEOUT;
+    int max_retries = 60; // 60 seconds total wait time
+    
+    for (int retry = 0; retry < max_retries && pop_result == IO_TIMEOUT; retry++) {
+        pop_result = io_pop_response(json_response, sizeof(json_response));
+        if (pop_result == IO_TIMEOUT) {
+            sleep(1); // Wait 1 second between retries
+        }
+    }
+    
     if (pop_result != IO_OK) {
         char* error_result = create_error_result(-32603, "IO layer timeout");
         mcp_message_create(response, MCP_RESPONSE, request->id, nullptr, error_result);
