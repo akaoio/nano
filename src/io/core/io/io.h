@@ -61,8 +61,8 @@ void io_set_streaming_callback(nano_callback_t callback, void* userdata);
 void io_shutdown(void);
 
 // Internal functions
-NODISCARD int io_parse_json_request(const char* json_request, uint32_t* request_id, 
-                         uint32_t* handle_id, char* method, char* params);
+NODISCARD int io_parse_json_request_with_handle(const char* json_request, uint32_t* request_id, 
+                                                uint32_t* handle_id, char* method, char* params);
 void* io_worker_thread(void* arg);
 
 // Streaming callback function

@@ -1,7 +1,7 @@
 #pragma once
 
 #include "../../transport/mcp_base/mcp_base.h"
-#include "../../../io/mapping/rkllm_proxy/rkllm_proxy.h"
+#include "../../../io/operations.h"
 #include <stdbool.h>
 #include <stdint.h>
 #include <pthread.h>

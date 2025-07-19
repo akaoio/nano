@@ -64,11 +64,7 @@ set(IO_CORE_SRCS
     src/io/operations.c
 )
 
-set(IO_MAPPING_SRCS
-    src/io/mapping/handle_pool/handle_pool.c
-    src/io/mapping/rkllm_proxy/rkllm_proxy.c
-    src/io/mapping/rkllm_proxy/rkllm_operations.c
-)
+# IO_MAPPING_SRCS removed - using direct RKLLM calls for lightweight approach
 
 set(NANO_SYSTEM_SRCS
     src/nano/system/system_info/system_info.c
@@ -94,20 +90,15 @@ set(NANO_CORE_SRCS
     src/nano/core/nano/nano.c
 )
 
-# New test sources - comprehensive streaming architecture validation
+# Simplified unified test suite - eliminates duplications
 set(TEST_SRCS
-    tests/test_main.c
-    tests/test_streaming_client.c
-    tests/test_io_callbacks.c
-    tests/test_nano_callbacks.c
-    tests/test_e2e_workflow.c
+    tests/test_unified.c
 )
 
 # All library sources
 set(LIB_SRCS
     ${COMMON_SRCS}
     ${IO_CORE_SRCS}
-    ${IO_MAPPING_SRCS}
     ${NANO_SYSTEM_SRCS}
     ${NANO_VALIDATION_SRCS}
     ${NANO_TRANSPORT_SRCS}

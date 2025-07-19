@@ -1,5 +1,5 @@
 #include "handle_utils.h"
-#include "../../io/mapping/rkllm_proxy/rkllm_proxy.h"
+#include "../../io/operations.h"
 #include "../error_utils/error_utils.h"
 #include <string.h>
 
@@ -8,18 +8,11 @@ bool is_valid_handle_id(uint32_t handle_id) {
 }
 
 LLMHandle get_validated_handle(uint32_t handle_id) {
-    if (!is_valid_handle_id(handle_id)) {
-        return nullptr;
-    }
-    
-    return rkllm_proxy_get_handle(handle_id);
+    (void)handle_id; // Ignore handle_id - hardware only supports 1 model
+    return io_get_rkllm_handle();
 }
 
 LLMHandle get_validated_handle_or_error(uint32_t handle_id, void* result) {
-    LLMHandle handle = get_validated_handle(handle_id);
-    if (!handle) {
-        SET_ERROR_RESULT((rkllm_result_t*)result, -1, "Invalid handle");
-        return nullptr;
-    }
-    return handle;
+    (void)result; // Suppress unused parameter warning for lightweight approach
+    return get_validated_handle(handle_id);
 }

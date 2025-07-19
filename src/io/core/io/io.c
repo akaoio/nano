@@ -10,11 +10,59 @@
 #include <time.h>
 
 /*
- * IO System - Pure callback-based request processing
+ * IO System - Pure callback-based request processing with intelligent queuing
+ * 
+ * QUEUE STRATEGY:
+ * - Queue: run, run_async, run_streaming (inference operations)
+ * - Direct: abort, is_running, init, destroy, cache operations
  */
 
 // Global IO context
 io_context_t g_io_context;
+
+// Check if operation needs queuing or can be processed directly
+static bool operation_needs_queue(const char* method) {
+    if (!method) return true; // Default to queue for safety
+    
+    // Operations that MUST be queued (inference operations)
+    if (strcmp(method, "run") == 0 ||
+        strcmp(method, "run_async") == 0 ||
+        strcmp(method, "run_streaming") == 0 ||
+        strcmp(method, "run_async_streaming") == 0) {
+        return true;
+    }
+    
+    // Operations that can be processed directly (non-inference)
+    if (strcmp(method, "abort") == 0 ||
+        strcmp(method, "is_running") == 0 ||
+        strcmp(method, "init") == 0 ||
+        strcmp(method, "destroy") == 0 ||
+        strcmp(method, "clear_kv_cache") == 0 ||
+        strcmp(method, "get_kv_cache_size") == 0 ||
+        strcmp(method, "load_lora") == 0 ||
+        strcmp(method, "load_prompt_cache") == 0 ||
+        strcmp(method, "release_prompt_cache") == 0 ||
+        strcmp(method, "set_chat_template") == 0 ||
+        strcmp(method, "set_function_tools") == 0 ||
+        strcmp(method, "set_cross_attn_params") == 0 ||
+        strcmp(method, "create_default_param") == 0) {
+        return false; // Process directly
+    }
+    
+    // Unknown operations default to queue for safety
+    return true;
+}
+
+// Process operation directly (bypass queue)
+static int io_process_direct(const char* method, const char* params, char* response, size_t response_size) {
+    // Call io_process_request directly for immediate processing
+    char json_request[8192];
+    snprintf(json_request, sizeof(json_request),
+             "{ \"jsonrpc\": \"2.0\", \"id\": 999, \"method\": \"%s\", \"params\": %s }",
+             method, params ? params : "{}");
+    
+    return io_process_request(json_request, response, response_size);
+}
 
 int io_init(nano_callback_t callback, void* userdata) {
     if (atomic_load(&g_io_context.running)) return IO_OK;
@@ -34,7 +82,7 @@ int io_init(nano_callback_t callback, void* userdata) {
     
     // Start worker threads
     for (int i = 0; i < MAX_WORKERS; i++) {
-        if (pthread_create(&g_io_context.workers[i], nullptr, io_worker_thread, nullptr) == 0) {
+        if (pthread_create(&g_io_context.workers[i], NULL, io_worker_thread, NULL) == 0) {
             atomic_fetch_add(&g_io_context.active_workers, 1);
         }
     }
@@ -49,9 +97,22 @@ int io_push_request(const char* json_request) {
     uint32_t request_id, handle_id;
     char method[32], params[4096];
     
-    if (io_parse_json_request(json_request, &request_id, &handle_id, 
-                             method, params) != IO_OK) {
+    if (io_parse_json_request_with_handle(json_request, &request_id, &handle_id, 
+                                         method, params) != IO_OK) {
         return IO_ERROR;
+    }
+    
+    // Check if operation can be processed directly (bypass queue)
+    if (!operation_needs_queue(method)) {
+        char response[8192];
+        int result = io_process_direct(method, params, response, sizeof(response));
+        
+        // Send response directly via callback
+        if (g_io_context.nano_callback && result == IO_OK) {
+            g_io_context.nano_callback(response, g_io_context.nano_userdata);
+        }
+        
+        return result;
     }
     
     // Create queue item using designated initializers
@@ -60,7 +121,7 @@ int io_push_request(const char* json_request) {
         .request_id = request_id,
         .params = strdup(params),
         .params_len = strlen(params),
-        .timestamp = (uint64_t)time(nullptr)
+        .timestamp = (uint64_t)time(NULL)
     };
     snprintf(item.method, sizeof(item.method), "%s", method);
     
