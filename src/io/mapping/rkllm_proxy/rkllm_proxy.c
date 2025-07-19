@@ -47,7 +47,7 @@ void rkllm_proxy_shutdown(void) {
 
 const char* rkllm_proxy_get_operation_name(rkllm_operation_t op) {
     if (op >= OP_MAX) {
-        return NULL;
+        return nullptr;
     }
     return OPERATION_NAMES[op];
 }
@@ -110,7 +110,7 @@ void rkllm_proxy_free_result(rkllm_result_t* result) {
     
     if (result->result_data) {
         free(result->result_data);
-        result->result_data = NULL;
+        result->result_data = nullptr;
     }
     result->result_size = 0;
 }
@@ -118,11 +118,11 @@ void rkllm_proxy_free_result(rkllm_result_t* result) {
 // Helper function to get handle from pool
 LLMHandle rkllm_proxy_get_handle(uint32_t handle_id) {
     if (!g_initialized) {
-        return NULL;
+        return nullptr;
     }
     
     LLMHandle* handle_ptr = handle_pool_get(&g_handle_pool, handle_id);
-    return handle_ptr ? *handle_ptr : NULL;
+    return handle_ptr ? *handle_ptr : nullptr;
 }
 
 // Helper function to create JSON result using json-c
@@ -196,13 +196,13 @@ int rkllm_proxy_global_callback(RKLLMResult* result, void* userdata, LLMCallStat
 rkllm_callback_context_t* rkllm_proxy_create_callback_context(size_t buffer_size) {
     rkllm_callback_context_t* context = malloc(sizeof(rkllm_callback_context_t));
     if (!context) {
-        return NULL;
+        return nullptr;
     }
     
     context->output_buffer = malloc(buffer_size);
     if (!context->output_buffer) {
         free(context);
-        return NULL;
+        return nullptr;
     }
     
     context->buffer_size = buffer_size;

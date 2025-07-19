@@ -27,14 +27,14 @@ int main(void) {
         {"NANO Architecture", test_nano_architecture, 0},
         {"Integration - QwenVL", test_integration_qwenvl, 0},
         {"Integration - LoRA", test_integration_lora, 0},
-        {NULL, NULL, 0}
+        {nullptr, nullptr, 0}
     };
     
     int total_tests = 0;
     int failed_tests = 0;
     
     // Run test suites
-    for (int i = 0; suites[i].name != NULL; i++) {
+    for (int i = 0; suites[i].name != nullptr; i++) {
         total_tests++;
         printf("🧪 Testing %s...\n", suites[i].name);
         printf("─────────────────────────────────\n");

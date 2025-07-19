@@ -80,7 +80,7 @@ int ws_transport_recv(mcp_message_t* message, int timeout_ms) {
     timeout.tv_sec = timeout_ms / 1000;
     timeout.tv_usec = (timeout_ms % 1000) * 1000;
     
-    int result = select(g_config.socket_fd + 1, &readfds, NULL, NULL, &timeout);
+    int result = select(g_config.socket_fd + 1, &readfds, nullptr, nullptr, &timeout);
     if (result <= 0) {
         return -1; // Timeout or error
     }
@@ -106,8 +106,8 @@ void ws_transport_shutdown(void) {
     
     str_free(g_config.host);
     str_free(g_config.path);
-    g_config.host = NULL;
-    g_config.path = NULL;
+    g_config.host = nullptr;
+    g_config.path = nullptr;
     g_config.connected = false;
     g_config.running = false;
     g_config.initialized = false;

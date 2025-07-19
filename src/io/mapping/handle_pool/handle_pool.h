@@ -71,7 +71,7 @@ NODISCARD int handle_pool_set_handle(handle_pool_t* pool, uint32_t handle_id, LL
  * @brief Get handle by ID
  * @param pool Handle pool
  * @param handle_id Handle ID
- * @return Handle pointer or NULL
+ * @return Handle pointer or nullptr
  */
 NODISCARD LLMHandle* handle_pool_get(handle_pool_t* pool, uint32_t handle_id);
 

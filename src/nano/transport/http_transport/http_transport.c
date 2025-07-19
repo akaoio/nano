@@ -79,8 +79,8 @@ int http_transport_recv(mcp_message_t* message, int timeout_ms) {
 void http_transport_shutdown(void) {
     str_free(g_config.host);
     str_free(g_config.path);
-    g_config.host = NULL;
-    g_config.path = NULL;
+    g_config.host = nullptr;
+    g_config.path = nullptr;
     g_config.running = false;
     g_config.initialized = false;
 }

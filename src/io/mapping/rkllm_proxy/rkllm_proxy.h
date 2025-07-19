@@ -88,7 +88,7 @@ rkllm_operation_t rkllm_proxy_get_operation_by_name(const char* name);
 /**
  * @brief Get handle from handle ID
  * @param handle_id Handle ID
- * @return LLMHandle or NULL if not found
+ * @return LLMHandle or nullptr if not found
  */
 LLMHandle rkllm_proxy_get_handle(uint32_t handle_id);
 
@@ -126,7 +126,7 @@ int rkllm_proxy_global_callback(RKLLMResult* result, void* userdata, LLMCallStat
 /**
  * @brief Create callback context for capturing output
  * @param buffer_size Size of output buffer
- * @return Allocated context or NULL on error
+ * @return Allocated context or nullptr on error
  */
 rkllm_callback_context_t* rkllm_proxy_create_callback_context(size_t buffer_size);
 

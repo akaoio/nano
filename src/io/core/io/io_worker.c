@@ -26,7 +26,7 @@ void* io_worker_thread(void* arg) {
         }
         
         // Check for timeout
-        uint64_t now = (uint64_t)time(NULL);
+        uint64_t now = (uint64_t)time(nullptr);
         if (now - item.timestamp > REQUEST_TIMEOUT_MS / 1000) {
             // Create timeout response using json-c
             json_object *response = json_object_new_object();
@@ -89,7 +89,7 @@ void* io_worker_thread(void* arg) {
             .request_id = item.request_id,
             .params = strdup(response),
             .params_len = strlen(response),
-            .timestamp = (uint64_t)time(NULL)
+            .timestamp = (uint64_t)time(nullptr)
         };
         strncpy(resp_item.method, "response", sizeof(resp_item.method) - 1);
         
@@ -101,5 +101,5 @@ void* io_worker_thread(void* arg) {
     }
     
     atomic_fetch_sub(&g_io_context.active_workers, 1);
-    return NULL;
+    return nullptr;
 }

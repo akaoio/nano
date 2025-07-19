@@ -141,7 +141,7 @@ int nano_process_message(const mcp_message_t* request, mcp_message_t* response) 
     int push_result = io_push_request(json_request_str);
     if (push_result != IO_OK) {
         char* error_result = create_error_result(-32603, "IO layer error");
-        mcp_message_create(response, MCP_RESPONSE, request->id, NULL, error_result);
+        mcp_message_create(response, MCP_RESPONSE, request->id, nullptr, error_result);
         mem_free(error_result);
         json_object_put(request_obj);
         return -1;
@@ -152,14 +152,14 @@ int nano_process_message(const mcp_message_t* request, mcp_message_t* response) 
     int pop_result = io_pop_response(json_response, sizeof(json_response));
     if (pop_result != IO_OK) {
         char* error_result = create_error_result(-32603, "IO layer timeout");
-        mcp_message_create(response, MCP_RESPONSE, request->id, NULL, error_result);
+        mcp_message_create(response, MCP_RESPONSE, request->id, nullptr, error_result);
         mem_free(error_result);
         json_object_put(request_obj);
         return -1;
     }
     
     // Parse JSON response and create MCP response
-    mcp_message_create(response, MCP_RESPONSE, request->id, NULL, json_response);
+    mcp_message_create(response, MCP_RESPONSE, request->id, nullptr, json_response);
     
     json_object_put(request_obj);
     return 0;

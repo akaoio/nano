@@ -5,7 +5,7 @@
 int handle_pool_cleanup(handle_pool_t* pool) {
     if (!pool) return -1;
     
-    time_t now = time(NULL);
+    time_t now = time(nullptr);
     int cleaned = 0;
     
     for (int i = 0; i < MAX_HANDLES; i++) {

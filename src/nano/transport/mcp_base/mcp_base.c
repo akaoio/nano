@@ -19,8 +19,8 @@ int mcp_message_create(mcp_message_t* msg, mcp_message_type_t type, uint32_t id,
     
     msg->type = type;
     msg->id = id;
-    msg->method = method ? str_copy(method) : NULL;
-    msg->params = params ? str_copy(params) : NULL;
+    msg->method = method ? str_copy(method) : nullptr;
+    msg->params = params ? str_copy(params) : nullptr;
     msg->params_len = params ? strlen(params) : 0;
     
     return 0;
@@ -32,8 +32,8 @@ void mcp_message_destroy(mcp_message_t* msg) {
     str_free(msg->method);
     str_free(msg->params);
     
-    msg->method = NULL;
-    msg->params = NULL;
+    msg->method = nullptr;
+    msg->params = nullptr;
     msg->params_len = 0;
 }
 
@@ -45,9 +45,9 @@ int mcp_parse_json_rpc(const char* json, mcp_message_t* msg) {
     if (!root) return -1;
     
     // Initialize message
-    msg->params = NULL;
+    msg->params = nullptr;
     msg->params_len = 0;
-    msg->method = NULL;
+    msg->method = nullptr;
     msg->id = 0;
     
     // Check if it's a response (has "result" or "error")
