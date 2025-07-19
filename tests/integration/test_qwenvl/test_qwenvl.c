@@ -1,7 +1,7 @@
 #include "../test_qwenvl.h"
 #include "../../../src/io/mapping/handle_pool/handle_pool.h"
 #include "../../../src/io/mapping/rkllm_proxy/rkllm_proxy.h"
-#include "../../../src/common/json_utils/json_utils.h"
+#include <json-c/json.h>
 #include "../../../src/nano/validation/model_checker/model_checker.h"
 #include <assert.h>
 #include <stdio.h>
@@ -44,24 +44,24 @@ int test_qwenvl_model_loading() {
     }
     printf("Debug: Proxy system initialized\n");
     
-    // Step 3: Load model
+    // Step 3: Load model using json-c
     printf("🔍 Step 3: Loading model...\n");
     printf("Debug: Preparing model loading params...\n");
-    char params[512];
-    snprintf(params, sizeof(params), 
-             "{\"model_path\":\"%s\"}", model_path);
     
-    printf("Debug: Params: %s\n", params);
+    json_object *params_obj = json_object_new_object();
+    json_object *model_path_obj = json_object_new_string(model_path);
+    json_object_object_add(params_obj, "model_path", model_path_obj);
     
-    // Create request structure
+    const char *params_json = json_object_to_json_string(params_obj);
+    printf("Debug: Params: %s\n", params_json);
+    
+    // Create request structure  
     rkllm_request_t request = {
         .operation = rkllm_proxy_get_operation_by_name("init"),
         .handle_id = 0,
-        .params_json = params,
-        .params_size = strlen(params)
-    };
-    
-    rkllm_result_t exec_result = {0};
+        .params_json = (char*)params_json,
+        .params_size = strlen(params_json)
+    };    rkllm_result_t exec_result = {0};
     
     printf("Debug: Calling rkllm_proxy_execute...\n");
     int ret = rkllm_proxy_execute(&request, &exec_result);
@@ -86,6 +86,7 @@ int test_qwenvl_model_loading() {
             
             // Clean up
             rkllm_proxy_free_result(&exec_result);
+            json_object_put(params_obj);
             printf("Debug: Calling rkllm_proxy_shutdown...\n");
             rkllm_proxy_shutdown();
             printf("Debug: Shutdown completed\n");
@@ -93,6 +94,7 @@ int test_qwenvl_model_loading() {
         } else {
             printf("⚠️  No handle_id found in result\n");
             rkllm_proxy_free_result(&exec_result);
+            json_object_put(params_obj);
             printf("Debug: Calling rkllm_proxy_shutdown...\n");
             rkllm_proxy_shutdown();
             printf("Debug: Shutdown completed\n");
@@ -102,6 +104,7 @@ int test_qwenvl_model_loading() {
         printf("❌ Failed to load QwenVL model\n");
         printf("📋 Error: %s\n", exec_result.result_data ? exec_result.result_data : "NULL");
         rkllm_proxy_free_result(&exec_result);
+        json_object_put(params_obj);
         printf("Debug: Calling rkllm_proxy_shutdown...\n");
         rkllm_proxy_shutdown();
         printf("Debug: Shutdown completed\n");
@@ -112,20 +115,24 @@ int test_qwenvl_model_loading() {
 int test_qwenvl_inference(uint32_t handle_id) {
     printf("🚀 Testing QwenVL inference with comprehensive tests...\n");
     
-    // Test 1: Simple greeting
+    // Test 1: Simple greeting using json-c
     printf("\n📝 Test 1: Simple greeting\n");
     const char* prompt1 = "Hello! Please introduce yourself briefly.";
     printf("📥 Input: \"%s\"\n", prompt1);
     
-    char params1[512];
-    snprintf(params1, sizeof(params1), 
-             "{\"handle_id\":%u,\"prompt\":\"%s\"}", handle_id, prompt1);
+    json_object *params1_obj = json_object_new_object();
+    json_object *handle_id_obj = json_object_new_int(handle_id);
+    json_object *prompt_obj = json_object_new_string(prompt1);
+    json_object_object_add(params1_obj, "handle_id", handle_id_obj);
+    json_object_object_add(params1_obj, "prompt", prompt_obj);
+    
+    const char *params1_json = json_object_to_json_string(params1_obj);
     
     rkllm_request_t request1 = {
         .operation = rkllm_proxy_get_operation_by_name("run"),
         .handle_id = handle_id,
-        .params_json = params1,
-        .params_size = strlen(params1)
+        .params_json = (char*)params1_json,
+        .params_size = strlen(params1_json)
     };
     
     rkllm_result_t result1 = {0};
@@ -140,17 +147,21 @@ int test_qwenvl_inference(uint32_t handle_id) {
         printf("📋 Error: %s\n", result1.result_data ? result1.result_data : "Unknown error");
         rkllm_proxy_free_result(&result1);
     }
+    json_object_put(params1_obj);
     
-    // Test 2: Check model status
+    // Test 2: Check model status using json-c
     printf("\n📊 Test 2: Model status check\n");
-    char status_params[256];
-    snprintf(status_params, sizeof(status_params), "{\"handle_id\":%u}", handle_id);
+    json_object *status_obj = json_object_new_object();
+    json_object *status_handle_id = json_object_new_int(handle_id);
+    json_object_object_add(status_obj, "handle_id", status_handle_id);
+    
+    const char *status_params_json = json_object_to_json_string(status_obj);
     
     rkllm_request_t status_request = {
         .operation = rkllm_proxy_get_operation_by_name("is_running"),
         .handle_id = handle_id,
-        .params_json = status_params,
-        .params_size = strlen(status_params)
+        .params_json = (char*)status_params_json,
+        .params_size = strlen(status_params_json)
     };
     
     rkllm_result_t status_result = {0};
@@ -165,17 +176,21 @@ int test_qwenvl_inference(uint32_t handle_id) {
         printf("📋 Error: %s\n", status_result.result_data ? status_result.result_data : "Unknown error");
         rkllm_proxy_free_result(&status_result);
     }
+    json_object_put(status_obj);
     
-    // Cleanup: Destroy handle to free NPU memory
+    // Cleanup: Destroy handle to free NPU memory using json-c
     printf("\n🧹 Cleanup: Destroying handle...\n");
-    char destroy_params[64];
-    snprintf(destroy_params, sizeof(destroy_params), "{\"handle_id\":%u}", handle_id);
+    json_object *destroy_obj = json_object_new_object();
+    json_object *destroy_handle_id = json_object_new_int(handle_id);
+    json_object_object_add(destroy_obj, "handle_id", destroy_handle_id);
+    
+    const char *destroy_params_json = json_object_to_json_string(destroy_obj);
     
     rkllm_request_t destroy_request = {
         .operation = rkllm_proxy_get_operation_by_name("destroy"),
         .handle_id = handle_id,
-        .params_json = destroy_params,
-        .params_size = strlen(destroy_params)
+        .params_json = (char*)destroy_params_json,
+        .params_size = strlen(destroy_params_json)
     };
     
     rkllm_result_t destroy_result = {0};
@@ -186,6 +201,7 @@ int test_qwenvl_inference(uint32_t handle_id) {
         printf("⚠️  Handle destruction failed\n");
     }
     rkllm_proxy_free_result(&destroy_result);
+    json_object_put(destroy_obj);
     
     return 0;
 }

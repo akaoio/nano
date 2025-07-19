@@ -1,7 +1,7 @@
 #include "core/io/io.h"
 #include "mapping/rkllm_proxy/rkllm_proxy.h"
 #include "mapping/rkllm_proxy/rkllm_operations.h"
-#include "common/json_utils/json_utils.h"
+#include <json-c/json.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -30,28 +30,57 @@ int io_parse_json_request(const char* json_request, uint32_t* request_id,
     method[0] = '\0';
     params[0] = '\0';
     
-    // Parse JSON-RPC request using centralized json_utils
+    // Parse JSON-RPC request using json-c
     // Expected format: {"jsonrpc":"2.0","id":1,"method":"init","params":{...}}
     
+    json_object *root = json_tokener_parse(json_request);
+    if (!root) {
+        return -1;
+    }
+    
     // Extract ID
-    *request_id = json_get_uint32(json_request, "id", 0);
+    json_object *id_obj;
+    if (json_object_object_get_ex(root, "id", &id_obj)) {
+        *request_id = (uint32_t)json_object_get_int(id_obj);
+    }
     
     // Extract method
-    if (json_extract_string_safe(json_request, "method", method, 256) != 0) {
+    json_object *method_obj;
+    if (json_object_object_get_ex(root, "method", &method_obj)) {
+        const char *method_str = json_object_get_string(method_obj);
+        if (method_str) {
+            size_t len = strlen(method_str);
+            if (len >= 64) len = 63;  // Ensure we don't overflow 64-byte buffer
+            strncpy(method, method_str, len);
+            method[len] = '\0';
+        } else {
+            json_object_put(root);
+            return -1;
+        }
+    } else {
+        json_object_put(root);
         return -1;
     }
     
     // Extract params object
-    if (json_extract_object(json_request, "params", params, 2048) != 0) {
-        // No params is valid for some methods
-        params[0] = '\0';
+    json_object *params_obj;
+    if (json_object_object_get_ex(root, "params", &params_obj)) {
+        const char *params_str = json_object_to_json_string(params_obj);
+        if (params_str) {
+            size_t len = strlen(params_str);
+            if (len >= 256) len = 255;  // Ensure we don't overflow 256-byte buffer
+            strncpy(params, params_str, len);
+            params[len] = '\0';
+            
+            // Extract handle_id from params if present
+            json_object *handle_id_obj;
+            if (json_object_object_get_ex(params_obj, "handle_id", &handle_id_obj)) {
+                *handle_id = (uint32_t)json_object_get_int(handle_id_obj);
+            }
+        }
     }
     
-    // Extract handle_id from params if present
-    if (strlen(params) > 0) {
-        *handle_id = json_get_uint32(params, "handle_id", 0);
-    }
-    
+    json_object_put(root);
     return 0;
 }
 
@@ -74,20 +103,50 @@ int io_process_request(const char* json_request, char* json_response, size_t max
     char params[2048] = {0};
     
     if (io_parse_json_request(json_request, &request_id, &handle_id, method, params) != 0) {
-        // Create error response
-        snprintf(json_response, max_response_len,
-                "{\"jsonrpc\":\"2.0\",\"id\":%u,\"error\":{\"code\":-32700,\"message\":\"Parse error\"}}",
-                request_id);
+        // Create error response using json-c
+        json_object *response = json_object_new_object();
+        json_object *jsonrpc = json_object_new_string("2.0");
+        json_object *id = json_object_new_int(request_id);
+        json_object *error = json_object_new_object();
+        json_object *code = json_object_new_int(-32700);
+        json_object *message = json_object_new_string("Parse error");
+        
+        json_object_object_add(error, "code", code);
+        json_object_object_add(error, "message", message);
+        json_object_object_add(response, "jsonrpc", jsonrpc);
+        json_object_object_add(response, "id", id);
+        json_object_object_add(response, "error", error);
+        
+        const char *response_str = json_object_to_json_string(response);
+        strncpy(json_response, response_str, max_response_len - 1);
+        json_response[max_response_len - 1] = '\0';
+        
+        json_object_put(response);
         return -1;
     }
     
     // Get operation from method name
     rkllm_operation_t operation = rkllm_proxy_get_operation_by_name(method);
     if (operation == OP_MAX) {
-        // Create method not found error
-        snprintf(json_response, max_response_len,
-                "{\"jsonrpc\":\"2.0\",\"id\":%u,\"error\":{\"code\":-32601,\"message\":\"Method not found\"}}",
-                request_id);
+        // Create method not found error using json-c
+        json_object *response = json_object_new_object();
+        json_object *jsonrpc = json_object_new_string("2.0");
+        json_object *id = json_object_new_int(request_id);
+        json_object *error = json_object_new_object();
+        json_object *code = json_object_new_int(-32601);
+        json_object *message = json_object_new_string("Method not found");
+        
+        json_object_object_add(error, "code", code);
+        json_object_object_add(error, "message", message);
+        json_object_object_add(response, "jsonrpc", jsonrpc);
+        json_object_object_add(response, "id", id);
+        json_object_object_add(response, "error", error);
+        
+        const char *response_str = json_object_to_json_string(response);
+        strncpy(json_response, response_str, max_response_len - 1);
+        json_response[max_response_len - 1] = '\0';
+        
+        json_object_put(response);
         return -1;
     }
     
@@ -103,18 +162,52 @@ int io_process_request(const char* json_request, char* json_response, size_t max
     rkllm_result_t rkllm_result = {0};
     int status = rkllm_proxy_execute(&rkllm_request, &rkllm_result);
     
-    // Create JSON-RPC response
+    // Create JSON-RPC response using json-c
+    json_object *response = json_object_new_object();
+    json_object *jsonrpc = json_object_new_string("2.0");
+    json_object *id = json_object_new_int(request_id);
+    
+    json_object_object_add(response, "jsonrpc", jsonrpc);
+    json_object_object_add(response, "id", id);
+    
     if (status == 0) {
         // Success response
-        snprintf(json_response, max_response_len,
-                "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":%s}",
-                request_id, rkllm_result.result_data ? rkllm_result.result_data : "null");
+        json_object *result;
+        if (rkllm_result.result_data) {
+            // Try to parse result_data as JSON, if it fails, treat as string
+            result = json_tokener_parse(rkllm_result.result_data);
+            if (!result) {
+                result = json_object_new_string(rkllm_result.result_data);
+            }
+        } else {
+            result = json_object_new_null();
+        }
+        json_object_object_add(response, "result", result);
     } else {
         // Error response
-        snprintf(json_response, max_response_len,
-                "{\"jsonrpc\":\"2.0\",\"id\":%u,\"error\":{\"code\":%d,\"message\":\"Operation failed\",\"data\":%s}}",
-                request_id, status, rkllm_result.result_data ? rkllm_result.result_data : "null");
+        json_object *error = json_object_new_object();
+        json_object *code = json_object_new_int(status);
+        json_object *message = json_object_new_string("Operation failed");
+        
+        json_object_object_add(error, "code", code);
+        json_object_object_add(error, "message", message);
+        
+        if (rkllm_result.result_data) {
+            json_object *data = json_tokener_parse(rkllm_result.result_data);
+            if (!data) {
+                data = json_object_new_string(rkllm_result.result_data);
+            }
+            json_object_object_add(error, "data", data);
+        }
+        
+        json_object_object_add(response, "error", error);
     }
+    
+    const char *response_str = json_object_to_json_string(response);
+    strncpy(json_response, response_str, max_response_len - 1);
+    json_response[max_response_len - 1] = '\0';
+    
+    json_object_put(response);
     
     // Cleanup
     rkllm_proxy_free_result(&rkllm_result);

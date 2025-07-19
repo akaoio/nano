@@ -3,9 +3,40 @@
 #include "../handle_pool/handle_pool.h"
 #include "../../../common/core.h"
 #include "../../../libs/rkllm/rkllm.h"
+#include <json-c/json.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
+
+// Helper function to extract string from JSON using json-c
+static int json_extract_string_safe(const char* json_str, const char* key, char* buffer, size_t buffer_size) {
+    if (!json_str || !key || !buffer || buffer_size == 0) {
+        return -1;
+    }
+    
+    json_object *root = json_tokener_parse(json_str);
+    if (!root) {
+        return -1;
+    }
+    
+    json_object *value;
+    if (!json_object_object_get_ex(root, key, &value)) {
+        json_object_put(root);
+        return -1;
+    }
+    
+    const char *str_value = json_object_get_string(value);
+    if (!str_value) {
+        json_object_put(root);
+        return -1;
+    }
+    
+    strncpy(buffer, str_value, buffer_size - 1);
+    buffer[buffer_size - 1] = '\0';
+    
+    json_object_put(root);
+    return 0;
+}
 
 // Callback data structure for collecting RKLLM output
 typedef struct {
@@ -100,12 +131,16 @@ int rkllm_op_init(uint32_t* handle_id, const char* params_json, rkllm_result_t* 
     
     *handle_id = new_handle_id;
     
-    // Create success result
-    char result_data[256];
-    snprintf(result_data, sizeof(result_data), "{\"handle_id\":%u}", new_handle_id);
-    result->result_data = rkllm_proxy_create_json_result(0, result_data);
+    // Create success result using json-c
+    json_object *result_obj = json_object_new_object();
+    json_object *handle_id_obj = json_object_new_int(new_handle_id);
+    json_object_object_add(result_obj, "handle_id", handle_id_obj);
+    
+    const char *result_str = json_object_to_json_string(result_obj);
+    result->result_data = rkllm_proxy_create_json_result(0, result_str);
     result->result_size = strlen(result->result_data);
     
+    json_object_put(result_obj);
     return 0;
 }
 
@@ -171,10 +206,9 @@ int rkllm_op_run(uint32_t handle_id, const char* params_json, rkllm_result_t* re
     int status = rkllm_run(handle, &input, &infer_param, callback_context);
     
     if (status == 0 && callback_context->output_buffer && callback_context->current_pos > 0) {
-        // Use actual output from callback
-        char formatted_output[2048];
-        snprintf(formatted_output, sizeof(formatted_output), "\"%s\"", callback_context->output_buffer);
-        result->result_data = rkllm_proxy_create_json_result(0, formatted_output);
+        // Use json-c to format output
+        const char *output_str = callback_context->output_buffer;
+        result->result_data = rkllm_proxy_create_json_result(0, output_str);
     } else {
         result->result_data = rkllm_proxy_create_error_result(status, "Run failed or no output");
     }
@@ -199,24 +233,21 @@ int rkllm_op_run_async(uint32_t handle_id, const char* params_json, rkllm_result
         return -1;
     }
     
-    // Parse JSON parameters similar to rkllm_op_run
+    // Parse JSON parameters using json-c
     char prompt[1024] = "Hello, how are you?"; // Default prompt
     
-    // Simple JSON parsing for prompt
-    const char* prompt_start = strstr(params_json, "\"prompt\":");
-    if (prompt_start) {
-        prompt_start = strchr(prompt_start + 8, '"'); // Skip "prompt":
-        if (prompt_start) {
-            prompt_start++; // Skip opening quote
-            const char* prompt_end = strchr(prompt_start, '"');
-            if (prompt_end) {
-                size_t prompt_len = prompt_end - prompt_start;
-                if (prompt_len < sizeof(prompt)) {
-                    strncpy(prompt, prompt_start, prompt_len);
-                    prompt[prompt_len] = '\0';
-                }
+    // Parse prompt using json-c
+    json_object *root = json_tokener_parse(params_json);
+    if (root) {
+        json_object *prompt_obj;
+        if (json_object_object_get_ex(root, "prompt", &prompt_obj)) {
+            const char *prompt_str = json_object_get_string(prompt_obj);
+            if (prompt_str) {
+                strncpy(prompt, prompt_str, sizeof(prompt) - 1);
+                prompt[sizeof(prompt) - 1] = '\0';
             }
         }
+        json_object_put(root);
     }
     
     // Create input structure
@@ -286,11 +317,13 @@ int rkllm_op_is_running(uint32_t handle_id, const char* params_json, rkllm_resul
     
     int is_running = rkllm_is_running(handle);
     
-    char result_data[64];
-    snprintf(result_data, sizeof(result_data), "%s", is_running ? "true" : "false");
-    result->result_data = rkllm_proxy_create_json_result(0, result_data);
+    // Use json-c to create boolean result
+    json_object *result_obj = json_object_new_boolean(is_running);
+    const char *result_str = json_object_to_json_string(result_obj);
+    result->result_data = rkllm_proxy_create_json_result(0, result_str);
     result->result_size = strlen(result->result_data);
     
+    json_object_put(result_obj);
     return 0;
 }
 
@@ -419,9 +452,11 @@ int rkllm_op_get_kv_cache_size(uint32_t handle_id, const char* params_json, rkll
     int status = rkllm_get_kv_cache_size(handle, cache_sizes);
     
     if (status == 0) {
-        char result_data[64];
-        snprintf(result_data, sizeof(result_data), "%d", cache_sizes[0]);
-        result->result_data = rkllm_proxy_create_json_result(0, result_data);
+        // Use json-c to create integer result
+        json_object *result_obj = json_object_new_int(cache_sizes[0]);
+        const char *result_str = json_object_to_json_string(result_obj);
+        result->result_data = rkllm_proxy_create_json_result(0, result_str);
+        json_object_put(result_obj);
     } else {
         result->result_data = rkllm_proxy_create_error_result(status, "Get KV cache size failed");
     }
@@ -442,57 +477,41 @@ int rkllm_op_set_chat_template(uint32_t handle_id, const char* params_json, rkll
         return -1;
     }
     
-    // Parse template from JSON with proper parameters
+    // Parse template from JSON using json-c
     char system_prompt[512] = "";
     char prompt_prefix[128] = "";
     char prompt_postfix[128] = "";
     
-    const char* system_start = strstr(params_json, "\"system_prompt\":");
-    if (system_start) {
-        system_start = strchr(system_start + 15, '"');
-        if (system_start) {
-            system_start++;
-            const char* system_end = strchr(system_start, '"');
-            if (system_end) {
-                size_t len = system_end - system_start;
-                if (len < sizeof(system_prompt)) {
-                    strncpy(system_prompt, system_start, len);
-                    system_prompt[len] = '\0';
-                }
+    json_object *root = json_tokener_parse(params_json);
+    if (root) {
+        json_object *system_obj;
+        if (json_object_object_get_ex(root, "system_prompt", &system_obj)) {
+            const char *system_str = json_object_get_string(system_obj);
+            if (system_str) {
+                strncpy(system_prompt, system_str, sizeof(system_prompt) - 1);
+                system_prompt[sizeof(system_prompt) - 1] = '\0';
             }
         }
-    }
-    
-    const char* prefix_start = strstr(params_json, "\"prompt_prefix\":");
-    if (prefix_start) {
-        prefix_start = strchr(prefix_start + 15, '"');
-        if (prefix_start) {
-            prefix_start++;
-            const char* prefix_end = strchr(prefix_start, '"');
-            if (prefix_end) {
-                size_t len = prefix_end - prefix_start;
-                if (len < sizeof(prompt_prefix)) {
-                    strncpy(prompt_prefix, prefix_start, len);
-                    prompt_prefix[len] = '\0';
-                }
+        
+        json_object *prefix_obj;
+        if (json_object_object_get_ex(root, "prompt_prefix", &prefix_obj)) {
+            const char *prefix_str = json_object_get_string(prefix_obj);
+            if (prefix_str) {
+                strncpy(prompt_prefix, prefix_str, sizeof(prompt_prefix) - 1);
+                prompt_prefix[sizeof(prompt_prefix) - 1] = '\0';
             }
         }
-    }
-    
-    const char* postfix_start = strstr(params_json, "\"prompt_postfix\":");
-    if (postfix_start) {
-        postfix_start = strchr(postfix_start + 16, '"');
-        if (postfix_start) {
-            postfix_start++;
-            const char* postfix_end = strchr(postfix_start, '"');
-            if (postfix_end) {
-                size_t len = postfix_end - postfix_start;
-                if (len < sizeof(prompt_postfix)) {
-                    strncpy(prompt_postfix, postfix_start, len);
-                    prompt_postfix[len] = '\0';
-                }
+        
+        json_object *postfix_obj;
+        if (json_object_object_get_ex(root, "prompt_postfix", &postfix_obj)) {
+            const char *postfix_str = json_object_get_string(postfix_obj);
+            if (postfix_str) {
+                strncpy(prompt_postfix, postfix_str, sizeof(prompt_postfix) - 1);
+                prompt_postfix[sizeof(prompt_postfix) - 1] = '\0';
             }
         }
+        
+        json_object_put(root);
     }
     
     int status = rkllm_set_chat_template(handle, system_prompt, prompt_prefix, prompt_postfix);
@@ -629,18 +648,26 @@ int rkllm_op_create_default_param(uint32_t handle_id, const char* params_json, r
     
     RKLLMParam param = rkllm_createDefaultParam();
     
-    // Convert param to JSON with proper formatting
-    char result_data[512];
-    snprintf(result_data, sizeof(result_data), 
-             "{\"model_path\":\"%s\",\"max_context_len\":%d,\"max_new_tokens\":%d,\"temperature\":%.2f,\"top_p\":%.2f}",
-             param.model_path ? param.model_path : "",
-             param.max_context_len,
-             param.max_new_tokens,
-             param.temperature,
-             param.top_p);
+    // Convert param to JSON using json-c
+    json_object *result_obj = json_object_new_object();
+    json_object *model_path_obj = json_object_new_string(param.model_path ? param.model_path : "");
+    json_object *max_context_obj = json_object_new_int(param.max_context_len);
+    json_object *max_tokens_obj = json_object_new_int(param.max_new_tokens);
+    json_object *temp_obj = json_object_new_double(param.temperature);
+    json_object *top_p_obj = json_object_new_double(param.top_p);
     
-    result->result_data = rkllm_proxy_create_json_result(0, result_data);
+    json_object_object_add(result_obj, "model_path", model_path_obj);
+    json_object_object_add(result_obj, "max_context_len", max_context_obj);
+    json_object_object_add(result_obj, "max_new_tokens", max_tokens_obj);
+    json_object_object_add(result_obj, "temperature", temp_obj);
+    json_object_object_add(result_obj, "top_p", top_p_obj);
+    
+    const char *result_str = json_object_to_json_string(result_obj);
+    
+    result->result_data = rkllm_proxy_create_json_result(0, result_str);
     result->result_size = strlen(result->result_data);
+    
+    json_object_put(result_obj);
     
     return 0;
 }

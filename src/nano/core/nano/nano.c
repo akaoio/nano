@@ -2,11 +2,13 @@
 #include "../../../common/core.h"
 #include "../../../io/core/io/io.h"
 #include "../../../io/mapping/rkllm_proxy/rkllm_proxy.h"
+#include <json-c/json.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 #include <pthread.h>
+#include <stdbool.h>
 
 nano_core_t g_nano = {
     .initialized = false,
@@ -112,18 +114,36 @@ int nano_process_message(const mcp_message_t* request, mcp_message_t* response) 
     }
     
     // *** ARCHITECTURAL FIX: Use IO layer instead of direct RKLLM calls ***
-    // Create JSON-RPC request for IO layer
-    char json_request[4096];
-    snprintf(json_request, sizeof(json_request),
-             "{\"jsonrpc\":\"2.0\",\"id\":%u,\"method\":\"%s\",\"params\":%s}",
-             request->id, request->method, request->params ? request->params : "{}");
+    // Create JSON-RPC request for IO layer using json-c
+    json_object *request_obj = json_object_new_object();
+    json_object *jsonrpc = json_object_new_string("2.0");
+    json_object *id = json_object_new_int(request->id);
+    json_object *method = json_object_new_string(request->method);
+    json_object *params;
+    
+    if (request->params) {
+        params = json_tokener_parse(request->params);
+        if (!params) {
+            params = json_object_new_string(request->params);
+        }
+    } else {
+        params = json_object_new_object();
+    }
+    
+    json_object_object_add(request_obj, "jsonrpc", jsonrpc);
+    json_object_object_add(request_obj, "id", id);
+    json_object_object_add(request_obj, "method", method);
+    json_object_object_add(request_obj, "params", params);
+    
+    const char *json_request_str = json_object_to_json_string(request_obj);
     
     // Push request to IO layer
-    int push_result = io_push_request(json_request);
+    int push_result = io_push_request(json_request_str);
     if (push_result != IO_OK) {
         char* error_result = create_error_result(-32603, "IO layer error");
-        mcp_message_create(response, MCP_RESPONSE, request->id, nullptr, error_result);
+        mcp_message_create(response, MCP_RESPONSE, request->id, NULL, error_result);
         mem_free(error_result);
+        json_object_put(request_obj);
         return -1;
     }
     
@@ -132,14 +152,16 @@ int nano_process_message(const mcp_message_t* request, mcp_message_t* response) 
     int pop_result = io_pop_response(json_response, sizeof(json_response));
     if (pop_result != IO_OK) {
         char* error_result = create_error_result(-32603, "IO layer timeout");
-        mcp_message_create(response, MCP_RESPONSE, request->id, nullptr, error_result);
+        mcp_message_create(response, MCP_RESPONSE, request->id, NULL, error_result);
         mem_free(error_result);
+        json_object_put(request_obj);
         return -1;
     }
     
     // Parse JSON response and create MCP response
-    mcp_message_create(response, MCP_RESPONSE, request->id, nullptr, json_response);
+    mcp_message_create(response, MCP_RESPONSE, request->id, NULL, json_response);
     
+    json_object_put(request_obj);
     return 0;
 }
 

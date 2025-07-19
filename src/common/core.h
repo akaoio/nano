@@ -8,9 +8,9 @@
 #include <stdbool.h>
 #include <string.h>
 #include <stdlib.h>
+#include <json-c/json.h>
 
 // Common utility modules
-#include "json_utils/json_utils.h"
 #include "memory_utils/memory_utils.h"
 #include "string_utils/string_utils.h"
 #include "error_utils/error_utils.h"

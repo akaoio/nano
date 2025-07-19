@@ -164,7 +164,6 @@ tests/                    # Test suite
 ├── nano/                # Nano layer tests
 └── integration/         # Model integration tests
 
-config/models.json       # Model configurations
 models/                  # Model files
 ├── qwenvl/model.rkllm  # QwenVL model (7.7GB)
 └── lora/model.rkllm    # LoRA model (4.2GB)
@@ -176,10 +175,6 @@ models/                  # Model files
 ```bash
 # Run complete test suite
 ./test
-
-# Individual components (when available)
-./nano --config config/models.json
-./io --standalone-mode
 ```
 
 ### System Requirements

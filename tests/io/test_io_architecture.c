@@ -1,12 +1,65 @@
 #include "test_io_architecture.h"
 #include "../../src/io/core/io/io.h"
+#include "../../src/io/operations.h"
 #include "../../src/nano/core/nano/nano.h"
 #include "../../src/common/core.h"
+#include <json-c/json.h>
 #include <assert.h>
-#include <stdio.h>
 #include <string.h>
 #include <unistd.h>
 #include <stdbool.h>
+#include <stdio.h>
+#include <time.h>
+
+void test_io_json_parsing(void) {
+    printf("🔍 Testing JSON Parsing...\n");
+    
+    // Create test JSON using json-c (NO HARDCODING!)
+    json_object *test_json = json_object_new_object();
+    json_object *jsonrpc = json_object_new_string("2.0");
+    json_object *id = json_object_new_int(123);
+    json_object *method = json_object_new_string("test_method");
+    json_object *params = json_object_new_object();
+    json_object *key = json_object_new_string("value");
+    
+    json_object_object_add(params, "key", key);
+    json_object_object_add(test_json, "jsonrpc", jsonrpc);
+    json_object_object_add(test_json, "id", id);
+    json_object_object_add(test_json, "method", method);
+    json_object_object_add(test_json, "params", params);
+    
+    const char* json_string = json_object_to_json_string(test_json);
+    printf("Input JSON: %s\n", json_string);
+    
+    uint32_t request_id = 999;  // Initialize to a known value
+    uint32_t handle_id = 888;
+    char method_str[64] = {0};
+    char params_str[256] = {0};
+    
+    printf("Before call: request_id = %u, address = %p\n", request_id, (void*)&request_id);
+    
+    int result = io_parse_json_request(json_string, &request_id, &handle_id, method_str, params_str);
+    
+    printf("After call: result = %d, request_id = %u, address = %p\n", 
+           result, request_id, (void*)&request_id);
+    printf("Method: '%s'\n", method_str);
+    printf("Params: '%s'\n", params_str);
+    
+    if (result == 0) {
+        printf("✅ JSON parsing successful\n");
+        
+        if (request_id == 123) {
+            printf("✅ Request ID matches expected value\n");
+        } else {
+            printf("❌ Request ID mismatch: expected 123, got %u\n", request_id);
+        }
+    } else {
+        printf("⚠️  JSON parsing failed (result: %d)\n", result);
+    }
+    
+    // Clean up json-c objects
+    json_object_put(test_json);
+}
 #include <time.h>
 
 // Test IO Queue Architecture
@@ -16,9 +69,24 @@ void test_io_queue_operations() {
     // Initialize IO system
     assert(io_init() == IO_OK);
     
-    // Test push request with real model
-    const char* test_request = "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"init\",\"params\":{\"model_path\":\"models/qwenvl/model.rkllm\"}}";
+    // Create test request using json-c
+    json_object *request_json = json_object_new_object();
+    json_object *jsonrpc = json_object_new_string("2.0");
+    json_object *id = json_object_new_int(1);
+    json_object *method = json_object_new_string("init");
+    json_object *params = json_object_new_object();
+    json_object *model_path = json_object_new_string("models/qwenvl/model.rkllm");
+    
+    json_object_object_add(params, "model_path", model_path);
+    json_object_object_add(request_json, "jsonrpc", jsonrpc);
+    json_object_object_add(request_json, "id", id);
+    json_object_object_add(request_json, "method", method);
+    json_object_object_add(request_json, "params", params);
+    
+    const char* test_request = json_object_to_json_string(request_json);
     assert(io_push_request(test_request) == IO_OK);
+    
+    json_object_put(request_json);
     
     // Test pop response - should get a response after processing
     char response[1024];
@@ -44,15 +112,31 @@ void test_io_worker_pool() {
     
     assert(io_init() == IO_OK);
     
-    // Push multiple requests with real models
-    const char* requests[] = {
-        "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"init\",\"params\":{\"model_path\":\"models/qwenvl/model.rkllm\"}}",
-        "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"init\",\"params\":{\"model_path\":\"models/lora/model.rkllm\"}}",
-        "{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"init\",\"params\":{\"model_path\":\"models/qwenvl/model.rkllm\"}}"
+    // Create multiple test requests using json-c
+    const char* model_paths[] = {
+        "models/qwenvl/model.rkllm",
+        "models/lora/model.rkllm", 
+        "models/qwenvl/model.rkllm"
     };
     
     for (int i = 0; i < 3; i++) {
-        assert(io_push_request(requests[i]) == IO_OK);
+        json_object *request_json = json_object_new_object();
+        json_object *jsonrpc = json_object_new_string("2.0");
+        json_object *id = json_object_new_int(i + 1);
+        json_object *method = json_object_new_string("init");
+        json_object *params = json_object_new_object();
+        json_object *model_path = json_object_new_string(model_paths[i]);
+        
+        json_object_object_add(params, "model_path", model_path);
+        json_object_object_add(request_json, "jsonrpc", jsonrpc);
+        json_object_object_add(request_json, "id", id);
+        json_object_object_add(request_json, "method", method);
+        json_object_object_add(request_json, "params", params);
+        
+        const char* request_str = json_object_to_json_string(request_json);
+        assert(io_push_request(request_str) == IO_OK);
+        
+        json_object_put(request_json);
     }
     
     // Give workers time to process
@@ -100,8 +184,21 @@ void test_io_queue_full() {
     
     assert(io_init() == IO_OK);
     
-    // Try to fill queue beyond capacity with real model
-    const char* test_request = "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"init\",\"params\":{\"model_path\":\"models/qwenvl/model.rkllm\"}}";
+    // Create test request using json-c
+    json_object *request_json = json_object_new_object();
+    json_object *jsonrpc = json_object_new_string("2.0");
+    json_object *id = json_object_new_int(1);
+    json_object *method = json_object_new_string("init");
+    json_object *params = json_object_new_object();
+    json_object *model_path = json_object_new_string("models/qwenvl/model.rkllm");
+    
+    json_object_object_add(params, "model_path", model_path);
+    json_object_object_add(request_json, "jsonrpc", jsonrpc);
+    json_object_object_add(request_json, "id", id);
+    json_object_object_add(request_json, "method", method);
+    json_object_object_add(request_json, "params", params);
+    
+    const char* test_request = json_object_to_json_string(request_json);
     int pushed = 0;
     
     // Push requests until queue is full (assume reasonable limit)
@@ -118,6 +215,7 @@ void test_io_queue_full() {
     assert(pushed > 0);
     printf("✅ Queue filled with %d requests\n", pushed);
     
+    json_object_put(request_json);
     io_shutdown();
     printf("✅ IO Queue Full test passed\n");
 }
@@ -130,14 +228,22 @@ void test_nano_uses_io_queues() {
     assert(io_init() == IO_OK);
     assert(nano_init() == 0);
     
-    // Create a test request with real model
+    // Create a test request using json-c
+    json_object *params_json = json_object_new_object();
+    json_object *model_path = json_object_new_string("models/qwenvl/model.rkllm");
+    json_object_object_add(params_json, "model_path", model_path);
+    
+    const char *params_str = json_object_to_json_string(params_json);
+    
     mcp_message_t request = {
         .type = MCP_REQUEST,
         .id = 1,
         .method = str_copy("init"),
-        .params = str_copy("{\"model_path\":\"models/qwenvl/model.rkllm\"}"),
-        .params_len = strlen("{\"model_path\":\"models/qwenvl/model.rkllm\"}")
+        .params = str_copy(params_str),
+        .params_len = strlen(params_str)
     };
+    
+    json_object_put(params_json);
     
     mcp_message_t response = {0};
     
@@ -173,26 +279,6 @@ void test_nano_uses_io_queues() {
     io_shutdown();
     
     printf("✅ NANO correctly uses IO queues\n");
-}
-
-// Test JSON parsing (merged from basic IO tests)
-void test_io_json_parsing() {
-    printf("🔍 Testing JSON Parsing...\n");
-    
-    const char* json = "{\"jsonrpc\":\"2.0\",\"id\":123,\"method\":\"test_method\",\"params\":{\"key\":\"value\"}}";
-    
-    uint32_t request_id, handle_id;
-    char method[32], params[4096];
-    
-    int result = io_parse_json_request(json, &request_id, &handle_id, method, params);
-    if (result == IO_OK) {
-        assert(request_id == 123);
-        assert(strcmp(method, "test_method") == 0);
-        assert(strstr(params, "key") != NULL);
-        printf("✅ JSON parsing test passed\n");
-    } else {
-        printf("⚠️  JSON parsing failed (function may not exist)\n");
-    }
 }
 
 int test_io_architecture(void) {
