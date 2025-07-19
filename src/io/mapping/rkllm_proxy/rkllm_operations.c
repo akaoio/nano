@@ -180,11 +180,15 @@ int rkllm_op_run(uint32_t handle_id, const char* params_json, rkllm_result_t* re
     if (!handle) return -1;
     
     // Parse JSON parameters for RKLLMInput and RKLLMInferParam
-    // Extract prompt from JSON
-    char prompt[1024] = "Hello, how are you?"; // Default prompt
+    // Extract prompt from JSON  
+    char prompt[1024] = {0};
     
-    // Parse prompt if provided
-    json_extract_string_safe(params_json, "prompt", prompt, sizeof(prompt));
+    // Parse prompt - required parameter
+    if (json_extract_string_safe(params_json, "prompt", prompt, sizeof(prompt)) != 0 || strlen(prompt) == 0) {
+        result->result_data = rkllm_proxy_create_error_result(-1, "Missing required parameter: prompt");
+        result->result_size = strlen(result->result_data);
+        return -1;
+    }
     
     // Create input structure
     RKLLMInput input = {0};
@@ -221,6 +225,119 @@ int rkllm_op_run(uint32_t handle_id, const char* params_json, rkllm_result_t* re
     return status;
 }
 
+// Forward declaration for streaming callback from IO worker
+extern void io_streaming_chunk_callback(const char* chunk, bool is_final, void* userdata);
+
+int rkllm_op_run_streaming(uint32_t handle_id, const char* params_json, rkllm_result_t* result, uint32_t request_id) {
+    if (!params_json || !result) {
+        return -1;
+    }
+    
+    LLMHandle handle = get_validated_handle_or_error(handle_id, result);
+    if (!handle) return -1;
+    
+    // Parse JSON parameters for RKLLMInput and RKLLMInferParam
+    // Extract prompt from JSON  
+    char prompt[1024] = {0};
+    
+    // Parse prompt - required parameter
+    if (json_extract_string_safe(params_json, "prompt", prompt, sizeof(prompt)) != 0 || strlen(prompt) == 0) {
+        result->result_data = rkllm_proxy_create_error_result(-1, "Missing required parameter: prompt");
+        result->result_size = strlen(result->result_data);
+        return -1;
+    }
+    
+    // Create input structure
+    RKLLMInput input = {0};
+    input.input_type = RKLLM_INPUT_PROMPT;
+    input.prompt_input = prompt;
+    
+    RKLLMInferParam infer_param = {0};
+    infer_param.mode = RKLLM_INFER_GENERATE;
+    infer_param.keep_history = 1;
+    
+    // Create callback context for streaming
+    rkllm_callback_context_t* callback_context = rkllm_proxy_create_callback_context(2048);
+    if (!callback_context) {
+        result->result_data = rkllm_proxy_create_error_result(-1, "Failed to create callback context");
+        result->result_size = strlen(result->result_data);
+        return -1;
+    }
+    
+    // Enable streaming mode
+    callback_context->streaming_enabled = true;
+    callback_context->request_id = request_id;
+    callback_context->stream_callback = io_streaming_chunk_callback;
+    callback_context->stream_userdata = &callback_context->request_id;
+    
+    int status = rkllm_run(handle, &input, &infer_param, callback_context);
+    
+    // For streaming, return success immediately after starting
+    // The actual response will be streamed via callback
+    result->result_data = rkllm_proxy_create_json_result(0, "Streaming started");
+    result->result_size = strlen(result->result_data);
+    
+    // Clean up callback context
+    rkllm_proxy_destroy_callback_context(callback_context);
+    
+    return status;
+}
+
+int rkllm_op_run_async_streaming(uint32_t handle_id, const char* params_json, rkllm_result_t* result, uint32_t request_id) {
+    if (!params_json || !result) {
+        return -1;
+    }
+    
+    LLMHandle handle = get_validated_handle_or_error(handle_id, result);
+    if (!handle) return -1;
+    
+    // Parse JSON parameters for RKLLMInput and RKLLMInferParam
+    // Extract prompt from JSON  
+    char prompt[1024] = {0};
+    
+    // Parse prompt - required parameter
+    if (json_extract_string_safe(params_json, "prompt", prompt, sizeof(prompt)) != 0 || strlen(prompt) == 0) {
+        result->result_data = rkllm_proxy_create_error_result(-1, "Missing required parameter: prompt");
+        result->result_size = strlen(result->result_data);
+        return -1;
+    }
+    
+    // Create input structure
+    RKLLMInput input = {0};
+    input.input_type = RKLLM_INPUT_PROMPT;
+    input.prompt_input = prompt;
+    
+    RKLLMInferParam infer_param = {0};
+    infer_param.mode = RKLLM_INFER_GENERATE;
+    infer_param.keep_history = 1;
+    
+    // Create callback context for streaming
+    rkllm_callback_context_t* callback_context = rkllm_proxy_create_callback_context(2048);
+    if (!callback_context) {
+        result->result_data = rkllm_proxy_create_error_result(-1, "Failed to create callback context");
+        result->result_size = strlen(result->result_data);
+        return -1;
+    }
+    
+    // Enable streaming mode
+    callback_context->streaming_enabled = true;
+    callback_context->request_id = request_id;
+    callback_context->stream_callback = io_streaming_chunk_callback;
+    callback_context->stream_userdata = &callback_context->request_id;
+    
+    int status = rkllm_run_async(handle, &input, &infer_param, callback_context);
+    
+    // For streaming, return success immediately after starting
+    // The actual response will be streamed via callback
+    result->result_data = rkllm_proxy_create_json_result(0, "Async streaming started");
+    result->result_size = strlen(result->result_data);
+    
+    // Clean up callback context
+    rkllm_proxy_destroy_callback_context(callback_context);
+    
+    return status;
+}
+
 int rkllm_op_run_async(uint32_t handle_id, const char* params_json, rkllm_result_t* result) {
     if (!params_json || !result) {
         return -1;
@@ -234,7 +351,7 @@ int rkllm_op_run_async(uint32_t handle_id, const char* params_json, rkllm_result
     }
     
     // Parse JSON parameters using json-c
-    char prompt[1024] = "Hello, how are you?"; // Default prompt
+    char prompt[1024] = {0};
     
     // Parse prompt using json-c
     json_object *root = json_tokener_parse(params_json);
@@ -336,14 +453,18 @@ int rkllm_op_load_lora(uint32_t handle_id, const char* params_json, rkllm_result
     if (!handle) return -1;
     
     // Parse lora adapter parameters from JSON
-    char lora_path[256] = "models/lora/lora.rkllm"; // Default path
+    char lora_path[256] = {0};
     
-    // Try to get path from JSON, keep default if not found
-    json_extract_string_safe(params_json, "path", lora_path, sizeof(lora_path));
+    // Parse lora adapter path - required parameter
+    if (json_extract_string_safe(params_json, "path", lora_path, sizeof(lora_path)) != 0 || strlen(lora_path) == 0) {
+        result->result_data = rkllm_proxy_create_error_result(-1, "Missing required parameter: path");
+        result->result_size = strlen(result->result_data);
+        return -1;
+    }
     
     RKLLMLoraAdapter adapter = {0};
     adapter.lora_adapter_path = lora_path;
-    adapter.lora_adapter_name = "default";
+    adapter.lora_adapter_name = nullptr;
     adapter.scale = 1.0f;
     
     int status = rkllm_load_lora(handle, &adapter);
@@ -368,10 +489,14 @@ int rkllm_op_load_prompt_cache(uint32_t handle_id, const char* params_json, rkll
     if (!handle) return -1;
     
     // Parse prompt cache path from JSON
-    char cache_path[256] = "cache/prompt.cache"; // Default path
+    char cache_path[256] = {0};
     
-    // Try to get path from JSON, keep default if not found
-    json_extract_string_safe(params_json, "path", cache_path, sizeof(cache_path));
+    // Parse cache path - required parameter
+    if (json_extract_string_safe(params_json, "path", cache_path, sizeof(cache_path)) != 0 || strlen(cache_path) == 0) {
+        result->result_data = rkllm_proxy_create_error_result(-1, "Missing required parameter: path");
+        result->result_size = strlen(result->result_data);
+        return -1;
+    }
     
     int status = rkllm_load_prompt_cache(handle, cache_path);
     

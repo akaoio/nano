@@ -46,6 +46,26 @@ int rkllm_op_run(uint32_t handle_id, const char* params_json, rkllm_result_t* re
 int rkllm_op_run_async(uint32_t handle_id, const char* params_json, rkllm_result_t* result);
 
 /**
+ * @brief Handler for run operation with streaming support
+ * @param handle_id Handle ID for the operation
+ * @param params_json JSON parameters
+ * @param result Operation result
+ * @param request_id Request ID for streaming responses
+ * @return 0 on success, -1 on error
+ */
+int rkllm_op_run_streaming(uint32_t handle_id, const char* params_json, rkllm_result_t* result, uint32_t request_id);
+
+/**
+ * @brief Handler for run_async operation with streaming support
+ * @param handle_id Handle ID for the operation
+ * @param params_json JSON parameters
+ * @param result Operation result
+ * @param request_id Request ID for streaming responses
+ * @return 0 on success, -1 on error
+ */
+int rkllm_op_run_async_streaming(uint32_t handle_id, const char* params_json, rkllm_result_t* result, uint32_t request_id);
+
+/**
  * @brief Handler for abort operation
  * @param handle_id Handle ID for the operation
  * @param params_json JSON parameters
