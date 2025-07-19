@@ -63,4 +63,4 @@ IO về cơ bản là 1 cái dual queue, nó nhận queue đầu vào, cho vào 
 
 - Kiến trúc hiện tại của chúng ta đủ để cho IO truyền stream về cho NANO chưa?
 
-Khảo sát rồi --> tạo file tmp/researches/analysis.md
+Khảo sát rồi --> tạo file tmp/researches/stream-analysis.md
