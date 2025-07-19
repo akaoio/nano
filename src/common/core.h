@@ -18,10 +18,10 @@
 #include "transport_utils/transport_utils.h"
 
 // System constants using C23 constexpr
-constexpr int MAX_WORKERS = 5;
-constexpr int QUEUE_SIZE = 1024;
-constexpr int REQUEST_TIMEOUT_MS = 30000;
-constexpr int MAX_HANDLES = 8;
+constexpr int MAX_WORKERS = 1;
+constexpr int QUEUE_SIZE = 10;
+constexpr int REQUEST_TIMEOUT_MS = 60000;
+constexpr int MAX_HANDLES = 1;
 constexpr int MAX_REQUEST_SIZE = 4096;
 constexpr int MAX_RESPONSE_SIZE = 8192;
 

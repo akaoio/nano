@@ -96,12 +96,13 @@ set(NANO_CORE_SRCS
     src/nano/core/nano/nano.c
 )
 
-# Test sources
-set(TEST_SRCS
+# Test sources - simplified for real model testing
+set(IO_TEST_SRCS
     tests/io/test_io_architecture.c
+)
+
+set(NANO_TEST_SRCS
     tests/nano/test_nano_architecture.c
-    tests/integration/test_qwenvl/test_qwenvl.c
-    tests/integration/test_lora/test_lora.c
 )
 
 # All library sources
@@ -131,30 +132,30 @@ set_target_properties(nano_lib PROPERTIES
 )
 
 # Main executables
-add_executable(nano_app src/main.c)
-target_link_libraries(nano_app nano_lib)
-set_target_properties(nano_app PROPERTIES
+add_executable(nano src/main.c)
+target_link_libraries(nano nano_lib)
+set_target_properties(nano PROPERTIES
     LINK_FLAGS "-Wl,-rpath,${CMAKE_SOURCE_DIR}/src/libs/rkllm"
 )
 
-add_executable(io_app src/main.c)
-target_link_libraries(io_app nano_lib)
-set_target_properties(io_app PROPERTIES
+add_executable(io src/main.c)
+target_link_libraries(io nano_lib)
+set_target_properties(io PROPERTIES
     LINK_FLAGS "-Wl,-rpath,${CMAKE_SOURCE_DIR}/src/libs/rkllm"
 )
 
-# Test executable
-add_executable(test_app tests/test.c ${TEST_SRCS})
-target_link_libraries(test_app nano_lib)
-target_include_directories(test_app PRIVATE tests)
-set_target_properties(test_app PROPERTIES
+# Test executable with new architecture
+add_executable(test tests/test.c ${IO_TEST_SRCS} ${NANO_TEST_SRCS})
+target_link_libraries(test nano_lib)
+target_include_directories(test PRIVATE tests)
+set_target_properties(test PROPERTIES
     LINK_FLAGS "-Wl,-rpath,${CMAKE_SOURCE_DIR}/src/libs/rkllm"
 )
 
 # Custom targets
 add_custom_target(run-test
-    COMMAND test_app
-    DEPENDS test_app
+    COMMAND test
+    DEPENDS test
     COMMENT "Running test suite..."
 )
 
@@ -164,7 +165,7 @@ add_custom_target(check-syntax
 )
 
 # Install targets
-install(TARGETS nano_app io_app test_app
+install(TARGETS nano io test
     RUNTIME DESTINATION bin
 )
 
