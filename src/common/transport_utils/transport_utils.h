@@ -45,7 +45,7 @@ int create_udp_socket(void);
 /**
  * @brief Setup socket address structure
  * @param addr Address structure to fill
- * @param host Host address (NULL for INADDR_ANY)
+ * @param host Host address (nullptr for INADDR_ANY)
  * @param port Port number
  * @return 0 on success, -1 on error
  */

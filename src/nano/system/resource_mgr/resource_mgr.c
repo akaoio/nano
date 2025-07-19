@@ -69,7 +69,7 @@ int resource_mgr_reserve_model(resource_mgr_t* mgr, uint32_t handle_id, const ch
     // Reserve resources
     mgr->models[slot].handle_id = handle_id;
     mgr->models[slot].active = true;
-    mgr->models[slot].last_used = time(NULL);
+    mgr->models[slot].last_used = time(nullptr);
     
     mgr->model_count++;
     mgr->total_memory_used += mgr->models[slot].model_info.memory_required_mb;

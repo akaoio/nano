@@ -13,7 +13,7 @@ int queue_init(queue_t* q) {
     
     // Initialize all items
     for (size_t i = 0; i < QUEUE_SIZE; i++) {
-        q->items[i].params = NULL;
+        q->items[i].params = nullptr;
         q->items[i].params_len = 0;
     }
     
@@ -44,7 +44,7 @@ int queue_push(queue_t* q, const queue_item_t* item) {
         dest->params[item->params_len] = '\0';
         dest->params_len = item->params_len;
     } else {
-        dest->params = NULL;
+        dest->params = nullptr;
         dest->params_len = 0;
     }
     
@@ -80,7 +80,7 @@ int queue_pop(queue_t* q, queue_item_t* item) {
     atomic_fetch_sub(&q->count, 1);
     
     // Clear the slot
-    q->items[head].params = NULL;
+    q->items[head].params = nullptr;
     q->items[head].params_len = 0;
     
     return 0;
@@ -106,7 +106,7 @@ void queue_item_cleanup(queue_item_t* item) {
     
     if (item->params) {
         free(item->params);
-        item->params = NULL;
+        item->params = nullptr;
     }
     item->params_len = 0;
 }

@@ -6,11 +6,11 @@
 #include <stdarg.h>
 
 char* str_copy(const char* src) {
-    if (!src) return NULL;
+    if (!src) return nullptr;
     
     size_t len = strlen(src);
     char* dest = mem_alloc(len + 1);
-    if (!dest) return NULL;
+    if (!dest) return nullptr;
     
     memcpy(dest, src, len + 1);
     return dest;
@@ -114,7 +114,7 @@ int str_builder_append_format(str_builder_t* builder, const char* format, ...) {
     va_start(args, format);
     
     // Calculate required size
-    int needed = vsnprintf(NULL, 0, format, args);
+    int needed = vsnprintf(nullptr, 0, format, args);
     va_end(args);
     
     if (needed < 0) return -1;
@@ -137,7 +137,7 @@ int str_builder_append_format(str_builder_t* builder, const char* format, ...) {
 void str_builder_destroy(str_builder_t* builder) {
     if (builder) {
         mem_free(builder->buffer);
-        builder->buffer = NULL;
+        builder->buffer = nullptr;
         builder->size = 0;
         builder->capacity = 0;
     }

@@ -20,7 +20,7 @@ int tcp_transport_init(void* config) {
     }
     
     struct sockaddr_in addr;
-    const char* host = g_config.is_server ? NULL : g_config.host;
+    const char* host = g_config.is_server ? nullptr : g_config.host;
     
     if (setup_socket_address(&addr, host, g_config.port) != 0) {
         close_socket(g_config.socket_fd);
@@ -87,7 +87,7 @@ void tcp_transport_shutdown(void) {
     g_config.socket_fd = -1;
     
     str_free(g_config.host);
-    g_config.host = NULL;
+    g_config.host = nullptr;
     g_config.running = false;
     g_config.initialized = false;
 }

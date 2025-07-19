@@ -21,7 +21,7 @@ int worker_pool_init(worker_pool_t* pool, queue_t* req_q, queue_t* resp_q) {
     pool->response_queue = resp_q;
     
     for (int i = 0; i < MAX_WORKERS; i++) {
-        if (pthread_create(&pool->threads[i], NULL, worker_thread, pool) != 0) {
+        if (pthread_create(&pool->threads[i], nullptr, worker_thread, pool) != 0) {
             // Cleanup on failure
             pool->running = 0;
             return -1;
@@ -91,5 +91,5 @@ static void* worker_thread(void* arg) {
         }
     }
     
-    return NULL;
+    return nullptr;
 }

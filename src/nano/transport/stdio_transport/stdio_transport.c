@@ -43,7 +43,7 @@ int stdio_transport_recv(mcp_message_t* message, int timeout_ms) {
     timeout.tv_sec = timeout_ms / 1000;
     timeout.tv_usec = (timeout_ms % 1000) * 1000;
     
-    int result = select(STDIN_FILENO + 1, &readfds, NULL, NULL, &timeout);
+    int result = select(STDIN_FILENO + 1, &readfds, nullptr, nullptr, &timeout);
     if (result <= 0) {
         return -1; // Timeout or error
     }

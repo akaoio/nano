@@ -117,10 +117,10 @@ int rkllm_op_init(uint32_t* handle_id, const char* params_json, rkllm_result_t* 
     param.temperature = 0.7f;
     param.top_p = 0.9f;
     
-    LLMHandle llm_handle = NULL;
+    LLMHandle llm_handle = nullptr;
     int rkllm_ret = rkllm_init(&llm_handle, &param, rkllm_proxy_global_callback);
     
-    if (rkllm_ret != 0 || llm_handle == NULL) {
+    if (rkllm_ret != 0 || llm_handle == nullptr) {
         (void)handle_pool_destroy(&g_handle_pool, new_handle_id);
         SET_ERROR_RESULT(result, -1, "Failed to initialize RKLLM handle");
         return -1;
@@ -162,7 +162,7 @@ int rkllm_op_destroy(uint32_t handle_id, const char* params_json, rkllm_result_t
     int status = handle_pool_destroy(&g_handle_pool, handle_id);
     
     if (status == 0) {
-        result->result_data = rkllm_proxy_create_json_result(0, NULL);
+        result->result_data = rkllm_proxy_create_json_result(0, nullptr);
     } else {
         result->result_data = rkllm_proxy_create_error_result(-1, "Failed to destroy handle");
     }
@@ -296,7 +296,7 @@ int rkllm_op_abort(uint32_t handle_id, const char* params_json, rkllm_result_t* 
     int status = rkllm_abort(handle);
     
     if (status == 0) {
-        result->result_data = rkllm_proxy_create_json_result(0, NULL);
+        result->result_data = rkllm_proxy_create_json_result(0, nullptr);
     } else {
         result->result_data = rkllm_proxy_create_error_result(status, "Abort failed");
     }
@@ -621,7 +621,7 @@ int rkllm_op_set_cross_attn_params(uint32_t handle_id, const char* params_json, 
     // Parse num_tokens
     const char* num_tokens_start = strstr(params_json, "\"num_tokens\":");
     if (num_tokens_start) {
-        cross_attn_params.num_tokens = (int)strtol(num_tokens_start + 13, NULL, 10);
+        cross_attn_params.num_tokens = (int)strtol(num_tokens_start + 13, nullptr, 10);
     }
     
     // For actual implementation, encoder caches and masks would need to be provided
@@ -674,7 +674,7 @@ int rkllm_op_create_default_param(uint32_t handle_id, const char* params_json, r
 
 // Operation handler table
 const rkllm_op_handler_t OPERATION_HANDLERS[OP_MAX] = {
-    [OP_INIT] = NULL, // Special case handled separately
+    [OP_INIT] = nullptr, // Special case handled separately
     [OP_DESTROY] = rkllm_op_destroy,
     [OP_RUN] = rkllm_op_run,
     [OP_RUN_ASYNC] = rkllm_op_run_async,

@@ -131,5 +131,5 @@ int socket_select_read(int socket_fd, int timeout_ms) {
     struct timeval tv;
     setup_select_timeout(timeout_ms, &tv);
     
-    return select(socket_fd + 1, &read_fds, NULL, NULL, &tv);
+    return select(socket_fd + 1, &read_fds, nullptr, nullptr, &tv);
 }

@@ -79,7 +79,7 @@ void udp_transport_shutdown(void) {
     g_config.socket_fd = -1;
     
     str_free(g_config.host);
-    g_config.host = NULL;
+    g_config.host = nullptr;
     g_config.running = false;
     g_config.initialized = false;
 }

@@ -99,7 +99,7 @@ int main(int argc, char* argv[]) {
     // Setup transports
     if (stdio_enabled) {
         printf("📡 Enabling STDIO transport\n");
-        if (nano_add_transport(stdio_transport_get_interface(), NULL) != 0) {
+        if (nano_add_transport(stdio_transport_get_interface(), nullptr) != 0) {
             fprintf(stderr, "Failed to add STDIO transport\n");
         }
     }
