@@ -47,7 +47,6 @@ void io_streaming_chunk_callback(const char* chunk, bool is_final, void* userdat
 
 void* io_worker_thread(void* arg) {
     (void)arg;
-    printf("\n🔧 === IO WORKER THREAD STARTED ===\n");
     
     while (atomic_load(&g_io_context.running)) {
         queue_item_t item;
@@ -57,9 +56,6 @@ void* io_worker_thread(void* arg) {
             sleep(1); // 1 second sleep when no work
             continue;
         }
-        
-        printf("\n🔧 === IO WORKER GOT REQUEST ===\n");
-        printf("📥 Processing: ID=%d, Method=%s\n", item.request_id, item.method);
         
         // Check for timeout
         uint64_t now = (uint64_t)time(nullptr);
@@ -115,13 +111,8 @@ void* io_worker_thread(void* arg) {
         json_object_put(request);
         
         // Call NANO directly instead of pushing to queue
-        printf("\n🔧 === IO WORKER CALLBACK ===\n");
-        printf("📤 Sending to NANO: %s\n", response);
         if (g_io_context.nano_callback) {
-            printf("✅ Calling NANO callback\n");
             g_io_context.nano_callback(response, g_io_context.nano_userdata);
-        } else {
-            printf("❌ NANO callback is NULL!\n");
         }
         
         queue_item_cleanup(&item);

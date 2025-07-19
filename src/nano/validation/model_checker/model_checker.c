@@ -92,7 +92,6 @@ int model_check_compatibility(const char* model_path, compatibility_result_t* re
     // Version check deprecated - assume compatibility
     result->is_compatible = true;
     
-    printf("✅ Model compatibility check passed for: %s\n", model_path);
     return 0;
 }
 
@@ -147,10 +146,6 @@ int model_check_lora_compatibility(const char* base_model_path, const char* lora
     // Version compatibility check deprecated - assume compatibility
     result->is_compatible = true;
     
-    printf("✅ LoRA compatibility check passed: Base=%s, LoRA=%s\n", 
-           base_model_path, lora_path);
-    printf("🔍 Required NPU memory: %dMB, Available: %luMB\n",
-           required_npu_memory_mb, sys_info.npu_memory_mb);
     
     return 0;
 }

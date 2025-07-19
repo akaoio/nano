@@ -36,7 +36,7 @@ uint32_t handle_pool_create(handle_pool_t* pool, const char* model_path) {
             size_t model_path_len = str_length(model_path);
             size_t max_len = sizeof(pool->slots[i].model_path) - 1;
             strncpy(pool->slots[i].model_path, model_path, 
-                   MIN(model_path_len, max_len));
+                   (model_path_len < max_len) ? model_path_len : max_len);
             pool->slots[i].model_path[sizeof(pool->slots[i].model_path) - 1] = '\0';
             pool->slots[i].memory_usage = 0;
             pool->slots[i].last_used = (uint64_t)time(nullptr);
