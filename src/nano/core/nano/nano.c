@@ -204,21 +204,10 @@ int nano_process_message_async(const mcp_message_t* request) {
 
 // Callback function for IO responses - Pure callback mode
 static void nano_io_response_callback(const char* json_response, void* userdata) {
-    printf("\n🔗 === NANO IO CALLBACK ===\n");
-    printf("📥 Received from IO: %s\n", json_response ? json_response : "NULL");
-    
-    if (!json_response) {
-        printf("❌ JSON response is NULL\n");
-        return;
-    }
+    if (!json_response) return;
     
     nano_core_t* nano = (nano_core_t*)userdata;
-    if (!nano || !nano->response_callback) {
-        printf("❌ NANO or response callback is NULL\n");
-        return;
-    }
-    
-    printf("✅ Forwarding to client callback\n");
+    if (!nano || !nano->response_callback) return;
     
     // Parse JSON response and convert to MCP message
     mcp_message_t response = {0};

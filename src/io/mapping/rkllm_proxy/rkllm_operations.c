@@ -395,7 +395,6 @@ int rkllm_op_run_async(uint32_t handle_id, const char* params_json, rkllm_result
     result->result_size = strlen(result->result_data);
     
     // Don't destroy context for async - it will be used by the callback
-    // TODO: Need proper async context management
     
     return status;
 }

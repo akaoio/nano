@@ -10,29 +10,7 @@
 #include <time.h>
 
 /*
- * REFACTORED IO ARCHITECTURE - PURE AND CLEAN
- * 
- * This IO system has been refactored to support streaming and remove complexity:
- * 
- * OLD ARCHITECTURE (REMOVED):
- * - Dual queue system (request + response queues)
- * - NANO polling for responses with timeouts
- * - Buffer accumulation in RKLLM callbacks
- * - Test/mock code contamination
- *
- * NEW ARCHITECTURE (CURRENT):
- * - Single request queue only
- * - Direct NANO callback mechanism (no response queue)
- * - RKLLM callbacks stream chunks directly to NANO 
- * - Pure processing with proper parameter validation
- * - Support for both synchronous and streaming operations
- * 
- * FLOW:
- * Client → NANO → IO request queue → IO worker → RKLLM → 
- * → RKLLM callback → Direct NANO callback → Client
- *
- * STREAMING FLOW:
- * RKLLM callback → io_streaming_chunk_callback → NANO callback → Client (real-time)
+ * IO System - Pure callback-based request processing
  */
 
 // Global IO context
@@ -65,18 +43,7 @@ int io_init(nano_callback_t callback, void* userdata) {
 }
 
 int io_push_request(const char* json_request) {
-    printf("\n🔧 === IO PUSH REQUEST ===\n");
-    printf("📥 Received request: %s\n", json_request ? json_request : "NULL");
-    
-    if (!atomic_load(&g_io_context.running)) {
-        printf("❌ IO context not running\n");
-        return IO_ERROR;
-    }
-    
-    if (!json_request) {
-        printf("❌ JSON request is NULL\n");
-        return IO_ERROR;
-    }
+    if (!atomic_load(&g_io_context.running) || !json_request) return IO_ERROR;
     
     // Parse JSON request
     uint32_t request_id, handle_id;
@@ -84,11 +51,8 @@ int io_push_request(const char* json_request) {
     
     if (io_parse_json_request(json_request, &request_id, &handle_id, 
                              method, params) != IO_OK) {
-        printf("❌ Failed to parse JSON request\n");
         return IO_ERROR;
     }
-    
-    printf("✅ Parsed: ID=%d, Method=%s, Params=%s\n", request_id, method, params);
     
     // Create queue item using designated initializers
     queue_item_t item = {
@@ -101,12 +65,10 @@ int io_push_request(const char* json_request) {
     snprintf(item.method, sizeof(item.method), "%s", method);
     
     if (queue_push(&g_io_context.request_queue, &item) != 0) {
-        printf("❌ Failed to push to queue\n");
         free(item.params);
         return IO_QUEUE_FULL;
     }
     
-    printf("✅ Request pushed to queue successfully\n");
     return IO_OK;
 }
 

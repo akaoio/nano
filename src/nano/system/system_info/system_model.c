@@ -10,7 +10,6 @@ int model_analyze(const char* model_path, const system_info_t* sys_info, model_i
     // Get model file size
     struct stat st;
     if (stat(model_path, &st) != 0) {
-        printf("❌ Model file not found: %s\n", model_path);
         model_info->model_size_mb = 0;
         model_info->memory_required_mb = 0;
         model_info->npu_cores_needed = 0;
@@ -56,18 +55,13 @@ int system_can_load_model(const system_info_t* sys_info, const model_info_t* mod
     
     // Check RAM availability with buffer
     if (required_with_buffer > sys_info->available_ram_mb) {
-        printf("❌ Not enough RAM: need %luMB, have %luMB\n", 
-               required_with_buffer, sys_info->available_ram_mb);
         return 0;
     }
     
     // Check NPU cores (always pass for RK3588)
     if (model_info->npu_cores_needed > sys_info->npu_cores) {
-        printf("❌ Not enough NPU cores: need %u, have %u\n", 
-               model_info->npu_cores_needed, sys_info->npu_cores);
         return 0;
     }
     
-    printf("✅ Resource check passed\n");
     return 1;
 }

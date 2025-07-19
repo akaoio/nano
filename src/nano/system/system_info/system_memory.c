@@ -16,12 +16,10 @@ int system_force_gc(void) {
     // Wait a bit for cleanup
     usleep(500000); // 0.5 seconds
     
-    printf("✅ Memory cleanup completed\n");
     return 0;
 }
 
 int system_free_memory(void) {
-    printf("🧹 Freeing unused memory...\n");
     
     // Trigger memory compaction
     system("echo 1 > /proc/sys/vm/compact_memory 2>/dev/null || true");

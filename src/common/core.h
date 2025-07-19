@@ -40,20 +40,7 @@ constexpr int ERR_MEMORY_LIMIT = -5;
 // Note: String comparison functions are provided by string_utils.h
 // Use str_compare() for string operations
 
-#define SAFE_INDEX(arr, idx, len) _Generic((arr), \
-    char*: ((idx) >= 0 && (idx) < (len)) ? &(arr)[idx] : nullptr, \
-    int*: ((idx) >= 0 && (idx) < (len)) ? &(arr)[idx] : nullptr, \
-    uint32_t*: ((idx) >= 0 && (idx) < (len)) ? &(arr)[idx] : nullptr, \
-    uint64_t*: ((idx) >= 0 && (idx) < (len)) ? &(arr)[idx] : nullptr, \
-    default: ((idx) >= 0 && (idx) < (len)) ? &(arr)[idx] : nullptr)
-
-// Note: String utilities are provided by string_utils.h
-// Use str_copy(), str_length(), str_compare() for string operations
-
-// Additional utility macros
-#define MIN(a, b) ((a) < (b) ? (a) : (b))
-#define MAX(a, b) ((a) > (b) ? (a) : (b))
-#define ABS(x) ((x) < 0 ? -(x) : (x))
+// Error handling utility
 #define IS_VALID_PTR(ptr) ((ptr) != nullptr)
 
 // Error handling with type safety

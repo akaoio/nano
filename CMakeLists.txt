@@ -59,7 +59,6 @@ set(COMMON_SRCS
 
 set(IO_CORE_SRCS
     src/io/core/queue/queue.c
-    src/io/core/worker_pool/worker_pool.c
     src/io/core/io/io.c
     src/io/core/io/io_worker.c
     src/io/operations.c
@@ -67,7 +66,6 @@ set(IO_CORE_SRCS
 
 set(IO_MAPPING_SRCS
     src/io/mapping/handle_pool/handle_pool.c
-    src/io/mapping/handle_pool/handle_pool_utils.c
     src/io/mapping/rkllm_proxy/rkllm_proxy.c
     src/io/mapping/rkllm_proxy/rkllm_operations.c
 )

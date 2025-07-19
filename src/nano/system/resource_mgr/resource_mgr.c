@@ -21,7 +21,6 @@ int resource_mgr_init(resource_mgr_t* mgr) {
     mgr->model_count = 0;
     mgr->total_memory_used = 0;
     
-    printf("✅ Resource manager initialized\n");
     return 0;
 }
 
@@ -36,7 +35,6 @@ int resource_mgr_can_load_model(resource_mgr_t* mgr, const char* model_path) {
     
     // Check if we have slot available
     if (mgr->model_count >= MAX_MODELS) {
-        printf("❌ No model slots available (%u/%u)\n", mgr->model_count, MAX_MODELS);
         return 0;
     }
     
@@ -57,7 +55,6 @@ int resource_mgr_reserve_model(resource_mgr_t* mgr, uint32_t handle_id, const ch
     }
     
     if (slot == -1) {
-        printf("❌ No available model slots\n");
         return -1;
     }
     
@@ -74,8 +71,6 @@ int resource_mgr_reserve_model(resource_mgr_t* mgr, uint32_t handle_id, const ch
     mgr->model_count++;
     mgr->total_memory_used += mgr->models[slot].model_info.memory_required_mb;
     
-    printf("✅ Resources reserved for handle %u: %luMB\n", handle_id, 
-           mgr->models[slot].model_info.memory_required_mb);
     
     return 0;
 }
@@ -91,12 +86,10 @@ int resource_mgr_release_model(resource_mgr_t* mgr, uint32_t handle_id) {
             mgr->models[i].handle_id = 0;
             mgr->model_count--;
             
-            printf("✅ Resources released for handle %u\n", handle_id);
             return 0;
         }
     }
     
-    printf("❌ Model handle %u not found\n", handle_id);
     return -1;
 }
 
@@ -115,6 +108,5 @@ int resource_mgr_cleanup(resource_mgr_t* mgr) {
     // Refresh system info
     system_refresh_memory_info(&mgr->system_info);
     
-    printf("✅ Resource cleanup completed\n");
     return 0;
 }
