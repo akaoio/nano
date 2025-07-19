@@ -13,17 +13,53 @@
 // Global IO context
 extern io_context_t g_io_context;
 
+// Streaming callback function for RKLLM (non-static for external use)
+void io_streaming_chunk_callback(const char* chunk, bool is_final, void* userdata) {
+    if (!chunk || !userdata) return;
+    
+    uint32_t* request_id = (uint32_t*)userdata;
+    
+    // Create streaming JSON response
+    json_object *response = json_object_new_object();
+    json_object *jsonrpc = json_object_new_string("2.0");
+    json_object *id = json_object_new_int(*request_id);
+    json_object *result = json_object_new_object();
+    
+    // Add streaming data
+    json_object *data = json_object_new_string(chunk);
+    json_object *final = json_object_new_boolean(is_final);
+    
+    json_object_object_add(result, "data", data);
+    json_object_object_add(result, "final", final);
+    json_object_object_add(response, "jsonrpc", jsonrpc);
+    json_object_object_add(response, "id", id);
+    json_object_object_add(response, "result", result);
+    
+    const char *response_str = json_object_to_json_string(response);
+    
+    // Call NANO directly for streaming chunks
+    if (g_io_context.nano_callback) {
+        g_io_context.nano_callback(response_str, g_io_context.nano_userdata);
+    }
+    
+    json_object_put(response);
+}
+
 void* io_worker_thread(void* arg) {
     (void)arg;
+    printf("\n🔧 === IO WORKER THREAD STARTED ===\n");
     
     while (atomic_load(&g_io_context.running)) {
         queue_item_t item;
         
         // Try to get a request
         if (queue_pop(&g_io_context.request_queue, &item) != 0) {
-            usleep(1000); // 1ms sleep when no work
+            sleep(1); // 1 second sleep when no work
             continue;
         }
+        
+        printf("\n🔧 === IO WORKER GOT REQUEST ===\n");
+        printf("📥 Processing: ID=%d, Method=%s\n", item.request_id, item.method);
         
         // Check for timeout
         uint64_t now = (uint64_t)time(nullptr);
@@ -44,16 +80,11 @@ void* io_worker_thread(void* arg) {
             
             const char *response_str = json_object_to_json_string(response);
             
-            queue_item_t resp_item = {
-                .handle_id = item.handle_id,
-                .request_id = item.request_id,
-                .params = strdup(response_str),
-                .params_len = strlen(response_str),
-                .timestamp = now
-            };
-            strncpy(resp_item.method, "response", sizeof(resp_item.method) - 1);
+            // Call NANO directly instead of pushing to queue
+            if (g_io_context.nano_callback) {
+                g_io_context.nano_callback(response_str, g_io_context.nano_userdata);
+            }
             
-            queue_push(&g_io_context.response_queue, &resp_item);
             json_object_put(response);
             queue_item_cleanup(&item);
             continue;
@@ -83,18 +114,14 @@ void* io_worker_thread(void* arg) {
         
         json_object_put(request);
         
-        // Push to response queue
-        queue_item_t resp_item = {
-            .handle_id = item.handle_id,
-            .request_id = item.request_id,
-            .params = strdup(response),
-            .params_len = strlen(response),
-            .timestamp = (uint64_t)time(nullptr)
-        };
-        strncpy(resp_item.method, "response", sizeof(resp_item.method) - 1);
-        
-        while (queue_push(&g_io_context.response_queue, &resp_item) != 0) {
-            usleep(1000); // Wait if response queue is full
+        // Call NANO directly instead of pushing to queue
+        printf("\n🔧 === IO WORKER CALLBACK ===\n");
+        printf("📤 Sending to NANO: %s\n", response);
+        if (g_io_context.nano_callback) {
+            printf("✅ Calling NANO callback\n");
+            g_io_context.nano_callback(response, g_io_context.nano_userdata);
+        } else {
+            printf("❌ NANO callback is NULL!\n");
         }
         
         queue_item_cleanup(&item);

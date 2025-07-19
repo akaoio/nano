@@ -1,3 +1,4 @@
+#define _POSIX_C_SOURCE 199309L
 #include "nano.h"
 #include "../../../common/core.h"
 #include "../../../io/core/io/io.h"
@@ -9,20 +10,26 @@
 #include <unistd.h>
 #include <pthread.h>
 #include <stdbool.h>
+#include <time.h>
 
 nano_core_t g_nano = {
     .initialized = false,
     .running = false,
-    .transport_count = 0
+    .transport_count = 0,
+    .response_callback = nullptr,
+    .response_userdata = nullptr
 };
+
+// Forward declaration for callback
+static void nano_io_response_callback(const char* json_response, void* userdata);
 
 static void* transport_worker(void* arg);
 
 int nano_init(void) {
     if (g_nano.initialized) return -1;
     
-    // Initialize IO subsystem
-    if (io_init() != 0) {
+    // Initialize IO subsystem with callback
+    if (io_init(nano_io_response_callback, &g_nano) != 0) {
         return -1;
     }
     
@@ -137,7 +144,7 @@ int nano_process_message(const mcp_message_t* request, mcp_message_t* response) 
     
     const char *json_request_str = json_object_to_json_string(request_obj);
     
-    // Push request to IO layer
+    // Push request to IO layer (async processing)
     int push_result = io_push_request(json_request_str);
     if (push_result != IO_OK) {
         char* error_result = create_error_result(-32603, "IO layer error");
@@ -147,31 +154,91 @@ int nano_process_message(const mcp_message_t* request, mcp_message_t* response) 
         return -1;
     }
     
-    // Pop response from IO layer with retries for long operations
-    char json_response[4096];
-    int pop_result = IO_TIMEOUT;
-    int max_retries = 60; // 60 seconds total wait time
-    
-    for (int retry = 0; retry < max_retries && pop_result == IO_TIMEOUT; retry++) {
-        pop_result = io_pop_response(json_response, sizeof(json_response));
-        if (pop_result == IO_TIMEOUT) {
-            sleep(1); // Wait 1 second between retries
-        }
-    }
-    
-    if (pop_result != IO_OK) {
-        char* error_result = create_error_result(-32603, "IO layer timeout");
-        mcp_message_create(response, MCP_RESPONSE, request->id, nullptr, error_result);
-        mem_free(error_result);
-        json_object_put(request_obj);
-        return -1;
-    }
-    
-    // Parse JSON response and create MCP response
-    mcp_message_create(response, MCP_RESPONSE, request->id, nullptr, json_response);
+    // For synchronous interface, create immediate success response
+    // The actual response will be delivered via callback for streaming
+    mcp_message_create(response, MCP_RESPONSE, request->id, nullptr, "{\"status\":\"processing\",\"message\":\"Request submitted successfully\"}");
     
     json_object_put(request_obj);
     return 0;
+}
+
+// Async message processing with callback
+int nano_process_message_async(const mcp_message_t* request) {
+    if (!request) return -1;
+    
+    // Get operation from method name
+    rkllm_operation_t operation = rkllm_proxy_get_operation_by_name(request->method);
+    if (operation == OP_MAX) {
+        return -1;
+    }
+    
+    // Create JSON-RPC request for IO layer
+    json_object *request_obj = json_object_new_object();
+    json_object *jsonrpc = json_object_new_string("2.0");
+    json_object *id = json_object_new_int(request->id);
+    json_object *method = json_object_new_string(request->method);
+    json_object *params;
+    
+    if (request->params) {
+        params = json_tokener_parse(request->params);
+        if (!params) {
+            params = json_object_new_string(request->params);
+        }
+    } else {
+        params = json_object_new_object();
+    }
+    
+    json_object_object_add(request_obj, "jsonrpc", jsonrpc);
+    json_object_object_add(request_obj, "id", id);
+    json_object_object_add(request_obj, "method", method);
+    json_object_object_add(request_obj, "params", params);
+    
+    const char *json_request_str = json_object_to_json_string(request_obj);
+    
+    // Push request to IO layer (pure async)
+    int push_result = io_push_request(json_request_str);
+    
+    json_object_put(request_obj);
+    return (push_result == IO_OK) ? 0 : -1;
+}
+
+// Callback function for IO responses - Pure callback mode
+static void nano_io_response_callback(const char* json_response, void* userdata) {
+    printf("\n🔗 === NANO IO CALLBACK ===\n");
+    printf("📥 Received from IO: %s\n", json_response ? json_response : "NULL");
+    
+    if (!json_response) {
+        printf("❌ JSON response is NULL\n");
+        return;
+    }
+    
+    nano_core_t* nano = (nano_core_t*)userdata;
+    if (!nano || !nano->response_callback) {
+        printf("❌ NANO or response callback is NULL\n");
+        return;
+    }
+    
+    printf("✅ Forwarding to client callback\n");
+    
+    // Parse JSON response and convert to MCP message
+    mcp_message_t response = {0};
+    
+    // For now, create a simple response - this can be enhanced for streaming
+    mcp_message_create(&response, MCP_RESPONSE, 0, nullptr, json_response);
+    
+    // Call the registered response callback immediately
+    nano->response_callback(&response, nano->response_userdata);
+    
+    // Cleanup if needed
+    if (response.params) {
+        free(response.params);
+    }
+}
+
+// Set response callback for async processing
+void nano_set_response_callback(nano_response_callback_t callback, void* userdata) {
+    g_nano.response_callback = callback;
+    g_nano.response_userdata = userdata;
 }
 
 static void* transport_worker(void* arg) {

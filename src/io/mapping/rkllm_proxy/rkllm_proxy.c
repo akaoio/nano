@@ -103,6 +103,57 @@ int rkllm_proxy_execute(const rkllm_request_t* request, rkllm_result_t* result) 
     return result->status;
 }
 
+// Forward declaration for streaming callback  
+extern void io_streaming_chunk_callback(const char* chunk, bool is_final, void* userdata);
+
+int rkllm_proxy_execute_streaming(const rkllm_request_t* request, rkllm_result_t* result, uint32_t request_id) {
+    if (!g_initialized) {
+        return -1;
+    }
+    
+    if (!request || !result) {
+        return -1;
+    }
+    
+    // Initialize result
+    memset(result, 0, sizeof(rkllm_result_t));
+    result->handle_id = request->handle_id;
+    result->status = -1;
+    
+    // Special case for init operation - no streaming for init
+    if (request->operation == OP_INIT) {
+        uint32_t new_handle_id = 0;
+        result->status = INIT_HANDLER(&new_handle_id, request->params_json, result);
+        result->handle_id = new_handle_id;
+        return result->status;
+    }
+    
+    // Validate operation
+    if (request->operation >= OP_MAX) {
+        return -1;
+    }
+    
+    // Only support streaming for RUN and RUN_ASYNC operations
+    if (request->operation != OP_RUN && request->operation != OP_RUN_ASYNC) {
+        // For non-streaming operations, fall back to normal execution
+        rkllm_op_handler_t handler = OPERATION_HANDLERS[request->operation];
+        if (!handler) {
+            return -1;
+        }
+        result->status = handler(request->handle_id, request->params_json, result);
+        return result->status;
+    }
+    
+    // Execute streaming version of RUN operation
+    if (request->operation == OP_RUN) {
+        result->status = rkllm_op_run_streaming(request->handle_id, request->params_json, result, request_id);
+    } else if (request->operation == OP_RUN_ASYNC) {
+        result->status = rkllm_op_run_async_streaming(request->handle_id, request->params_json, result, request_id);
+    }
+    
+    return result->status;
+}
+
 void rkllm_proxy_free_result(rkllm_result_t* result) {
     if (!result) {
         return;
@@ -171,23 +222,41 @@ int rkllm_proxy_global_callback(RKLLMResult* result, void* userdata, LLMCallStat
     
     rkllm_callback_context_t* context = (rkllm_callback_context_t*)userdata;
     
-    // Append text to output buffer if available
-    if (result->text && context->output_buffer) {
-        size_t text_len = strlen(result->text);
-        size_t remaining = context->buffer_size - context->current_pos - 1;
+    // Handle streaming mode
+    if (context->streaming_enabled && context->stream_callback) {
+        // Stream chunks directly via callback
+        if (result->text && strlen(result->text) > 0) {
+            bool is_final = (state == RKLLM_RUN_FINISH || state == RKLLM_RUN_ERROR);
+            context->stream_callback(result->text, is_final, context->stream_userdata);
+        }
         
-        if (text_len < remaining) {
-            strcpy(context->output_buffer + context->current_pos, result->text);
-            context->current_pos += text_len;
+        // Send final signal if needed
+        if (state == RKLLM_RUN_FINISH || state == RKLLM_RUN_ERROR) {
+            if (!result->text || strlen(result->text) == 0) {
+                // Send empty final chunk if no text in final callback
+                context->stream_callback("", true, context->stream_userdata);
+            }
+            context->final_status = (state == RKLLM_RUN_FINISH) ? 0 : -1;
+        }
+    } else {
+        // Legacy mode: accumulate in buffer
+        if (result->text && context->output_buffer) {
+            size_t text_len = strlen(result->text);
+            size_t remaining = context->buffer_size - context->current_pos - 1;
+            
+            if (text_len < remaining) {
+                strcpy(context->output_buffer + context->current_pos, result->text);
+                context->current_pos += text_len;
+            }
+        }
+        
+        if (state == RKLLM_RUN_FINISH || state == RKLLM_RUN_ERROR) {
+            context->final_status = (state == RKLLM_RUN_FINISH) ? 0 : -1;
         }
     }
     
     // Update context state
     context->call_state = state;
-    
-    if (state == RKLLM_RUN_FINISH || state == RKLLM_RUN_ERROR) {
-        context->final_status = (state == RKLLM_RUN_FINISH) ? 0 : -1;
-    }
     
     return 0; // Continue processing
 }
@@ -210,6 +279,12 @@ rkllm_callback_context_t* rkllm_proxy_create_callback_context(size_t buffer_size
     context->final_status = 0;
     context->call_state = RKLLM_RUN_NORMAL;
     context->output_buffer[0] = '\0';
+    
+    // Initialize streaming fields
+    context->request_id = 0;
+    context->streaming_enabled = false;
+    context->stream_callback = nullptr;
+    context->stream_userdata = nullptr;
     
     return context;
 }

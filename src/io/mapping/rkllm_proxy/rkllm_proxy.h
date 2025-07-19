@@ -35,13 +35,22 @@ typedef struct {
     size_t result_size;
 } rkllm_result_t;
 
+// Forward declaration for streaming callback
+typedef void (*rkllm_stream_callback_t)(const char* chunk, bool is_final, void* userdata);
+
 // Callback context for capturing model output
 typedef struct {
-    char* output_buffer;
+    char* output_buffer;        // Legacy buffer for non-streaming
     size_t buffer_size;
     size_t current_pos;
     int final_status;
     LLMCallState call_state;
+    
+    // Streaming support
+    uint32_t request_id;        // Request ID for response routing
+    bool streaming_enabled;     // Whether to use streaming
+    rkllm_stream_callback_t stream_callback;  // Callback for streaming chunks
+    void* stream_userdata;      // Data for streaming callback
 } rkllm_callback_context_t;
 
 // Operation request structure
@@ -65,6 +74,15 @@ int rkllm_proxy_init(void);
  * @return 0 on success, -1 on error
  */
 int rkllm_proxy_execute(const rkllm_request_t* request, rkllm_result_t* result);
+
+/**
+ * @brief Execute RKLLM operation with streaming support
+ * @param request Operation request
+ * @param result Operation result
+ * @param request_id Request ID for streaming responses
+ * @return 0 on success, -1 on error
+ */
+int rkllm_proxy_execute_streaming(const rkllm_request_t* request, rkllm_result_t* result, uint32_t request_id);
 
 /**
  * @brief Shutdown RKLLM proxy

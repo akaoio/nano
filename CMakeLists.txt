@@ -96,13 +96,13 @@ set(NANO_CORE_SRCS
     src/nano/core/nano/nano.c
 )
 
-# Test sources - simplified for real model testing
-set(IO_TEST_SRCS
-    tests/io/test_io_architecture.c
-)
-
-set(NANO_TEST_SRCS
-    tests/nano/test_nano_architecture.c
+# New test sources - comprehensive streaming architecture validation
+set(TEST_SRCS
+    tests/test_main.c
+    tests/test_streaming_client.c
+    tests/test_io_callbacks.c
+    tests/test_nano_callbacks.c
+    tests/test_e2e_workflow.c
 )
 
 # All library sources
@@ -131,21 +131,15 @@ set_target_properties(nano_lib PROPERTIES
     LINK_FLAGS "-Wl,-rpath,${CMAKE_SOURCE_DIR}/src/libs/rkllm"
 )
 
-# Main executables
+# Main executable
 add_executable(nano src/main.c)
 target_link_libraries(nano nano_lib)
 set_target_properties(nano PROPERTIES
     LINK_FLAGS "-Wl,-rpath,${CMAKE_SOURCE_DIR}/src/libs/rkllm"
 )
 
-add_executable(io src/main.c)
-target_link_libraries(io nano_lib)
-set_target_properties(io PROPERTIES
-    LINK_FLAGS "-Wl,-rpath,${CMAKE_SOURCE_DIR}/src/libs/rkllm"
-)
-
-# Test executable with new architecture
-add_executable(test tests/test.c ${IO_TEST_SRCS} ${NANO_TEST_SRCS})
+# Test executable with new comprehensive test suite
+add_executable(test ${TEST_SRCS})
 target_link_libraries(test nano_lib)
 target_include_directories(test PRIVATE tests)
 set_target_properties(test PROPERTIES
@@ -165,7 +159,7 @@ add_custom_target(check-syntax
 )
 
 # Install targets
-install(TARGETS nano io test
+install(TARGETS nano test
     RUNTIME DESTINATION bin
 )
 

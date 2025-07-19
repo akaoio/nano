@@ -20,20 +20,26 @@
 #define IO_TIMEOUT -2
 #define IO_QUEUE_FULL -3
 
+// Forward declaration for callback
+typedef void (*nano_callback_t)(const char* json_response, void* userdata);
+
 // Context structure for IO operations
 typedef struct {
     queue_t request_queue;
-    queue_t response_queue;
     pthread_t workers[MAX_WORKERS];
     _Atomic int running;
     _Atomic int active_workers;
+    nano_callback_t nano_callback;  // Direct callback to NANO
+    void* nano_userdata;            // NANO context data
 } io_context_t;
 
 /**
- * @brief Initialize IO system
+ * @brief Initialize IO system with callback to NANO
+ * @param callback Function to call when response is ready
+ * @param userdata Data to pass to callback
  * @return IO_OK on success, IO_ERROR on failure
  */
-NODISCARD int io_init(void);
+NODISCARD int io_init(nano_callback_t callback, void* userdata);
 
 /**
  * @brief Push JSON request to processing queue
@@ -43,12 +49,11 @@ NODISCARD int io_init(void);
 NODISCARD int io_push_request(const char* json_request);
 
 /**
- * @brief Pop JSON response from response queue
- * @param json_response Buffer to store response
- * @param max_len Maximum buffer length
- * @return IO_OK on success, error code on failure
+ * @brief Set streaming callback for real-time responses
+ * @param callback Function to call for streaming chunks
+ * @param userdata Data to pass to callback
  */
-NODISCARD int io_pop_response(char* json_response, size_t max_len);
+void io_set_streaming_callback(nano_callback_t callback, void* userdata);
 
 /**
  * @brief Shutdown IO system
@@ -59,3 +64,6 @@ void io_shutdown(void);
 NODISCARD int io_parse_json_request(const char* json_request, uint32_t* request_id, 
                          uint32_t* handle_id, char* method, char* params);
 void* io_worker_thread(void* arg);
+
+// Streaming callback function
+void io_streaming_chunk_callback(const char* chunk, bool is_final, void* userdata);

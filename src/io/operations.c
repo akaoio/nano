@@ -150,6 +150,17 @@ int io_process_request(const char* json_request, char* json_response, size_t max
         return -1;
     }
     
+    // Check for streaming flag in params
+    bool streaming_enabled = false;
+    json_object *params_obj = json_tokener_parse(params);
+    if (params_obj) {
+        json_object *stream_obj;
+        if (json_object_object_get_ex(params_obj, "stream", &stream_obj)) {
+            streaming_enabled = json_object_get_boolean(stream_obj);
+        }
+        json_object_put(params_obj);
+    }
+    
     // Create RKLLM request
     rkllm_request_t rkllm_request = {
         .operation = operation,
@@ -158,9 +169,17 @@ int io_process_request(const char* json_request, char* json_response, size_t max
         .params_size = strlen(params)
     };
     
-    // Execute operation
+    // Execute operation with streaming support
     rkllm_result_t rkllm_result = {0};
-    int status = rkllm_proxy_execute(&rkllm_request, &rkllm_result);
+    int status;
+    
+    if (streaming_enabled) {
+        // Enable streaming mode - this will need implementation in rkllm_proxy_execute
+        status = rkllm_proxy_execute_streaming(&rkllm_request, &rkllm_result, request_id);
+    } else {
+        // Normal execution
+        status = rkllm_proxy_execute(&rkllm_request, &rkllm_result);
+    }
     
     // Create JSON-RPC response using json-c
     json_object *response = json_object_new_object();
