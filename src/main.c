@@ -153,7 +153,7 @@ int main(int argc, char* argv[]) {
     printf("   • Uptime: %lu seconds\n", uptime);
     
     printf("🛑 Shutting down MCP Server...\n");
-    nano_server_shutdown(&g_server);
+    mcp_server_shutdown(&g_server);
     printf("✅ MCP Server shutdown complete\n");
     
     return 0;

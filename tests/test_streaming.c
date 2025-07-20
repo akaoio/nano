@@ -6,11 +6,11 @@
 #include <json-c/json.h>
 
 // Include streaming components
-#include "../src/nano/transport/streaming/stream_manager.h"
-#include "../src/nano/transport/http_transport/http_transport.h"
-#include "../src/nano/transport/ws_transport/ws_transport.h"
-#include "../src/nano/transport/mcp_base/mcp_protocol.h"
-#include "../src/io/operations.h"
+#include "../src/server/transport/streaming/stream_manager.h"
+#include "../src/server/transport/http_transport/http_transport.h"
+#include "../src/server/transport/ws_transport/ws_transport.h"
+#include "../src/server/transport/mcp_base/mcp_protocol.h"
+#include "../src/server/operations.h"
 
 /*
  * STREAMING MCP PROTOCOL TEST SUITE

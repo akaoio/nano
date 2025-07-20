@@ -11,7 +11,7 @@
 #include <json-c/json.h>
 
 // Include the simplified IO operations
-#include "../src/io/operations.h"
+#include "../src/server/operations.h"
 
 /*
  * SIMPLIFIED UNIFIED TEST SUITE
