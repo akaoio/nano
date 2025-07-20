@@ -11,8 +11,6 @@
 // IO Operations - Direct RKLLM integration (lightweight approach)
 // Handles JSON request parsing and direct RKLLM function calls
 
-// Legacy global variables removed - now using dynamic proxy system
-// Use rkllm_proxy_get_handle() and rkllm_proxy_set_handle() instead
 
 /**
  * @brief Parse JSON-RPC request and extract operation details (main version)
@@ -104,11 +102,6 @@ char* io_create_json_response(uint32_t request_id, bool success, const char* dat
     return result;
 }
 
-// Legacy io_handle_init removed - use dynamic proxy rkllm_proxy_call("rkllm_init", params, result)
-
-// Legacy io_handle_run removed - use dynamic proxy rkllm_proxy_call("rkllm_run", params, result)
-
-// Legacy io_handle_destroy removed - use dynamic proxy rkllm_proxy_call("rkllm_destroy", params, result)
 
 /**
  * @brief Process operation request using dynamic RKLLM proxy

@@ -78,7 +78,6 @@ set(SERVER_SYSTEM_SRCS
     src/lib/system/resources.c
 )
 
-# Validation module removed in unified architecture
 
 set(SERVER_TRANSPORT_SRCS
     src/lib/transport/base.c
@@ -106,7 +105,6 @@ set(STREAMING_TEST_SRCS
     tests/test_streaming.c
 )
 
-# MCP compliance test removed
 
 # All library sources
 set(LIB_SRCS
@@ -161,7 +159,6 @@ set_target_properties(test_dynamic_api PROPERTIES
     LINK_FLAGS "-Wl,-rpath,${CMAKE_SOURCE_DIR}/src/external/rkllm"
 )
 
-# MCP compliance test executable removed
 
 # Custom targets
 add_custom_target(run-test
@@ -176,11 +173,10 @@ add_custom_target(run-streaming-test
     COMMENT "Running streaming test suite..."
 )
 
-# MCP compliance test target removed
 
 add_custom_target(run-all-tests
-    COMMAND test_unified && test_streaming
-    DEPENDS test_unified test_streaming
+    COMMAND test_unified && test_streaming && test_dynamic_api
+    DEPENDS test_unified test_streaming test_dynamic_api
     COMMENT "Running all test suites..."
 )
 
@@ -190,7 +186,7 @@ add_custom_target(check-syntax
 )
 
 # Install targets
-install(TARGETS mcp_server test_unified test_streaming
+install(TARGETS mcp_server test_unified test_streaming test_dynamic_api
     RUNTIME DESTINATION bin
 )
 

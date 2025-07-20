@@ -50,8 +50,6 @@ char* io_create_json_response(uint32_t request_id, bool success, const char* dat
  */
 int io_process_operation(const char* method, const char* params_json, char** result_json);
 
-// Legacy manual handlers removed - use dynamic RKLLM proxy system
-// All RKLLM functions now accessible via: rkllm_proxy_call(function_name, params_json, result_json)
 
 /**
  * @brief Get current RKLLM handle
