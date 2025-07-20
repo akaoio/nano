@@ -60,8 +60,8 @@ int main(int argc, char* argv[]) {
         .udp_port = 8081,
         .http_port = 8082,
         .ws_port = 8083,
-        .http_path = "/mcp",
-        .ws_path = "/ws",
+        .http_path = "/",
+        .ws_path = "/",
         .enable_streaming = true,
         .enable_logging = true,
         .log_file = NULL

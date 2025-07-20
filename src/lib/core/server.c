@@ -90,7 +90,7 @@ int mcp_server_internal_init(mcp_server_internal_t* server, const mcp_server_con
         http_transport_config_t http_config = {
             .host = strdup("0.0.0.0"),
             .port = config->http_port ? config->http_port : 8082,
-            .path = strdup(config->http_path ? config->http_path : "/mcp"),
+            .path = strdup(config->http_path ? config->http_path : "/"),
             .timeout_ms = 30000,
             .keep_alive = true
         };
@@ -105,7 +105,7 @@ int mcp_server_internal_init(mcp_server_internal_t* server, const mcp_server_con
         ws_transport_config_t ws_config = {
             .host = strdup("0.0.0.0"),
             .port = config->ws_port ? config->ws_port : 8083,
-            .path = strdup(config->ws_path ? config->ws_path : "/ws")
+            .path = strdup(config->ws_path ? config->ws_path : "/")
         };
         
         transport_base_t* ws_transport = ws_transport_get_interface();

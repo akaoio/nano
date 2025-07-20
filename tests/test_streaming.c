@@ -260,7 +260,7 @@ bool test_transport_streaming(void) {
     http_transport_config_t http_config = {
         .host = str_copy("localhost"),
         .port = 8080,
-        .path = str_copy("/mcp"),
+        .path = str_copy("/"),
         .timeout_ms = 5000,
         .keep_alive = true
     };
@@ -272,7 +272,7 @@ bool test_transport_streaming(void) {
     ws_transport_config_t ws_config = {
         .host = str_copy("localhost"),
         .port = 8083,
-        .path = str_copy("/ws"),
+        .path = str_copy("/"),
         .mask_frames = true
     };
     
