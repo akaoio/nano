@@ -45,6 +45,7 @@ typedef struct mcp_server_internal {
 // Internal server lifecycle (different names to avoid conflicts)
 int mcp_server_internal_init(mcp_server_internal_t* server, const mcp_server_config_t* config);
 int mcp_server_internal_start(mcp_server_internal_t* server);
+int mcp_server_internal_run_event_loop(mcp_server_internal_t* server);
 int mcp_server_internal_stop(mcp_server_internal_t* server);
 void mcp_server_internal_shutdown(mcp_server_internal_t* server);
 

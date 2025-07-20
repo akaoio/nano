@@ -13,6 +13,7 @@
 #include <sys/select.h>
 
 static udp_transport_config_t g_config = {0};
+static struct sockaddr_in g_last_sender = {0};  // Store last sender address
 
 int udp_transport_init(void* config) {
     if (!config) return -1;
@@ -43,12 +44,18 @@ int udp_transport_send_raw(const char* data, size_t len) {
         return -1;
     }
     
+    // Send to the last sender address (for server responses) or config address (for client)
+    struct sockaddr_in* target_addr = &g_config.addr;
+    if (g_last_sender.sin_family == AF_INET && g_last_sender.sin_port != 0) {
+        target_addr = &g_last_sender;  // Respond to last sender
+    }
+    
     // Use retry mechanism for reliability if enabled
     if (g_config.enable_retry) {
-        return udp_transport_send_with_retry(data, len);
+        return udp_transport_send_with_retry_to_addr(data, len, target_addr);
     } else {
         ssize_t sent = sendto(g_config.socket_fd, data, len, 0,
-                             (struct sockaddr*)&g_config.addr, sizeof(g_config.addr));
+                             (struct sockaddr*)target_addr, sizeof(*target_addr));
         return (sent == (ssize_t)len) ? 0 : -1;
     }
 }
@@ -73,7 +80,7 @@ int udp_transport_recv_raw(char* buffer, size_t buffer_size, int timeout_ms) {
         return -1; // Timeout or error
     }
     
-    // Read data
+    // Read data and store sender address
     struct sockaddr_in from_addr;
     socklen_t from_len = sizeof(from_addr);
     
@@ -83,6 +90,9 @@ int udp_transport_recv_raw(char* buffer, size_t buffer_size, int timeout_ms) {
     if (received <= 0) {
         return -1;
     }
+    
+    // Store sender address for response
+    g_last_sender = from_addr;
     
     buffer[received] = '\0';
     return 0;
@@ -153,12 +163,17 @@ void udp_transport_shutdown(void) {
 
 // UDP reliability - send with retry
 int udp_transport_send_with_retry(const char* data, size_t len) {
-    if (!g_config.initialized || !data || len == 0) return -1;
+    return udp_transport_send_with_retry_to_addr(data, len, &g_config.addr);
+}
+
+// UDP reliability - send with retry to specific address
+int udp_transport_send_with_retry_to_addr(const char* data, size_t len, struct sockaddr_in* addr) {
+    if (!g_config.initialized || !data || len == 0 || !addr) return -1;
     
     int attempts = 0;
     while (attempts < g_config.max_retries) {
         ssize_t sent = sendto(g_config.socket_fd, data, len, 0,
-                             (struct sockaddr*)&g_config.addr, sizeof(g_config.addr));
+                             (struct sockaddr*)addr, sizeof(*addr));
         
         if (sent == (ssize_t)len) {
             return 0; // Success

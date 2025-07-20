@@ -36,6 +36,7 @@ bool udp_transport_is_connected(void);
 
 // UDP reliability features (transport-level only)
 int udp_transport_send_with_retry(const char* data, size_t len);
+int udp_transport_send_with_retry_to_addr(const char* data, size_t len, struct sockaddr_in* addr);
 
 // Get UDP transport interface
 transport_base_t* udp_transport_get_interface(void);

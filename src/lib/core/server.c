@@ -6,11 +6,13 @@
 #include "../transport/stdio.h"
 #include "../transport/tcp.h"
 #include "../transport/udp.h"
+#define _DEFAULT_SOURCE
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
 #include <unistd.h>
+#include <sys/select.h>
 
 static mcp_server_internal_t g_server = {0};
 
@@ -142,6 +144,59 @@ int mcp_server_internal_start(mcp_server_internal_t* server) {
     server->running = true;
     mcp_server_internal_log(server, "INFO", "MCP Server started and listening for connections");
     
+    return 0;
+}
+
+int mcp_server_internal_run_event_loop(mcp_server_internal_t* server) {
+    if (!server || !server->running) return -1;
+    
+    mcp_server_internal_log(server, "INFO", "Starting request processing loop...");
+    
+    while (server->running) {
+        // Poll all transports for incoming requests
+        for (size_t i = 0; i < server->transport_count; i++) {
+            transport_manager_t* manager = &server->transport_managers[i];
+            
+            if (!transport_manager_is_connected(manager)) {
+                continue;
+            }
+            
+            // Use dedicated buffers for this transport to prevent contamination
+            char* request_buffer = manager->request_buffer;
+            char* response_buffer = manager->response_buffer;
+            
+            // Try to receive a request (with short timeout to avoid blocking)
+            int result = transport_manager_recv_mcp_message(manager, request_buffer, sizeof(manager->request_buffer), 100);
+            
+            if (result == TRANSPORT_MANAGER_OK) {
+                // Process the request through MCP layer
+                mcp_server_internal_process_request(server, request_buffer, response_buffer, sizeof(manager->response_buffer));
+                
+                // Ensure response ends with newline for MCP compliance
+                size_t len = strlen(response_buffer);
+                if (len > 0 && response_buffer[len-1] != '\n') {
+                    if (len < sizeof(manager->response_buffer) - 2) {
+                        response_buffer[len] = '\n';
+                        response_buffer[len + 1] = '\0';
+                    }
+                }
+                
+                // Send response through transport
+                manager->transport->send(manager->transport, response_buffer, strlen(response_buffer));
+                
+                char log_msg[128];
+                snprintf(log_msg, sizeof(log_msg), "Processed request on transport %zu", i);
+                mcp_server_internal_log(server, "INFO", log_msg);
+            }
+        }
+        
+        // Small sleep to prevent busy waiting
+        // Use select for precise timing without platform issues
+        struct timeval tv = {0, 10000}; // 10ms
+        select(0, NULL, NULL, NULL, &tv);
+    }
+    
+    mcp_server_internal_log(server, "INFO", "Request processing loop stopped");
     return 0;
 }
 

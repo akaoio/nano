@@ -18,10 +18,7 @@ int transport_manager_init(transport_manager_t* manager, transport_base_t* trans
         }
     }
     
-    // Initialize transport
-    if (transport->init && transport->init(transport, NULL) != 0) {
-        return TRANSPORT_MANAGER_ERROR;
-    }
+    // Don't initialize transport here - let the caller do it with proper config
     
     manager->initialized = true;
     return TRANSPORT_MANAGER_OK;

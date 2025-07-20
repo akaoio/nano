@@ -1,5 +1,7 @@
 #include "include/mcp/server.h"
 #include "common/core.h"
+#include "lib/core/rkllm_dynamic_loader.h"
+#include "lib/core/process_manager.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -31,6 +33,7 @@ void print_usage(const char* program_name) {
     printf("  --disable-udp        Disable UDP transport\n");
     printf("  --disable-http       Disable HTTP transport\n");
     printf("  --disable-ws         Disable WebSocket transport\n");
+    printf("  --force              Kill existing processes using our ports\n");
     printf("  --log-file FILE      Log to file instead of stderr\n");
     printf("\nDefault configuration:\n");
     printf("STDIO: enabled\n");
@@ -41,6 +44,7 @@ void print_usage(const char* program_name) {
 }
 
 int main(int argc, char* argv[]) {
+    // We'll determine output stream later based on config
     printf("🚀 MCP Server - Model Context Protocol Server\n");
     printf("====================================================\n");
     
@@ -66,6 +70,8 @@ int main(int argc, char* argv[]) {
         .enable_logging = true,
         .log_file = NULL
     };
+    
+    bool force_kill = false;
     
     // Parse command line arguments
     for (int i = 1; i < argc; i++) {
@@ -102,59 +108,134 @@ int main(int argc, char* argv[]) {
             if (i + 1 < argc) {
                 config.log_file = argv[++i];
             }
+        } else if (strcmp(argv[i], "--force") == 0) {
+            force_kill = true;
         }
     }
     
-    // Initialize server
-    printf("⚙️  Initializing MCP Server...\n");
-    if (mcp_server_init(&g_server, &config) != 0) {
-        fprintf(stderr, "❌ Failed to initialize MCP server\n");
+    // Determine output stream based on STDIO transport setting
+    FILE* output_stream = config.enable_stdio ? stderr : stdout;
+    
+    // Redirect initial messages to stderr if STDIO transport is enabled
+    if (config.enable_stdio) {
+        fprintf(stderr, "🚀 MCP Server - Model Context Protocol Server\n");
+        fprintf(stderr, "====================================================\n");
+    }
+    
+    // Check for existing instances
+    fprintf(output_stream, "🔍 Checking for existing server instances...\n");
+    process_status_t status = process_manager_check_existing();
+    
+    if (status.is_running) {
+        fprintf(output_stream, "⚠️  Found running instance: %s (PID %d)\n", status.process_name, status.pid);
+        
+        if (force_kill) {
+            fprintf(output_stream, "💀 --force specified, terminating existing instance...\n");
+            if (process_manager_kill_process(status.pid, true) != 0) {
+                fprintf(stderr, "❌ Failed to kill existing instance\n");
+                return 1;
+            }
+        } else {
+            fprintf(stderr, "❌ Server already running (PID %d). Use --force to kill it.\n", status.pid);
+            return 1;
+        }
+    }
+    
+    // Scan for port conflicts
+    process_port_scan_t ports[] = {
+        {config.tcp_port, "TCP", config.enable_tcp},
+        {config.udp_port, "UDP", config.enable_udp},
+        {config.http_port, "HTTP", config.enable_http},
+        {config.ws_port, "WebSocket", config.enable_websocket}
+    };
+    
+    process_conflict_t conflicts[20];
+    int conflict_count = process_manager_scan_ports(ports, 4, conflicts, 20);
+    
+    if (conflict_count > 0) {
+        fprintf(output_stream, "⚠️  Found %d port conflicts:\n", conflict_count);
+        for (int i = 0; i < conflict_count; i++) {
+            fprintf(output_stream, "   • Port %d (%s): used by %s (PID %d)\n", 
+                   conflicts[i].port, conflicts[i].transport_name, 
+                   conflicts[i].process_name, conflicts[i].pid);
+        }
+        
+        if (force_kill) {
+            fprintf(output_stream, "💀 --force specified, killing conflicting processes...\n");
+            int killed = process_manager_kill_conflicts(conflicts, conflict_count, true);
+            fprintf(output_stream, "✅ Killed %d of %d conflicting processes\n", killed, conflict_count);
+        } else {
+            fprintf(stderr, "❌ Port conflicts detected. Use --force to kill conflicting processes.\n");
+            return 1;
+        }
+    } else {
+        fprintf(output_stream, "✅ No port conflicts detected\n");
+    }
+    
+    // Initialize process management
+    if (process_manager_init() != 0) {
+        fprintf(stderr, "❌ Failed to initialize process management\n");
         return 1;
     }
     
-    // Print enabled transports
-    printf("📡 Enabled transports:\n");
-    if (config.enable_stdio) printf("   • STDIO (stdin/stdout)\n");
-    if (config.enable_tcp) printf("   • TCP (port %d)\n", config.tcp_port);
-    if (config.enable_udp) printf("   • UDP (port %d)\n", config.udp_port);
-    if (config.enable_http) printf("   • HTTP (port %d, path %s)\n", config.http_port, config.http_path);
-    if (config.enable_websocket) printf("   • WebSocket (port %d, path %s)\n", config.ws_port, config.ws_path);
+    // Initialize RKLLM dynamic loader
+    fprintf(output_stream, "🔌 Loading RKLLM library...\n");
+    if (rkllm_dynamic_loader_init(NULL) != 0) {
+        fprintf(stderr, "❌ Failed to load RKLLM library\n");
+        process_manager_cleanup();
+        return 1;
+    }
+    fprintf(output_stream, "✅ RKLLM library loaded (%d functions)\n", rkllm_dynamic_loader_get_loaded_count());
+    
+    // Initialize server
+    fprintf(output_stream, "⚙️  Initializing MCP Server...\n");
+    if (mcp_server_init(&g_server, &config) != 0) {
+        fprintf(stderr, "❌ Failed to initialize MCP server\n");
+        rkllm_dynamic_loader_cleanup();
+        process_manager_cleanup();
+        return 1;
+    }
+    
+    // Print enabled transports (to stderr if STDIO transport is enabled)
+    fprintf(output_stream, "📡 Enabled transports:\n");
+    if (config.enable_stdio) fprintf(output_stream, "   • STDIO (stdin/stdout)\n");
+    if (config.enable_tcp) fprintf(output_stream, "   • TCP (port %d)\n", config.tcp_port);
+    if (config.enable_udp) fprintf(output_stream, "   • UDP (port %d)\n", config.udp_port);
+    if (config.enable_http) fprintf(output_stream, "   • HTTP (port %d, path %s)\n", config.http_port, config.http_path);
+    if (config.enable_websocket) fprintf(output_stream, "   • WebSocket (port %d, path %s)\n", config.ws_port, config.ws_path);
     
     // Start server
-    printf("🚀 Starting MCP Server...\n");
+    fprintf(output_stream, "🚀 Starting MCP Server...\n");
     if (mcp_server_start(&g_server) != 0) {
         fprintf(stderr, "❌ Failed to start MCP server\n");
         mcp_server_shutdown(&g_server);
+        rkllm_dynamic_loader_cleanup();
+        process_manager_cleanup();
         return 1;
     }
     
-    printf("✅ MCP Server started successfully\n");
-    printf("🔄 Server running... (Press Ctrl+C to stop)\n");
-    printf("📊 Status: %s\n", mcp_server_get_status(&g_server));
+    fprintf(output_stream, "✅ MCP Server started successfully\n");
+    fprintf(output_stream, "🔄 Server running... (Press Ctrl+C to stop)\n");
+    fprintf(output_stream, "📊 Status: %s\n", mcp_server_get_status(&g_server));
     
-    // Main server loop
-    while (g_running) {
-        // In a real implementation, this would handle incoming requests
-        // For now, just sleep and let signal handler stop the server
-        sleep(1);
-        
-        // Update uptime
-        g_server.uptime_seconds++;
-    }
+    // Run the main event loop to process requests
+    mcp_server_run_event_loop(&g_server);
     
     // Print final statistics
     uint64_t requests, responses, errors, uptime;
     mcp_server_get_stats(&g_server, &requests, &responses, &errors, &uptime);
     
-    printf("\n📊 Final Statistics:\n");
-    printf("   • Requests processed: %lu\n", requests);
-    printf("   • Responses sent: %lu\n", responses);
-    printf("   • Errors handled: %lu\n", errors);
-    printf("   • Uptime: %lu seconds\n", uptime);
+    fprintf(output_stream, "\n📊 Final Statistics:\n");
+    fprintf(output_stream, "   • Requests processed: %lu\n", requests);
+    fprintf(output_stream, "   • Responses sent: %lu\n", responses);
+    fprintf(output_stream, "   • Errors handled: %lu\n", errors);
+    fprintf(output_stream, "   • Uptime: %lu seconds\n", uptime);
     
-    printf("🛑 Shutting down MCP Server...\n");
+    fprintf(output_stream, "🛑 Shutting down MCP Server...\n");
     mcp_server_shutdown(&g_server);
-    printf("✅ MCP Server shutdown complete\n");
+    rkllm_dynamic_loader_cleanup();
+    process_manager_cleanup();
+    fprintf(output_stream, "✅ MCP Server shutdown complete\n");
     
     return 0;
 }

@@ -19,10 +19,6 @@ int ws_transport_connect(void);
 int ws_transport_disconnect(void);
 bool ws_transport_is_connected(void);
 
-// WebSocket-specific utilities
-int ws_transport_send_ws_frame(const char* data, size_t len, bool is_text);
-int ws_transport_recv_ws_frame(char* buffer, size_t buffer_size);
-int ws_transport_perform_handshake(void);
 
 // Get WebSocket transport interface
 transport_base_t* ws_transport_get_interface(void);

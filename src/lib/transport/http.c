@@ -8,9 +8,11 @@
 #include <arpa/inet.h>
 #include <unistd.h>
 #include <sys/select.h>
+#include <errno.h>
 
 static http_transport_config_t g_config = {0};
 static int g_socket_fd = -1;
+static int g_current_client_fd = -1; // Store current client for response
 
 int http_transport_init(void* config) {
     if (!config) return -1;
@@ -44,6 +46,16 @@ int http_transport_connect(void) {
     // Create socket
     g_socket_fd = socket(AF_INET, SOCK_STREAM, 0);
     if (g_socket_fd < 0) {
+        printf("HTTP socket creation failed: %s\n", strerror(errno));
+        return -1;
+    }
+    
+    // Set socket options for server
+    int reuse = 1;
+    if (setsockopt(g_socket_fd, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse)) < 0) {
+        printf("HTTP setsockopt failed: %s\n", strerror(errno));
+        close(g_socket_fd);
+        g_socket_fd = -1;
         return -1;
     }
     
@@ -51,19 +63,25 @@ int http_transport_connect(void) {
     memset(&addr, 0, sizeof(addr));
     addr.sin_family = AF_INET;
     addr.sin_port = htons(g_config.port);
+    addr.sin_addr.s_addr = INADDR_ANY; // Listen on all interfaces
     
-    if (inet_pton(AF_INET, g_config.host, &addr.sin_addr) <= 0) {
+    // Bind socket to address
+    if (bind(g_socket_fd, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
+        printf("HTTP bind failed on port %d: %s\n", g_config.port, strerror(errno));
         close(g_socket_fd);
         g_socket_fd = -1;
         return -1;
     }
     
-    if (connect(g_socket_fd, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
+    // Listen for connections
+    if (listen(g_socket_fd, 5) < 0) {
+        printf("HTTP listen failed on port %d: %s\n", g_config.port, strerror(errno));
         close(g_socket_fd);
         g_socket_fd = -1;
         return -1;
     }
     
+    printf("✅ HTTP server listening on port %d\n", g_config.port);
     g_config.connected = true;
     return 0;
 }
@@ -89,43 +107,39 @@ int http_transport_send_raw(const char* data, size_t len) {
         return -1;
     }
     
-    // For HTTP, we need to wrap the data in an HTTP request
-    char http_request[8192];
-    int request_len = snprintf(http_request, sizeof(http_request),
-        "POST %s HTTP/1.1\r\n"
-        "Host: %s:%d\r\n"
+    // For HTTP server, we need to send an HTTP response
+    if (g_current_client_fd < 0) {
+        return -1; // No client to send to
+    }
+    
+    char http_response[8192];
+    int response_len = snprintf(http_response, sizeof(http_response),
+        "HTTP/1.1 200 OK\r\n"
         "Content-Type: application/json\r\n"
         "Content-Length: %zu\r\n"
-        "Connection: %s\r\n"
+        "Connection: close\r\n"
+        "Access-Control-Allow-Origin: *\r\n"
+        "Access-Control-Allow-Methods: POST, GET, OPTIONS\r\n"
+        "Access-Control-Allow-Headers: Content-Type\r\n"
         "\r\n"
         "%.*s",
-        g_config.path ? g_config.path : "/",
-        g_config.host,
-        g_config.port,
         len,
-        g_config.keep_alive ? "keep-alive" : "close",
         (int)len, data);
     
-    if (request_len >= (int)sizeof(http_request)) {
-        return -1; // Request too large
+    if (response_len >= (int)sizeof(http_response)) {
+        close(g_current_client_fd);
+        g_current_client_fd = -1;
+        return -1; // Response too large
     }
     
-    // Connect if not already connected
-    if (!g_config.connected) {
-        if (http_transport_connect() != 0) {
-            return -1;
-        }
-    }
+    // Send HTTP response
+    ssize_t sent = send(g_current_client_fd, http_response, response_len, 0);
     
-    // Send HTTP request
-    ssize_t sent = send(g_socket_fd, http_request, request_len, 0);
+    // Close connection after sending response
+    close(g_current_client_fd);
+    g_current_client_fd = -1;
     
-    // If not keeping alive, disconnect after sending
-    if (!g_config.keep_alive) {
-        http_transport_disconnect();
-    }
-    
-    return (sent == request_len) ? 0 : -1;
+    return (sent == response_len) ? 0 : -1;
 }
 
 int http_transport_recv_raw(char* buffer, size_t buffer_size, int timeout_ms) {
@@ -133,13 +147,11 @@ int http_transport_recv_raw(char* buffer, size_t buffer_size, int timeout_ms) {
         return -1;
     }
     
-    // For HTTP, this would typically be used to read the response
-    // after sending a request
     if (!g_config.connected) {
         return -1;
     }
     
-    // Use select for timeout
+    // Use select to check for incoming connections with timeout
     fd_set readfds;
     struct timeval timeout;
     
@@ -154,17 +166,46 @@ int http_transport_recv_raw(char* buffer, size_t buffer_size, int timeout_ms) {
         return -1; // Timeout or error
     }
     
-    // Read HTTP response
-    char http_response[8192];
-    ssize_t received = recv(g_socket_fd, http_response, sizeof(http_response) - 1, 0);
-    if (received <= 0) {
+    // Accept incoming connection
+    struct sockaddr_in client_addr;
+    socklen_t client_addr_len = sizeof(client_addr);
+    int client_fd = accept(g_socket_fd, (struct sockaddr*)&client_addr, &client_addr_len);
+    if (client_fd < 0) {
         return -1;
     }
     
-    http_response[received] = '\0';
+    // Read HTTP request from client
+    char http_request[8192];
+    ssize_t received = recv(client_fd, http_request, sizeof(http_request) - 1, 0);
+    if (received <= 0) {
+        close(client_fd);
+        return -1;
+    }
     
-    // Extract body from HTTP response
-    return http_transport_parse_http_response(http_response, buffer, buffer_size);
+    http_request[received] = '\0';
+    
+    // Parse HTTP request to extract JSON body
+    char* body_start = strstr(http_request, "\r\n\r\n");
+    if (!body_start) {
+        close(client_fd);
+        return -1;
+    }
+    body_start += 4; // Skip "\r\n\r\n"
+    
+    // Copy JSON body to buffer
+    size_t body_len = strlen(body_start);
+    if (body_len >= buffer_size) {
+        close(client_fd);
+        return -1;
+    }
+    
+    strncpy(buffer, body_start, buffer_size - 1);
+    buffer[buffer_size - 1] = '\0';
+    
+    // Store client_fd for sending response later
+    g_current_client_fd = client_fd;
+    
+    return 0;
 }
 
 int http_transport_send_http_request(const char* method, const char* path, const char* body, char* response, size_t response_size) {
