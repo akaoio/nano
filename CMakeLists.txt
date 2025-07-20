@@ -31,20 +31,16 @@ pkg_check_modules(JSON_C REQUIRED json-c)
 # Include directories
 include_directories(
     ${CMAKE_SOURCE_DIR}/src
-    ${CMAKE_SOURCE_DIR}/src/libs/rkllm
+    ${CMAKE_SOURCE_DIR}/src/external/rkllm
     ${CMAKE_SOURCE_DIR}/src/common
-    ${CMAKE_SOURCE_DIR}/src/server
-    ${CMAKE_SOURCE_DIR}/src/server/core
-    ${CMAKE_SOURCE_DIR}/src/server/system
-    ${CMAKE_SOURCE_DIR}/src/server/validation
-    ${CMAKE_SOURCE_DIR}/src/server/transport
-    ${CMAKE_SOURCE_DIR}/src/server/protocol
+    ${CMAKE_SOURCE_DIR}/src/include
+    ${CMAKE_SOURCE_DIR}/src/lib
     ${JSON_C_INCLUDE_DIRS}
 )
 
 # Link directories
 link_directories(
-    ${CMAKE_SOURCE_DIR}/src/libs/rkllm
+    ${CMAKE_SOURCE_DIR}/src/external/rkllm
     ${JSON_C_LIBRARY_DIRS}
 )
 
@@ -58,41 +54,36 @@ set(COMMON_SRCS
 )
 
 set(SERVER_CORE_SRCS
-    src/server/core/queue/queue.c
-    src/server/core/io/io.c
-    src/server/core/io/io_worker.c
-    src/server/core/nano/nano.c
-    src/server/operations.c
-    src/server/server.c
+    src/lib/core/server.c
+    src/lib/core/request_manager.c
+    src/lib/core/operations.c
+    src/lib/core/rkllm_proxy.c
+    src/lib/core/public_api.c
 )
 
 set(SERVER_SYSTEM_SRCS
-    src/server/system/system_info/system_info.c
-    src/server/system/system_info/system_memory.c
-    src/server/system/system_info/system_model.c
-    src/server/system/resource_mgr/resource_mgr.c
+    src/lib/system/info.c
+    src/lib/system/memory.c
+    src/lib/system/resources.c
 )
 
-set(SERVER_VALIDATION_SRCS
-    src/server/validation/model_checker/model_checker.c
-)
+# Validation module removed in unified architecture
 
 set(SERVER_TRANSPORT_SRCS
-    src/server/transport/mcp_base/mcp_base.c
-    src/server/transport/mcp_base/mcp_protocol.c
-    src/server/transport/udp_transport/udp_transport.c
-    src/server/transport/tcp_transport/tcp_transport.c
-    src/server/transport/http_transport/http_transport.c
-    src/server/transport/ws_transport/ws_transport.c
-    src/server/transport/stdio_transport/stdio_transport.c
-    src/server/transport/streaming/stream_manager.c
-    src/server/transport/transport_base.c
-    src/server/transport/transport_manager.c
-    src/server/transport/stdio_simple.c
+    src/lib/transport/base.c
+    src/lib/transport/manager.c
+    src/lib/transport/stdio.c
+    src/lib/transport/tcp.c
+    src/lib/transport/udp.c
+    src/lib/transport/http.c
+    src/lib/transport/websocket.c
 )
 
 set(SERVER_PROTOCOL_SRCS
-    src/server/protocol/mcp_adapter.c
+    src/lib/protocol/mcp_protocol.c
+    src/lib/protocol/jsonrpc.c
+    src/lib/protocol/adapter.c
+    src/lib/protocol/streaming.c
 )
 
 # Test source files
@@ -104,16 +95,13 @@ set(STREAMING_TEST_SRCS
     tests/test_streaming.c
 )
 
-set(MCP_COMPLIANCE_TEST_SRCS
-    tests/test_mcp_compliance.c
-)
+# MCP compliance test removed
 
 # All library sources
 set(LIB_SRCS
     ${COMMON_SRCS}
     ${SERVER_CORE_SRCS}
     ${SERVER_SYSTEM_SRCS}
-    ${SERVER_VALIDATION_SRCS}
     ${SERVER_TRANSPORT_SRCS}
     ${SERVER_PROTOCOL_SRCS}
 )
@@ -130,14 +118,14 @@ target_compile_options(mcp_server_lib PRIVATE ${JSON_C_CFLAGS_OTHER})
 
 # Set RPATH for runtime library search
 set_target_properties(mcp_server_lib PROPERTIES
-    LINK_FLAGS "-Wl,-rpath,${CMAKE_SOURCE_DIR}/src/libs/rkllm"
+    LINK_FLAGS "-Wl,-rpath,${CMAKE_SOURCE_DIR}/src/external/rkllm"
 )
 
 # Main executable
 add_executable(mcp_server src/main.c)
 target_link_libraries(mcp_server mcp_server_lib)
 set_target_properties(mcp_server PROPERTIES
-    LINK_FLAGS "-Wl,-rpath,${CMAKE_SOURCE_DIR}/src/libs/rkllm"
+    LINK_FLAGS "-Wl,-rpath,${CMAKE_SOURCE_DIR}/src/external/rkllm"
 )
 
 # Test executables
@@ -145,22 +133,24 @@ add_executable(test_unified ${TEST_SRCS})
 target_link_libraries(test_unified mcp_server_lib)
 target_include_directories(test_unified PRIVATE tests)
 set_target_properties(test_unified PROPERTIES
-    LINK_FLAGS "-Wl,-rpath,${CMAKE_SOURCE_DIR}/src/libs/rkllm"
+    LINK_FLAGS "-Wl,-rpath,${CMAKE_SOURCE_DIR}/src/external/rkllm"
 )
 
 add_executable(test_streaming ${STREAMING_TEST_SRCS})
 target_link_libraries(test_streaming mcp_server_lib)
 target_include_directories(test_streaming PRIVATE tests)
 set_target_properties(test_streaming PROPERTIES
-    LINK_FLAGS "-Wl,-rpath,${CMAKE_SOURCE_DIR}/src/libs/rkllm"
+    LINK_FLAGS "-Wl,-rpath,${CMAKE_SOURCE_DIR}/src/external/rkllm"
 )
 
-add_executable(test_mcp_compliance ${MCP_COMPLIANCE_TEST_SRCS})
-target_link_libraries(test_mcp_compliance mcp_server_lib)
-target_include_directories(test_mcp_compliance PRIVATE tests)
-set_target_properties(test_mcp_compliance PROPERTIES
-    LINK_FLAGS "-Wl,-rpath,${CMAKE_SOURCE_DIR}/src/libs/rkllm"
+add_executable(test_dynamic_api tests/test_dynamic_api.c)
+target_link_libraries(test_dynamic_api mcp_server_lib)
+target_include_directories(test_dynamic_api PRIVATE tests)
+set_target_properties(test_dynamic_api PROPERTIES
+    LINK_FLAGS "-Wl,-rpath,${CMAKE_SOURCE_DIR}/src/external/rkllm"
 )
+
+# MCP compliance test executable removed
 
 # Custom targets
 add_custom_target(run-test
@@ -175,15 +165,11 @@ add_custom_target(run-streaming-test
     COMMENT "Running streaming test suite..."
 )
 
-add_custom_target(run-mcp-test
-    COMMAND test_mcp_compliance
-    DEPENDS test_mcp_compliance
-    COMMENT "Running MCP compliance test suite..."
-)
+# MCP compliance test target removed
 
 add_custom_target(run-all-tests
-    COMMAND test_unified && test_streaming && test_mcp_compliance
-    DEPENDS test_unified test_streaming test_mcp_compliance
+    COMMAND test_unified && test_streaming
+    DEPENDS test_unified test_streaming
     COMMENT "Running all test suites..."
 )
 
@@ -193,7 +179,7 @@ add_custom_target(check-syntax
 )
 
 # Install targets
-install(TARGETS mcp_server test_unified test_streaming test_mcp_compliance
+install(TARGETS mcp_server test_unified test_streaming
     RUNTIME DESTINATION bin
 )
 

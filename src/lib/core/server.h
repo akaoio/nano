@@ -1,0 +1,64 @@
+#ifndef MCP_SERVER_INTERNAL_H
+#define MCP_SERVER_INTERNAL_H
+
+#include <stdbool.h>
+#include <stdint.h>
+#include "mcp/protocol.h"
+#include "mcp/transport.h"
+#include "mcp/server.h"
+#include "operations.h"
+#include "../protocol/adapter.h"
+#include "../transport/manager.h"
+
+// Unified MCP Server
+// Combines IO operations, transport layer, and MCP protocol handling
+
+// Forward declarations moved to includes
+
+// Use the internal structure for implementation
+// #define mcp_server_t mcp_server_internal_t
+
+// Internal server structure for implementation use
+typedef struct mcp_server_internal {
+    bool initialized;
+    bool running;
+    
+    // MCP Protocol Layer
+    mcp_adapter_t* mcp_adapter;
+    
+    // Transport Management
+    transport_manager_t* transport_managers;
+    size_t transport_count;
+    
+    // Server Configuration
+    char server_name[64];
+    char version[16];
+    uint16_t default_port;
+    
+    // Statistics
+    uint64_t requests_processed;
+    uint64_t responses_sent;
+    uint64_t errors_handled;
+    uint64_t uptime_seconds;
+} mcp_server_internal_t;
+
+// Internal server lifecycle (different names to avoid conflicts)
+int mcp_server_internal_init(mcp_server_internal_t* server, const mcp_server_config_t* config);
+int mcp_server_internal_start(mcp_server_internal_t* server);
+int mcp_server_internal_stop(mcp_server_internal_t* server);
+void mcp_server_internal_shutdown(mcp_server_internal_t* server);
+
+// Internal server operations
+int mcp_server_internal_process_request(mcp_server_internal_t* server, const char* raw_request, char* response, size_t response_size);
+int mcp_server_internal_handle_streaming(mcp_server_internal_t* server, const char* stream_id);
+
+// Internal server management
+int mcp_server_internal_add_transport(mcp_server_internal_t* server, transport_base_t* transport, void* config);
+void mcp_server_internal_get_stats(mcp_server_internal_t* server, uint64_t* requests, uint64_t* responses, uint64_t* errors, uint64_t* uptime);
+const char* mcp_server_internal_get_status(mcp_server_internal_t* server);
+
+// Internal utility functions
+int mcp_server_internal_validate_config(const mcp_server_config_t* config);
+void mcp_server_internal_log(mcp_server_internal_t* server, const char* level, const char* message);
+
+#endif // MCP_SERVER_INTERNAL_H

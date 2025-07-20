@@ -3,7 +3,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <stdbool.h>
-#include "../../libs/rkllm/rkllm.h"
+#include "../../external/rkllm/rkllm.h"
 
 /**
  * @brief Validate handle ID

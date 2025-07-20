@@ -1,4 +1,4 @@
-#include "server/server.h"
+#include "include/mcp/server.h"
 #include "common/core.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -6,7 +6,7 @@
 #include <signal.h>
 #include <unistd.h>
 
-static mcp_server_t g_server;
+static mcp_server_t g_server = {0};
 static bool g_running = true;
 
 void signal_handler(int sig) {

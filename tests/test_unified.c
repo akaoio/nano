@@ -11,7 +11,7 @@
 #include <json-c/json.h>
 
 // Include the simplified IO operations
-#include "../src/server/operations.h"
+#include "../src/lib/core/operations.h"
 
 /*
  * SIMPLIFIED UNIFIED TEST SUITE
@@ -53,7 +53,7 @@ bool test_json_parsing() {
     
     const char* test_request = "{"
         "\"id\": 123,"
-        "\"method\": \"init\","
+        "\"method\": \"rkllm_init\","
         "\"params\": {"
             "\"model_path\": \"" TEST_MODEL_PATH "\","
             "\"max_new_tokens\": 100"
@@ -66,7 +66,7 @@ bool test_json_parsing() {
     
     int result = io_parse_json_request_main(test_request, &request_id, method, params);
     
-    if (result == 0 && request_id == 123 && strcmp(method, "init") == 0) {
+    if (result == 0 && request_id == 123 && strcmp(method, "rkllm_init") == 0) {
         printf("✅ JSON parsing: PASSED\n");
         g_state.tests_passed++;
         return true;
@@ -90,7 +90,7 @@ bool test_model_initialization() {
     "}";
     
     char* result_json = NULL;
-    int status = io_handle_init(params_json, &result_json);
+    int status = io_process_operation("rkllm_init", params_json, &result_json);
     
     bool success = (status == 0 && result_json != NULL && strstr(result_json, "handle_id") != NULL);
     
@@ -130,7 +130,7 @@ bool test_inference() {
     "}";
     
     char* result_json = NULL;
-    int status = io_handle_run(params_json, &result_json);
+    int status = io_process_operation("rkllm_run", params_json, &result_json);
     
     bool success = (status == 0 && result_json != NULL);
     
@@ -350,7 +350,7 @@ bool test_protocol_data_flow() {
     const char* raw_jsonrpc_request = "{"
         "\"jsonrpc\": \"2.0\","
         "\"id\": 12345,"
-        "\"method\": \"run_streaming\","
+        "\"method\": \"rkllm_run_streaming\","
         "\"params\": {"
             "\"handle_id\": 1,"
             "\"prompt\": \"What is AI?\","
@@ -383,7 +383,7 @@ bool test_protocol_data_flow() {
     }
     
     // 3. For streaming test, perform REAL RKLLM streaming with REAL callback
-    if (strcmp(method, "run_streaming") == 0) {
+    if (strcmp(method, "rkllm_run_streaming") == 0) {
         printf("\n🔥 [REAL STREAMING] Performing actual RKLLM streaming with real callback...\n");
         
         // Parse streaming params
@@ -532,7 +532,7 @@ bool test_cleanup() {
     g_state.tests_run++;
     
     char* result_json = NULL;
-    int status = io_handle_destroy(NULL, &result_json);
+    int status = io_process_operation("rkllm_destroy", "{}", &result_json);
     
     bool success = (status == 0 && result_json != NULL && !io_is_initialized());
     

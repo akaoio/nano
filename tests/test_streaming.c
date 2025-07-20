@@ -6,11 +6,11 @@
 #include <json-c/json.h>
 
 // Include unified server architecture components
-#include "../src/server/transport/streaming/stream_manager.h"
-#include "../src/server/transport/http_transport/http_transport.h"
-#include "../src/server/transport/ws_transport/ws_transport.h"
-#include "../src/server/transport/mcp_base/mcp_protocol.h"
-#include "../src/server/operations.h"
+#include "../src/lib/protocol/streaming.h"
+#include "../src/lib/transport/http.h"
+#include "../src/lib/transport/websocket.h"
+#include "../src/lib/protocol/mcp_protocol.h"
+#include "../src/lib/core/operations.h"
 #include "../src/common/string_utils/string_utils.h"
 
 /*
