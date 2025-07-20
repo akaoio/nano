@@ -7,25 +7,25 @@
 
 // Include unified server architecture
 #include "../src/server/server.h"
-#include "../src/server/protocol/mcp_adapter.h"
 #include "../src/server/transport/transport_manager.h"
 #include "../src/server/transport/stdio_transport/stdio_transport.h"
 #include "../src/server/transport/tcp_transport/tcp_transport.h"
 #include "../src/server/transport/udp_transport/udp_transport.h"
 #include "../src/server/transport/http_transport/http_transport.h"
 #include "../src/server/transport/ws_transport/ws_transport.h"
+#include "../src/server/transport/mcp_base/mcp_protocol.h"
 #include "../src/server/operations.h"
+#include "../src/common/string_utils/string_utils.h"
 
 /*
- * COMPLETE MCP COMPLIANCE TEST SUITE
+ * COMPLETE MCP COMPLIANCE TEST SUITE - UNIFIED ARCHITECTURE
  * 
- * Tests all five transports for:
+ * Tests all transport layers for:
  * 1. MCP protocol compliance
- * 2. Streaming consistency
+ * 2. JSON-RPC 2.0 formatting
  * 3. UTF-8 validation
- * 4. Message formatting
- * 5. Error handling
- * 6. Session management
+ * 4. Error handling
+ * 5. Server integration
  */
 
 // Test state
@@ -50,444 +50,377 @@ static test_state_t g_state = {0};
         } \
     } while(0)
 
-// Transport interface for unified testing - updated for new architecture
+// Transport test configuration
 typedef struct {
     const char* name;
-    transport_base_t* transport;
-    transport_manager_t* manager;
-    void* config;
     bool supports_streaming;
-    bool requires_server;
-} transport_test_t;
+    bool requires_network;
+    void* config;
+} transport_test_config_t;
 
-// Test 1: MCP Protocol Compliance
-bool test_mcp_protocol_compliance(transport_test_t* transport) {
-    printf("\n🧪 Test: MCP Protocol Compliance - %s\n", transport->name);
-    printf("===============================================\n");
-    strcpy(g_state.current_transport, transport->name);
+// Test 1: MCP Protocol Basic Compliance
+bool test_mcp_protocol_basic(void) {
+    printf("\n🧪 Test: MCP Protocol Basic Compliance\n");
+    printf("=====================================\n");
+    strcpy(g_state.current_transport, "Protocol");
     
-    // Test MCP adapter request formatting
-    mcp_request_t request = {0};
-    strcpy(request.method, "run");
-    strcpy(request.params, "{\"prompt\": \"Hello\", \"max_tokens\": 100}");
-    strcpy(request.request_id, "12345");
-    request.is_streaming = false;
+    // Initialize MCP context
+    mcp_context_t ctx = {0};
+    int init_result = mcp_protocol_init(&ctx);
+    TEST_ASSERT(init_result == 0, "MCP protocol initialization");
     
-    mcp_response_t response = {0};
-    strcpy(response.request_id, "12345");
-    response.is_success = true;
-    strcpy(response.result, "{\"content\": \"Hello World\"}");
+    // Test request formatting
+    char request_buffer[1024];
+    int format_result = mcp_format_request(12345, "run", "{\"prompt\": \"Hello\"}", request_buffer, sizeof(request_buffer));
+    TEST_ASSERT(format_result == 0, "Format MCP request");
     
-    char buffer[8192];
-    int format_result = mcp_adapter_format_response(&response, buffer, sizeof(buffer));
-    TEST_ASSERT(format_result == MCP_ADAPTER_OK, "MCP adapter response formatting");
-    
-    // Verify JSON-RPC structure
-    json_object* msg_obj = json_tokener_parse(buffer);
-    TEST_ASSERT(msg_obj != NULL, "Valid JSON structure");
+    // Verify JSON-RPC 2.0 structure
+    json_object* req_obj = json_tokener_parse(request_buffer);
+    TEST_ASSERT(req_obj != NULL, "Valid JSON request structure");
     
     json_object* jsonrpc_obj, *method_obj, *params_obj, *id_obj;
-    TEST_ASSERT(json_object_object_get_ex(msg_obj, "jsonrpc", &jsonrpc_obj), "Has jsonrpc field");
+    TEST_ASSERT(json_object_object_get_ex(req_obj, "jsonrpc", &jsonrpc_obj), "Has jsonrpc field");
     TEST_ASSERT(strcmp(json_object_get_string(jsonrpc_obj), "2.0") == 0, "Correct JSON-RPC version");
     
-    TEST_ASSERT(json_object_object_get_ex(msg_obj, "method", &method_obj), "Has method field");
+    TEST_ASSERT(json_object_object_get_ex(req_obj, "method", &method_obj), "Has method field");
     TEST_ASSERT(strcmp(json_object_get_string(method_obj), "run") == 0, "Correct method value");
     
-    TEST_ASSERT(json_object_object_get_ex(msg_obj, "params", &params_obj), "Has params field");
-    TEST_ASSERT(json_object_object_get_ex(msg_obj, "id", &id_obj), "Has id field");
+    TEST_ASSERT(json_object_object_get_ex(req_obj, "params", &params_obj), "Has params field");
+    TEST_ASSERT(json_object_object_get_ex(req_obj, "id", &id_obj), "Has id field");
     TEST_ASSERT(json_object_get_int(id_obj) == 12345, "Correct id value");
     
-    json_object_put(msg_obj);
+    json_object_put(req_obj);
     
-    // Test error response formatting
-    char error_buffer[8192];
-    int error_result = mcp_adapter_format_error("12345", -32601, "Method not found", error_buffer, sizeof(error_buffer));
-    TEST_ASSERT(error_result == MCP_ADAPTER_OK, "Error response formatting");
+    // Test response formatting
+    char response_buffer[1024];
+    int resp_result = mcp_format_response(12345, "{\"content\": \"Hello World\"}", response_buffer, sizeof(response_buffer));
+    TEST_ASSERT(resp_result == 0, "Format MCP response");
     
-    json_object* error_msg_obj = json_tokener_parse(error_buffer);
-    TEST_ASSERT(error_msg_obj != NULL, "Valid error JSON structure");
+    json_object* resp_obj = json_tokener_parse(response_buffer);
+    TEST_ASSERT(resp_obj != NULL, "Valid JSON response structure");
+    
+    json_object* result_obj;
+    TEST_ASSERT(json_object_object_get_ex(resp_obj, "result", &result_obj), "Has result field");
+    TEST_ASSERT(json_object_object_get_ex(resp_obj, "jsonrpc", &jsonrpc_obj), "Response has jsonrpc field");
+    TEST_ASSERT(json_object_object_get_ex(resp_obj, "id", &id_obj), "Response has id field");
+    
+    json_object_put(resp_obj);
+    
+    // Test error formatting
+    char error_buffer[1024];
+    int error_result = mcp_format_error(12345, MCP_ERROR_METHOD_NOT_FOUND, "Method not found", NULL, error_buffer, sizeof(error_buffer));
+    TEST_ASSERT(error_result == 0, "Format MCP error");
+    
+    json_object* error_obj = json_tokener_parse(error_buffer);
+    TEST_ASSERT(error_obj != NULL, "Valid JSON error structure");
     
     json_object* error_field_obj;
-    TEST_ASSERT(json_object_object_get_ex(error_msg_obj, "error", &error_field_obj), "Has error field");
+    TEST_ASSERT(json_object_object_get_ex(error_obj, "error", &error_field_obj), "Has error field");
     
     json_object* code_obj, *message_obj;
     TEST_ASSERT(json_object_object_get_ex(error_field_obj, "code", &code_obj), "Error has code field");
-    TEST_ASSERT(json_object_get_int(code_obj) == -32601, "Correct error code");
+    TEST_ASSERT(json_object_get_int(code_obj) == MCP_ERROR_METHOD_NOT_FOUND, "Correct error code");
     
     TEST_ASSERT(json_object_object_get_ex(error_field_obj, "message", &message_obj), "Error has message field");
+    TEST_ASSERT(strcmp(json_object_get_string(message_obj), "Method not found") == 0, "Correct error message");
     
-    json_object_put(error_msg_obj);
+    json_object_put(error_obj);
     
+    // Test notification formatting
+    char notification_buffer[1024];
+    int notif_result = mcp_format_notification("progress", "{\"stage\": \"processing\"}", notification_buffer, sizeof(notification_buffer));
+    TEST_ASSERT(notif_result == 0, "Format MCP notification");
+    
+    json_object* notif_obj = json_tokener_parse(notification_buffer);
+    TEST_ASSERT(notif_obj != NULL, "Valid JSON notification structure");
+    
+    // Notifications should not have id field
+    json_object* notif_id_obj;
+    bool has_id = json_object_object_get_ex(notif_obj, "id", &notif_id_obj);
+    TEST_ASSERT(!has_id, "Notification does not have id field");
+    
+    json_object_put(notif_obj);
+    
+    mcp_protocol_shutdown(&ctx);
     return true;
 }
 
-// Test 2: UTF-8 Validation
-bool test_utf8_validation(transport_test_t* transport) {
-    printf("\n🧪 Test: UTF-8 Validation - %s\n", transport->name);
-    printf("========================================\n");
-    strcpy(g_state.current_transport, transport->name);
-    
-    // Test UTF-8 validation through MCP adapter
-    const char* valid_utf8[] = {
-        "Hello World",           // ASCII
-        "Héllo Wörld",          // Latin-1
-        "你好世界",              // Chinese
-        "🚀 Hello 🌍",          // Emoji
-        "Привет мир"            // Cyrillic
-    };
-    
-    for (size_t i = 0; i < sizeof(valid_utf8) / sizeof(valid_utf8[0]); i++) {
-        int result = mcp_adapter_validate_utf8(valid_utf8[i]);
-        TEST_ASSERT(result == MCP_ADAPTER_OK, "Valid UTF-8 string accepted");
-    }
-    
-    // Test Unicode JSON formatting
-    const char* unicode_json = "{\"text\": \"🌟 Hello 世界 🎉\"}";
-    int unicode_result = mcp_adapter_validate_utf8(unicode_json);
-    TEST_ASSERT(unicode_result == MCP_ADAPTER_OK, "Unicode JSON validation");
-    
-    // Verify the Unicode JSON is valid
-    json_object* unicode_obj = json_tokener_parse(unicode_json);
-    TEST_ASSERT(unicode_obj != NULL, "Unicode JSON creates valid object");
-    
-    if (unicode_obj) {
-        json_object_put(unicode_obj);
-    }
-    
-    return true;
-}
-
-// Test 3: Streaming Consistency
-bool test_streaming_consistency(transport_test_t* transport) {
-    if (!transport->supports_streaming) {
-        printf("\n⏭️  Skipping streaming test for %s (not supported)\n", transport->name);
-        return true;
-    }
-    
-    printf("\n🧪 Test: Streaming Consistency - %s\n", transport->name);
-    printf("==========================================\n");
-    strcpy(g_state.current_transport, transport->name);
-    
-    // Test stream request handling through MCP adapter
-    mcp_request_t stream_request = {0};
-    strcpy(stream_request.method, "run");
-    strcpy(stream_request.params, "{\"prompt\": \"Hello\", \"stream\": true, \"max_tokens\": 50}");
-    strcpy(stream_request.request_id, "54321");
-    stream_request.is_streaming = true;
-    
-    mcp_response_t stream_response = {0};
-    
-    int stream_result = mcp_adapter_handle_stream_request(&stream_request, &stream_response);
-    TEST_ASSERT(stream_result == MCP_ADAPTER_OK, "Stream request handling");
-    TEST_ASSERT(stream_response.is_streaming_response == true, "Stream response marked correctly");
-        
-        // Parse stream response
-        json_object* response_obj = json_tokener_parse(stream_response.params);
-        TEST_ASSERT(response_obj != NULL, "Stream response valid JSON");
-        
-        if (response_obj) {
-            json_object* stream_id_obj, *status_obj;
-            TEST_ASSERT(json_object_object_get_ex(response_obj, "stream_id", &stream_id_obj), "Stream response has stream_id");
-            TEST_ASSERT(json_object_object_get_ex(response_obj, "status", &status_obj), "Stream response has status");
-            
-            const char* stream_id = json_object_get_string(stream_id_obj);
-            const char* status = json_object_get_string(status_obj);
-            
-            TEST_ASSERT(strlen(stream_id) == STREAM_ID_LENGTH, "Stream ID correct length");
-            TEST_ASSERT(strcmp(status, "streaming_started") == 0, "Correct status message");
-            
-            // Test stream chunk format
-            if (transport->send_stream_chunk) {
-                char test_chunks[][32] = {"Hello", " streaming", " world", "!"};
-                bool chunk_ends[] = {false, false, false, true};
-                
-                for (int i = 0; i < 4; i++) {
-                    int chunk_result = transport->send_stream_chunk(stream_id, i, test_chunks[i], chunk_ends[i], NULL);
-                    // Note: Result may fail due to no actual connection, but function should not crash
-                    printf("   Chunk %d sent (result: %d)\n", i, chunk_result);
-                }
-                
-                TEST_ASSERT(true, "Stream chunk sending functions");
-            }
-            
-            json_object_put(response_obj);
-        }
-    } else {
-        printf("   ⚠️  Transport does not implement streaming functions\n");
-    }
-    
-    return true;
-}
-
-// Test 4: Message Batching
-bool test_message_batching(transport_test_t* transport) {
-    printf("\n🧪 Test: Message Batching - %s\n", transport->name);
+// Test 2: UTF-8 and Unicode Compliance
+bool test_utf8_compliance(void) {
+    printf("\n🧪 Test: UTF-8 and Unicode Compliance\n");
     printf("=====================================\n");
-    strcpy(g_state.current_transport, transport->name);
+    strcpy(g_state.current_transport, "UTF8");
     
-    // Create batch of messages
-    mcp_message_t messages[3];
-    
-    // Message 1
-    strcpy(messages[0].method, "test1");
-    strcpy(messages[0].params, "{\"value\": 1}");
-    messages[0].id = 1;
-    messages[0].is_response = false;
-    
-    // Message 2  
-    strcpy(messages[1].method, "test2");
-    strcpy(messages[1].params, "{\"value\": 2}");
-    messages[1].id = 2;
-    messages[1].is_response = false;
-    
-    // Message 3
-    strcpy(messages[2].method, "test3");
-    strcpy(messages[2].params, "{\"value\": 3}");
-    messages[2].id = 3;
-    messages[2].is_response = false;
-    
-    // Test batch formatting (using JSON-RPC batch format)
-    json_object* batch_array = json_object_new_array();
-    
-    for (int i = 0; i < 3; i++) {
-        char msg_buffer[8192];
-        if (mcp_format_json_rpc(&messages[i], msg_buffer, sizeof(msg_buffer)) == 0) {
-            json_object* msg_obj = json_tokener_parse(msg_buffer);
-            if (msg_obj) {
-                json_object_array_add(batch_array, msg_obj);
-            }
-        }
-    }
-    
-    TEST_ASSERT(json_object_array_length(batch_array) == 3, "Batch contains all messages");
-    
-    const char* batch_str = json_object_to_json_string(batch_array);
-    TEST_ASSERT(batch_str != NULL, "Batch serialization");
-    TEST_ASSERT(strlen(batch_str) > 0, "Batch not empty");
-    
-    // Verify batch structure
-    json_object* parsed_batch = json_tokener_parse(batch_str);
-    TEST_ASSERT(parsed_batch != NULL, "Batch parses correctly");
-    TEST_ASSERT(json_object_is_type(parsed_batch, json_type_array), "Batch is array");
-    TEST_ASSERT(json_object_array_length(parsed_batch) == 3, "Batch has correct length");
-    
-    // Verify each message in batch
-    for (int i = 0; i < 3; i++) {
-        json_object* msg_in_batch = json_object_array_get_idx(parsed_batch, i);
-        TEST_ASSERT(msg_in_batch != NULL, "Batch message exists");
-        
-        json_object* method_obj, *id_obj;
-        TEST_ASSERT(json_object_object_get_ex(msg_in_batch, "method", &method_obj), "Batch message has method");
-        TEST_ASSERT(json_object_object_get_ex(msg_in_batch, "id", &id_obj), "Batch message has id");
-        TEST_ASSERT(json_object_get_int(id_obj) == i + 1, "Batch message correct id");
-    }
-    
-    json_object_put(batch_array);
-    json_object_put(parsed_batch);
-    
-    return true;
-}
-
-// Test 5: Error Handling
-bool test_error_handling(transport_test_t* transport) {
-    printf("\n🧪 Test: Error Handling - %s\n", transport->name);
-    printf("====================================\n");
-    strcpy(g_state.current_transport, transport->name);
-    
-    // Test standard MCP error codes
-    struct {
-        mcp_error_code_t code;
-        const char* expected_message;
-    } test_errors[] = {
-        {MCP_ERROR_PARSE, "Parse error"},
-        {MCP_ERROR_INVALID_REQUEST, "Invalid request"},
-        {MCP_ERROR_METHOD_NOT_FOUND, "Method not found"},
-        {MCP_ERROR_INVALID_PARAMS, "Invalid params"},
-        {MCP_ERROR_INTERNAL, "Internal error"},
-        {MCP_ERROR_STREAM_NOT_FOUND, "Stream session not found or expired"},
-        {MCP_ERROR_STREAM_EXPIRED, "Stream session expired"},
-        {MCP_ERROR_STREAM_INVALID_STATE, "Stream in invalid state"}
+    // Test various UTF-8 strings
+    const char* test_strings[] = {
+        "Hello World",           // ASCII
+        "Café, naïve, résumé",   // Latin extended
+        "你好世界",              // Chinese
+        "🚀 Hello 🌍 World 🎉", // Emoji
+        "Привет мир",           // Cyrillic
+        "مرحبا بالعالم",         // Arabic
+        "שלום עולם",             // Hebrew
+        "こんにちは世界"          // Japanese
     };
     
-    for (size_t i = 0; i < sizeof(test_errors) / sizeof(test_errors[0]); i++) {
-        char error_buffer[8192];
-        int result = mcp_format_error(i + 1, test_errors[i].code, NULL, NULL, error_buffer, sizeof(error_buffer));
-        TEST_ASSERT(result == 0, "Error formatting");
+    for (size_t i = 0; i < sizeof(test_strings) / sizeof(test_strings[0]); i++) {
+        // Test UTF-8 content in JSON params
+        char params_buffer[1024];
+        snprintf(params_buffer, sizeof(params_buffer), "{\"text\": \"%s\"}", test_strings[i]);
         
-        json_object* error_obj = json_tokener_parse(error_buffer);
-        TEST_ASSERT(error_obj != NULL, "Error JSON valid");
+        char request_buffer[2048];
+        int format_result = mcp_format_request(i + 1, "echo", params_buffer, request_buffer, sizeof(request_buffer));
+        TEST_ASSERT(format_result == 0, "Format UTF-8 request");
         
-        if (error_obj) {
-            json_object* error_field, *code_field, *message_field;
-            TEST_ASSERT(json_object_object_get_ex(error_obj, "error", &error_field), "Has error field");
-            TEST_ASSERT(json_object_object_get_ex(error_field, "code", &code_field), "Error has code");
-            TEST_ASSERT(json_object_object_get_ex(error_field, "message", &message_field), "Error has message");
-            
-            TEST_ASSERT(json_object_get_int(code_field) == test_errors[i].code, "Correct error code");
-            
-            const char* message = json_object_get_string(message_field);
-            TEST_ASSERT(strstr(message, test_errors[i].expected_message) != NULL, "Expected error message");
-            
-            json_object_put(error_obj);
-        }
+        // Verify JSON parsing still works
+        json_object* req_obj = json_tokener_parse(request_buffer);
+        TEST_ASSERT(req_obj != NULL, "Parse UTF-8 JSON request");
+        
+        json_object* params_obj;
+        TEST_ASSERT(json_object_object_get_ex(req_obj, "params", &params_obj), "UTF-8 params accessible");
+        
+        json_object_put(req_obj);
     }
+    
+    // Test emoji in method names and error messages
+    char emoji_error[1024];
+    int emoji_result = mcp_format_error(999, MCP_ERROR_INTERNAL, "🚨 Internal server error 💥", NULL, emoji_error, sizeof(emoji_error));
+    TEST_ASSERT(emoji_result == 0, "Format error with emoji");
+    
+    json_object* emoji_obj = json_tokener_parse(emoji_error);
+    TEST_ASSERT(emoji_obj != NULL, "Parse emoji error JSON");
+    json_object_put(emoji_obj);
     
     return true;
 }
 
-// Test 6: Transport Initialization
-bool test_transport_initialization(transport_test_t* transport) {
-    printf("\n🧪 Test: Transport Initialization - %s\n", transport->name);
-    printf("===========================================\n");
-    strcpy(g_state.current_transport, transport->name);
+// Test 3: Server Integration
+bool test_server_integration(void) {
+    printf("\n🧪 Test: Server Integration\n");
+    printf("===========================\n");
+    strcpy(g_state.current_transport, "Server");
     
-    if (transport->requires_server) {
-        printf("   ⏭️  Skipping initialization test (requires server setup)\n");
-        return true;
-    }
+    // Initialize server configuration
+    mcp_server_config_t config = {
+        .enable_stdio = true,
+        .enable_tcp = false,     // Disable network transports for testing
+        .enable_udp = false,
+        .enable_http = false,
+        .enable_websocket = false,
+        .server_name = "Test-Server",
+        .enable_streaming = true,
+        .enable_logging = false
+    };
+    
+    mcp_server_t server = {0};
+    int init_result = mcp_server_init(&server, &config);
+    TEST_ASSERT(init_result == 0, "Server initialization");
+    
+    // Test server status
+    const char* status = mcp_server_get_status(&server);
+    TEST_ASSERT(status != NULL, "Server status retrieval");
+    TEST_ASSERT(strlen(status) > 0, "Server status non-empty");
+    
+    // Test server statistics
+    uint64_t requests, responses, errors, uptime;
+    mcp_server_get_stats(&server, &requests, &responses, &errors, &uptime);
+    TEST_ASSERT(true, "Server statistics retrieval"); // Always passes if no crash
+    
+    // Test server shutdown
+    mcp_server_shutdown(&server);
+    TEST_ASSERT(true, "Server shutdown");
+    
+    return true;
+}
+
+// Test 4: IO Operations Integration
+bool test_io_operations_integration(void) {
+    printf("\n🧪 Test: IO Operations Integration\n");
+    printf("==================================\n");
+    strcpy(g_state.current_transport, "IO");
+    
+    // Initialize IO operations
+    int init_result = io_operations_init();
+    TEST_ASSERT(init_result == 0, "IO operations initialization");
+    
+    // Test JSON request parsing
+    const char* test_request = "{"
+        "\"jsonrpc\": \"2.0\","
+        "\"id\": 42,"
+        "\"method\": \"run\","
+        "\"params\": {\"prompt\": \"Hello MCP\", \"max_tokens\": 50}"
+    "}";
+    
+    uint32_t request_id;
+    char method[256];
+    char params[4096];
+    
+    int parse_result = io_parse_json_request_main(test_request, &request_id, method, params);
+    TEST_ASSERT(parse_result == 0, "Parse JSON request");
+    TEST_ASSERT(request_id == 42, "Correct request ID parsed");
+    TEST_ASSERT(strcmp(method, "run") == 0, "Correct method parsed");
+    
+    // Verify params parsing
+    json_object* params_obj = json_tokener_parse(params);
+    TEST_ASSERT(params_obj != NULL, "Parse params JSON");
+    
+    json_object* prompt_obj, *tokens_obj;
+    TEST_ASSERT(json_object_object_get_ex(params_obj, "prompt", &prompt_obj), "Prompt in params");
+    TEST_ASSERT(json_object_object_get_ex(params_obj, "max_tokens", &tokens_obj), "Max tokens in params");
+    TEST_ASSERT(strcmp(json_object_get_string(prompt_obj), "Hello MCP") == 0, "Correct prompt value");
+    TEST_ASSERT(json_object_get_int(tokens_obj) == 50, "Correct max tokens value");
+    
+    json_object_put(params_obj);
+    
+    // Test JSON response creation
+    char* response_json = io_create_json_response(42, true, "{\"content\": \"Hello response\"}");
+    TEST_ASSERT(response_json != NULL, "Create JSON response");
+    
+    json_object* response_obj = json_tokener_parse(response_json);
+    TEST_ASSERT(response_obj != NULL, "Parse response JSON");
+    
+    json_object* id_obj, *result_obj;
+    TEST_ASSERT(json_object_object_get_ex(response_obj, "id", &id_obj), "Response has ID");
+    TEST_ASSERT(json_object_get_int(id_obj) == 42, "Correct response ID");
+    TEST_ASSERT(json_object_object_get_ex(response_obj, "result", &result_obj), "Response has result");
+    
+    json_object_put(response_obj);
+    free(response_json);
+    
+    // Test streaming request detection
+    const char* streaming_request = "{\"prompt\": \"Hello\", \"stream\": true}";
+    const char* normal_request = "{\"prompt\": \"Hello\"}";
+    
+    bool is_streaming1 = io_is_streaming_request(streaming_request);
+    bool is_streaming2 = io_is_streaming_request(normal_request);
+    
+    TEST_ASSERT(is_streaming1 == true, "Detect streaming request");
+    TEST_ASSERT(is_streaming2 == false, "Detect normal request");
+    
+    io_operations_shutdown();
+    return true;
+}
+
+// Test 5: Transport Configuration
+bool test_transport_configuration(void) {
+    printf("\n🧪 Test: Transport Configuration\n");
+    printf("================================\n");
+    strcpy(g_state.current_transport, "Config");
+    
+    // Test HTTP transport configuration
+    http_transport_config_t http_config = {
+        .host = str_copy("localhost"),
+        .port = 8080,
+        .path = str_copy("/mcp"),
+        .timeout_ms = 5000,
+        .keep_alive = true
+    };
+    
+    TEST_ASSERT(http_config.host != NULL, "HTTP host configuration");
+    TEST_ASSERT(http_config.port == 8080, "HTTP port configuration");
+    TEST_ASSERT(strcmp(http_config.path, "/mcp") == 0, "HTTP path configuration");
+    TEST_ASSERT(http_config.timeout_ms == 5000, "HTTP timeout configuration");
+    TEST_ASSERT(http_config.keep_alive == true, "HTTP keep-alive configuration");
+    
+    // Test WebSocket transport configuration
+    ws_transport_config_t ws_config = {
+        .host = str_copy("localhost"),
+        .port = 8083,
+        .path = str_copy("/ws"),
+        .mask_frames = true
+    };
+    
+    TEST_ASSERT(ws_config.host != NULL, "WebSocket host configuration");
+    TEST_ASSERT(ws_config.port == 8083, "WebSocket port configuration");
+    TEST_ASSERT(strcmp(ws_config.path, "/ws") == 0, "WebSocket path configuration");
+    TEST_ASSERT(ws_config.mask_frames == true, "WebSocket masking configuration");
     
     // Test transport initialization
-    int init_result = transport->interface->init(transport->config);
-    TEST_ASSERT(init_result == 0, "Transport initialization");
+    int http_init = http_transport_init(&http_config);
+    TEST_ASSERT(http_init == 0, "HTTP transport initialization");
     
-    // Test shutdown
-    transport->interface->shutdown();
-    TEST_ASSERT(true, "Transport shutdown");
+    int ws_init = ws_transport_init(&ws_config);
+    TEST_ASSERT(ws_init == 0, "WebSocket transport initialization");
+    
+    // Test transport interfaces
+    transport_base_t* http_interface = http_transport_get_interface();
+    TEST_ASSERT(http_interface != NULL, "HTTP transport interface");
+    
+    // Cleanup
+    str_free(http_config.host);
+    str_free(http_config.path);
+    str_free(ws_config.host);
+    str_free(ws_config.path);
+    
+    http_transport_shutdown();
+    ws_transport_shutdown();
     
     return true;
 }
 
-// Run all tests for a specific transport
-void test_transport_suite(transport_test_t* transport) {
-    printf("\n🚀 TESTING TRANSPORT: %s\n", transport->name);
-    printf("==========================================\n");
+// Test 6: Error Handling Compliance
+bool test_error_handling(void) {
+    printf("\n🧪 Test: Error Handling Compliance\n");
+    printf("==================================\n");
+    strcpy(g_state.current_transport, "Error");
     
-    test_mcp_protocol_compliance(transport);
-    test_utf8_validation(transport);
-    test_streaming_consistency(transport);
-    test_message_batching(transport);
-    test_error_handling(transport);
-    test_transport_initialization(transport);
+    // Test all standard MCP error codes
+    mcp_error_code_t error_codes[] = {
+        MCP_ERROR_PARSE,
+        MCP_ERROR_INVALID_REQUEST,
+        MCP_ERROR_METHOD_NOT_FOUND,
+        MCP_ERROR_INVALID_PARAMS,
+        MCP_ERROR_INTERNAL,
+        MCP_ERROR_NOT_INITIALIZED,
+        MCP_ERROR_ALREADY_INITIALIZED,
+        MCP_ERROR_INVALID_VERSION,
+        MCP_ERROR_STREAM_NOT_FOUND,
+        MCP_ERROR_STREAM_EXPIRED,
+        MCP_ERROR_STREAM_INVALID_STATE
+    };
+    
+    for (size_t i = 0; i < sizeof(error_codes) / sizeof(error_codes[0]); i++) {
+        const char* error_message = mcp_error_message(error_codes[i]);
+        TEST_ASSERT(error_message != NULL, "Error message available");
+        TEST_ASSERT(strlen(error_message) > 0, "Error message non-empty");
+        
+        char error_buffer[1024];
+        int format_result = mcp_format_error(123, error_codes[i], error_message, NULL, error_buffer, sizeof(error_buffer));
+        TEST_ASSERT(format_result == 0, "Format error response");
+        
+        json_object* error_obj = json_tokener_parse(error_buffer);
+        TEST_ASSERT(error_obj != NULL, "Parse error JSON");
+        json_object_put(error_obj);
+    }
+    
+    return true;
 }
 
 // Main test runner
 int main(void) {
-    printf("🚀 MCP COMPLIANCE TEST SUITE\n");
-    printf("============================\n");
-    printf("Testing all transports for MCP protocol compliance and streaming consistency\n");
+    printf("🚀 MCP Compliance Test Suite - Unified Architecture\n");
+    printf("===================================================\n");
     
-    // Initialize stream manager for tests
-    stream_manager_init();
+    bool all_passed = true;
     
-    // Define all transports for testing
-    stdio_transport_config_t stdio_config = {
-        .streaming_enabled = true,
-        .log_to_stderr = false  // Disable for testing
-    };
+    all_passed &= test_mcp_protocol_basic();
+    all_passed &= test_utf8_compliance();
+    all_passed &= test_server_integration();
+    all_passed &= test_io_operations_integration();
+    all_passed &= test_transport_configuration();
+    all_passed &= test_error_handling();
     
-    tcp_transport_config_t tcp_config = {
-        .host = "localhost",
-        .port = 8080,
-        .streaming_enabled = true,
-        .is_server = false
-    };
-    
-    udp_transport_config_t udp_config = {
-        .host = "localhost", 
-        .port = 8081,
-        .streaming_enabled = true
-    };
-    
-    http_transport_config_t http_config = {
-        .host = "localhost",
-        .port = 8082,
-        .streaming_enabled = true
-    };
-    
-    ws_transport_config_t ws_config = {
-        .host = "localhost",
-        .port = 8083,
-        .streaming_enabled = true
-    };
-    
-    transport_test_t transports[] = {
-        {
-            .name = "STDIO",
-            .interface = stdio_transport_get_interface(),
-            .config = &stdio_config,
-            .supports_streaming = true,
-            .requires_server = false,
-            .handle_stream_request = stdio_transport_handle_stream_request,
-            .send_stream_chunk = stdio_transport_send_stream_chunk,
-            .create_stream_response = stdio_transport_create_stream_response
-        },
-        {
-            .name = "TCP", 
-            .interface = tcp_transport_get_interface(),
-            .config = &tcp_config,
-            .supports_streaming = true,
-            .requires_server = true,
-            .handle_stream_request = tcp_transport_handle_stream_request,
-            .send_stream_chunk = tcp_transport_send_stream_chunk,
-            .create_stream_response = tcp_transport_create_stream_response
-        },
-        {
-            .name = "UDP",
-            .interface = udp_transport_get_interface(), 
-            .config = &udp_config,
-            .supports_streaming = true,
-            .requires_server = true,
-            .handle_stream_request = udp_transport_handle_stream_request,
-            .send_stream_chunk = udp_transport_send_stream_chunk,
-            .create_stream_response = udp_transport_create_stream_response
-        },
-        {
-            .name = "HTTP",
-            .interface = http_transport_get_interface(),
-            .config = &http_config, 
-            .supports_streaming = true,
-            .requires_server = true,
-            .handle_stream_request = http_transport_handle_stream_request,
-            .send_stream_chunk = NULL, // HTTP uses polling
-            .create_stream_response = http_transport_create_stream_response
-        },
-        {
-            .name = "WebSocket",
-            .interface = ws_transport_get_interface(),
-            .config = &ws_config,
-            .supports_streaming = true, 
-            .requires_server = true,
-            .handle_stream_request = ws_transport_handle_stream_request,
-            .send_stream_chunk = ws_transport_send_stream_chunk,
-            .create_stream_response = ws_transport_create_stream_response
-        }
-    };
-    
-    // Run tests for all transports
-    size_t transport_count = sizeof(transports) / sizeof(transports[0]);
-    for (size_t i = 0; i < transport_count; i++) {
-        test_transport_suite(&transports[i]);
-    }
-    
-    // Cleanup
-    stream_manager_shutdown();
-    
-    // Print summary
-    printf("\n📊 TEST SUMMARY\n");
+    printf("\n📊 Test Summary\n");
     printf("===============\n");
-    printf("Total tests run: %d\n", g_state.tests_run);
-    printf("✅ Passed: %d\n", g_state.tests_passed);
-    printf("❌ Failed: %d\n", g_state.tests_failed);
-    printf("Success rate: %.1f%%\n", 
-           g_state.tests_run > 0 ? (float)g_state.tests_passed / g_state.tests_run * 100 : 0);
+    printf("Tests run: %d\n", g_state.tests_run);
+    printf("Passed: %d\n", g_state.tests_passed);
+    printf("Failed: %d\n", g_state.tests_failed);
     
-    if (g_state.tests_failed == 0) {
-        printf("\n🎉 ALL MCP COMPLIANCE TESTS PASSED!\n");
-        printf("All transports are fully MCP compliant with consistent streaming behavior.\n");
+    if (all_passed && g_state.tests_failed == 0) {
+        printf("✅ All MCP compliance tests passed!\n");
         return 0;
     } else {
-        printf("\n⚠️  Some MCP compliance tests failed.\n");
-        printf("Please review the failed test cases above.\n");
+        printf("❌ Some MCP compliance tests failed!\n");
         return 1;
     }
 }

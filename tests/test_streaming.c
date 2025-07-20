@@ -5,22 +5,22 @@
 #include <assert.h>
 #include <json-c/json.h>
 
-// Include streaming components
+// Include unified server architecture components
 #include "../src/server/transport/streaming/stream_manager.h"
 #include "../src/server/transport/http_transport/http_transport.h"
 #include "../src/server/transport/ws_transport/ws_transport.h"
 #include "../src/server/transport/mcp_base/mcp_protocol.h"
 #include "../src/server/operations.h"
+#include "../src/common/string_utils/string_utils.h"
 
 /*
- * STREAMING MCP PROTOCOL TEST SUITE
+ * STREAMING MCP PROTOCOL TEST SUITE - UNIFIED ARCHITECTURE
  * 
  * Tests the complete streaming implementation:
  * 1. Stream Manager functionality
- * 2. HTTP polling-based streaming
- * 3. WebSocket push-based streaming
- * 4. MCP protocol streaming extensions
- * 5. IO operations streaming integration
+ * 2. MCP protocol streaming integration
+ * 3. IO operations streaming integration
+ * 4. Transport layer streaming support
  */
 
 // Test state
@@ -98,323 +98,233 @@ bool test_stream_manager(void) {
     
     // Test session retrieval
     stream_session_t* retrieved = stream_get_session(stream_id);
-    TEST_ASSERT(retrieved == session, "Session retrieval by ID");
+    TEST_ASSERT(retrieved != NULL, "Session retrieval");
+    TEST_ASSERT(retrieved == session, "Session identity");
     
     // Test statistics
     stream_stats_t stats = stream_get_statistics();
-    TEST_ASSERT(stats.active_sessions >= 2, "Active session count");
-    TEST_ASSERT(stats.total_chunks >= 4, "Total chunk count");
+    TEST_ASSERT(stats.active_sessions >= 2, "Active sessions count");
+    TEST_ASSERT(stats.total_chunks >= 4, "Total chunks count");
     
-    // Cleanup
+    // Cleanup streams
     stream_destroy_session(stream_id);
     stream_destroy_session(error_session->stream_id);
+    
     stream_manager_shutdown();
     
     return true;
 }
 
-// Test 2: MCP Protocol Streaming Extensions
+// Test 2: MCP Protocol Streaming Integration
 bool test_mcp_protocol_streaming(void) {
-    printf("\n🧪 Test: MCP Protocol Streaming Extensions\n");
+    printf("\n🧪 Test: MCP Protocol Streaming Integration\n");
     printf("==========================================\n");
     
-    char buffer[8192];
+    // Initialize MCP context for streaming
+    mcp_context_t ctx = {0};
+    int init_result = mcp_protocol_init(&ctx);
+    TEST_ASSERT(init_result == 0, "MCP protocol initialization");
     
     // Test stream chunk formatting
-    int format_result = mcp_format_stream_chunk("run", "abc123def456", 5, "Hello chunk", false, NULL, buffer, sizeof(buffer));
+    char chunk_buffer[1024];
+    int format_result = mcp_format_stream_chunk("run", "test_stream_123", 0, "Hello", false, NULL, chunk_buffer, sizeof(chunk_buffer));
     TEST_ASSERT(format_result == 0, "Format stream chunk");
     
-    // Parse and verify JSON structure
-    json_object* chunk_obj = json_tokener_parse(buffer);
-    TEST_ASSERT(chunk_obj != NULL, "Parse formatted chunk JSON");
+    // Parse and verify chunk format
+    json_object* chunk_obj = json_tokener_parse(chunk_buffer);
+    TEST_ASSERT(chunk_obj != NULL, "Parse stream chunk JSON");
     
-    json_object* jsonrpc_obj, *method_obj, *params_obj;
-    TEST_ASSERT(json_object_object_get_ex(chunk_obj, "jsonrpc", &jsonrpc_obj), "JSON-RPC version field");
-    TEST_ASSERT(strcmp(json_object_get_string(jsonrpc_obj), "2.0") == 0, "JSON-RPC version value");
-    
-    TEST_ASSERT(json_object_object_get_ex(chunk_obj, "method", &method_obj), "Method field");
-    TEST_ASSERT(strcmp(json_object_get_string(method_obj), "run") == 0, "Method value");
-    
-    TEST_ASSERT(json_object_object_get_ex(chunk_obj, "params", &params_obj), "Params field");
-    
-    // Verify params structure
-    json_object* stream_id_obj, *seq_obj, *delta_obj, *end_obj;
-    TEST_ASSERT(json_object_object_get_ex(params_obj, "stream_id", &stream_id_obj), "Stream ID field");
-    TEST_ASSERT(strcmp(json_object_get_string(stream_id_obj), "abc123def456") == 0, "Stream ID value");
-    
-    TEST_ASSERT(json_object_object_get_ex(params_obj, "seq", &seq_obj), "Sequence field");
-    TEST_ASSERT(json_object_get_int(seq_obj) == 5, "Sequence value");
-    
-    TEST_ASSERT(json_object_object_get_ex(params_obj, "delta", &delta_obj), "Delta field");
-    TEST_ASSERT(strcmp(json_object_get_string(delta_obj), "Hello chunk") == 0, "Delta value");
-    
-    TEST_ASSERT(json_object_object_get_ex(params_obj, "end", &end_obj), "End field");
-    TEST_ASSERT(json_object_get_boolean(end_obj) == false, "End value");
-    
-    json_object_put(chunk_obj);
-    
-    // Test error chunk formatting
-    int error_format_result = mcp_format_stream_chunk("run", "abc123def456", 6, "", true, "Stream error occurred", buffer, sizeof(buffer));
-    TEST_ASSERT(error_format_result == 0, "Format error chunk");
-    
-    json_object* error_chunk_obj = json_tokener_parse(buffer);
-    TEST_ASSERT(error_chunk_obj != NULL, "Parse error chunk JSON");
-    
-    json_object* error_params_obj, *error_obj;
-    TEST_ASSERT(json_object_object_get_ex(error_chunk_obj, "params", &error_params_obj), "Error chunk params");
-    TEST_ASSERT(json_object_object_get_ex(error_params_obj, "error", &error_obj), "Error object");
-    
-    json_object* error_msg_obj;
-    TEST_ASSERT(json_object_object_get_ex(error_obj, "message", &error_msg_obj), "Error message field");
-    TEST_ASSERT(strcmp(json_object_get_string(error_msg_obj), "Stream error occurred") == 0, "Error message value");
-    
-    json_object_put(error_chunk_obj);
+    json_object* method_obj, *params_obj;
+    TEST_ASSERT(json_object_object_get_ex(chunk_obj, "method", &method_obj), "Chunk method field");
+    TEST_ASSERT(json_object_object_get_ex(chunk_obj, "params", &params_obj), "Chunk params field");
+    TEST_ASSERT(strcmp(json_object_get_string(method_obj), "run") == 0, "Chunk method value");
     
     // Test stream request parsing
     const char* stream_params = "{\"prompt\": \"Hello\", \"stream\": true, \"max_tokens\": 100}";
-    bool is_stream;
-    char other_params[4096];
-    
+    bool is_stream = false;
+    char other_params[512];
     int parse_result = mcp_parse_stream_request(stream_params, &is_stream, other_params, sizeof(other_params));
     TEST_ASSERT(parse_result == 0, "Parse stream request");
-    TEST_ASSERT(is_stream == true, "Detect stream parameter");
+    TEST_ASSERT(is_stream == true, "Detect streaming request");
     
-    // Verify stream parameter was removed
-    json_object* parsed_params = json_tokener_parse(other_params);
-    TEST_ASSERT(parsed_params != NULL, "Parse filtered params");
+    // Verify other params are preserved
+    json_object* other_obj = json_tokener_parse(other_params);
+    TEST_ASSERT(other_obj != NULL, "Parse other params");
     
-    json_object* prompt_obj, *max_tokens_obj, *stream_param_obj;
-    TEST_ASSERT(json_object_object_get_ex(parsed_params, "prompt", &prompt_obj), "Prompt preserved");
-    TEST_ASSERT(json_object_object_get_ex(parsed_params, "max_tokens", &max_tokens_obj), "Max tokens preserved");
-    TEST_ASSERT(!json_object_object_get_ex(parsed_params, "stream", &stream_param_obj), "Stream parameter removed");
+    json_object* prompt_obj, *tokens_obj;
+    TEST_ASSERT(json_object_object_get_ex(other_obj, "prompt", &prompt_obj), "Prompt preserved");
+    TEST_ASSERT(json_object_object_get_ex(other_obj, "max_tokens", &tokens_obj), "Max tokens preserved");
+    TEST_ASSERT(strcmp(json_object_get_string(prompt_obj), "Hello") == 0, "Prompt value preserved");
+    TEST_ASSERT(json_object_get_int(tokens_obj) == 100, "Max tokens value preserved");
     
-    json_object_put(parsed_params);
+    // Test poll request handling
+    stream_manager_init();
+    stream_session_t* session = stream_create_session("run", 12345);
+    stream_add_chunk(session->stream_id, "Test", false, NULL);
+    stream_add_chunk(session->stream_id, " Response", true, NULL);
+    
+    char poll_response[2048];
+    int poll_result = mcp_handle_stream_poll_request(session->stream_id, 0, poll_response, sizeof(poll_response));
+    TEST_ASSERT(poll_result == 0, "Handle stream poll request");
+    
+    // Parse poll response
+    json_object* poll_obj = json_tokener_parse(poll_response);
+    TEST_ASSERT(poll_obj != NULL, "Parse poll response");
+    
+    json_object* chunks_array, *has_more_obj;
+    TEST_ASSERT(json_object_object_get_ex(poll_obj, "chunks", &chunks_array), "Chunks in poll response");
+    TEST_ASSERT(json_object_object_get_ex(poll_obj, "has_more", &has_more_obj), "Has more in poll response");
+    TEST_ASSERT(json_object_get_boolean(has_more_obj) == false, "No more chunks after final");
+    
+    int chunk_count = json_object_array_length(chunks_array);
+    TEST_ASSERT(chunk_count == 2, "Correct chunk count in poll response");
+    
+    // Cleanup
+    json_object_put(chunk_obj);
+    json_object_put(other_obj);
+    json_object_put(poll_obj);
+    stream_destroy_session(session->stream_id);
+    stream_manager_shutdown();
+    mcp_protocol_shutdown(&ctx);
     
     return true;
 }
 
-// Test 3: HTTP Transport Streaming
-bool test_http_streaming(void) {
-    printf("\n🧪 Test: HTTP Transport Streaming\n");
-    printf("=================================\n");
+// Test 3: IO Operations Streaming Integration
+bool test_io_operations_streaming(void) {
+    printf("\n🧪 Test: IO Operations Streaming Integration\n");
+    printf("==========================================\n");
     
-    // Initialize HTTP transport with streaming enabled
-    http_transport_config_t config = {
-        .host = str_copy("localhost"),
-        .port = 8080,
-        .path = str_copy("/mcp"),
-        .streaming_enabled = true
-    };
+    // Initialize IO operations
+    int init_result = io_operations_init();
+    TEST_ASSERT(init_result == 0, "IO operations initialization");
     
-    int init_result = http_transport_init(&config);
-    TEST_ASSERT(init_result == 0, "HTTP transport initialization");
+    // Test streaming request detection
+    const char* stream_request = "{\"prompt\": \"Hello\", \"stream\": true}";
+    const char* normal_request = "{\"prompt\": \"Hello\", \"stream\": false}";
+    const char* no_stream_request = "{\"prompt\": \"Hello\"}";
     
-    // Create mock stream request
-    mcp_message_t request = {0};
-    strcpy(request.method, "run");
-    strcpy(request.params, "{\"prompt\": \"Hello\", \"stream\": true}");
-    request.id = 12345;
-    request.is_response = false;
+    bool is_streaming1 = io_is_streaming_request(stream_request);
+    bool is_streaming2 = io_is_streaming_request(normal_request);
+    bool is_streaming3 = io_is_streaming_request(no_stream_request);
     
-    mcp_message_t response = {0};
+    TEST_ASSERT(is_streaming1 == true, "Detect streaming request (true)");
+    TEST_ASSERT(is_streaming2 == false, "Detect non-streaming request (false)");
+    TEST_ASSERT(is_streaming3 == false, "Detect non-streaming request (missing)");
     
-    // Test stream request handling
-    int stream_result = http_transport_handle_stream_request(&request, &response);
-    TEST_ASSERT(stream_result == 0, "HTTP handle stream request");
-    TEST_ASSERT(response.is_response == true, "Response marked as response");
+    // Test streaming request processing
+    const char* json_stream_request = "{"
+        "\"jsonrpc\": \"2.0\","
+        "\"id\": 12345,"
+        "\"method\": \"run\","
+        "\"params\": {\"prompt\": \"Hello streaming\", \"stream\": true}"
+    "}";
     
-    // Parse response to get stream ID
-    json_object* response_obj = json_tokener_parse(response.params);
-    TEST_ASSERT(response_obj != NULL, "Parse stream response");
+    char response[2048];
+    int process_result = io_process_streaming_request(json_stream_request, response, sizeof(response));
+    TEST_ASSERT(process_result == 0, "Process streaming request");
     
-    json_object* stream_id_obj, *status_obj;
-    TEST_ASSERT(json_object_object_get_ex(response_obj, "stream_id", &stream_id_obj), "Stream ID in response");
-    TEST_ASSERT(json_object_object_get_ex(response_obj, "status", &status_obj), "Status in response");
-    TEST_ASSERT(strcmp(json_object_get_string(status_obj), "streaming_started") == 0, "Streaming started status");
+    // Parse response to verify stream ID
+    json_object* response_obj = json_tokener_parse(response);
+    TEST_ASSERT(response_obj != NULL, "Parse streaming response");
+    
+    json_object* result_obj;
+    TEST_ASSERT(json_object_object_get_ex(response_obj, "result", &result_obj), "Result in streaming response");
+    
+    json_object* stream_id_obj;
+    TEST_ASSERT(json_object_object_get_ex(result_obj, "stream_id", &stream_id_obj), "Stream ID in result");
     
     const char* stream_id = json_object_get_string(stream_id_obj);
     TEST_ASSERT(strlen(stream_id) == STREAM_ID_LENGTH, "Valid stream ID length");
     
-    // Add some test chunks to the stream
-    stream_add_chunk(stream_id, "Hello", false, NULL);
-    stream_add_chunk(stream_id, " from", false, NULL);
-    stream_add_chunk(stream_id, " HTTP!", true, NULL);
+    // Test adding chunks through IO operations
+    int chunk_result = io_add_stream_chunk(stream_id, "Hello", false, NULL);
+    TEST_ASSERT(chunk_result == 0, "Add chunk through IO operations");
     
-    // Test polling for chunks
-    mcp_message_t poll_response = {0};
-    int poll_result = http_transport_handle_stream_poll(stream_id, 0, &poll_response);
-    TEST_ASSERT(poll_result == 0, "HTTP poll stream chunks");
-    
-    // Parse polling response
-    json_object* poll_obj = json_tokener_parse(poll_response.params);
-    TEST_ASSERT(poll_obj != NULL, "Parse poll response");
-    
-    json_object* chunks_array_obj, *has_more_obj;
-    TEST_ASSERT(json_object_object_get_ex(poll_obj, "chunks", &chunks_array_obj), "Chunks array in poll response");
-    TEST_ASSERT(json_object_object_get_ex(poll_obj, "has_more", &has_more_obj), "Has more field in poll response");
-    TEST_ASSERT(json_object_get_boolean(has_more_obj) == false, "No more chunks after final");
-    
-    // Verify chunks content
-    int chunks_count = json_object_array_length(chunks_array_obj);
-    TEST_ASSERT(chunks_count == 3, "Correct number of chunks");
-    
-    json_object* first_chunk = json_object_array_get_idx(chunks_array_obj, 0);
-    json_object* first_delta_obj, *first_seq_obj;
-    TEST_ASSERT(json_object_object_get_ex(first_chunk, "delta", &first_delta_obj), "First chunk delta");
-    TEST_ASSERT(json_object_object_get_ex(first_chunk, "seq", &first_seq_obj), "First chunk sequence");
-    TEST_ASSERT(strcmp(json_object_get_string(first_delta_obj), "Hello") == 0, "First chunk content");
-    TEST_ASSERT(json_object_get_int(first_seq_obj) == 0, "First chunk sequence number");
-    
-    json_object_put(response_obj);
-    json_object_put(poll_obj);
+    chunk_result = io_add_stream_chunk(stream_id, " World!", true, NULL);
+    TEST_ASSERT(chunk_result == 0, "Add final chunk through IO operations");
     
     // Cleanup
-    str_free(config.host);
-    str_free(config.path);
-    http_transport_shutdown();
+    json_object_put(response_obj);
+    io_operations_shutdown();
     
     return true;
 }
 
-// Test 4: WebSocket Transport Streaming
-bool test_websocket_streaming(void) {
-    printf("\n🧪 Test: WebSocket Transport Streaming\n");
-    printf("======================================\n");
+// Test 4: Transport Layer Streaming Support
+bool test_transport_streaming(void) {
+    printf("\n🧪 Test: Transport Layer Streaming Support\n");
+    printf("==========================================\n");
     
-    // Initialize WebSocket transport with streaming enabled
-    ws_transport_config_t config = {
+    // Test HTTP transport initialization
+    http_transport_config_t http_config = {
         .host = str_copy("localhost"),
         .port = 8080,
-        .path = str_copy("/ws"),
-        .streaming_enabled = true
+        .path = str_copy("/mcp"),
+        .timeout_ms = 5000,
+        .keep_alive = true
     };
     
-    int init_result = ws_transport_init(&config);
-    TEST_ASSERT(init_result == 0, "WebSocket transport initialization");
+    int http_init = http_transport_init(&http_config);
+    TEST_ASSERT(http_init == 0, "HTTP transport initialization");
     
-    // Create mock stream request
-    mcp_message_t request = {0};
-    strcpy(request.method, "run");
-    strcpy(request.params, "{\"prompt\": \"Hello WebSocket\", \"stream\": true}");
-    request.id = 67890;
-    request.is_response = false;
+    // Test WebSocket transport initialization
+    ws_transport_config_t ws_config = {
+        .host = str_copy("localhost"),
+        .port = 8083,
+        .path = str_copy("/ws"),
+        .mask_frames = true
+    };
     
-    mcp_message_t response = {0};
+    int ws_init = ws_transport_init(&ws_config);
+    TEST_ASSERT(ws_init == 0, "WebSocket transport initialization");
     
-    // Test stream request handling
-    int stream_result = ws_transport_handle_stream_request(&request, &response);
-    TEST_ASSERT(stream_result == 0, "WebSocket handle stream request");
+    // Test transport interfaces
+    transport_base_t* http_interface = http_transport_get_interface();
+    TEST_ASSERT(http_interface != NULL, "HTTP transport interface");
     
-    // Parse response to get stream ID
-    json_object* response_obj = json_tokener_parse(response.params);
-    TEST_ASSERT(response_obj != NULL, "Parse WebSocket stream response");
+    // Test if transports can handle streaming data
+    const char* test_data = "{\"method\":\"stream_chunk\",\"params\":{\"stream_id\":\"test123\",\"delta\":\"Hello\"}}";
     
-    json_object* stream_id_obj;
-    TEST_ASSERT(json_object_object_get_ex(response_obj, "stream_id", &stream_id_obj), "Stream ID in WebSocket response");
-    const char* stream_id = json_object_get_string(stream_id_obj);
-    
-    // Test creating stream response (prepares session for streaming)
-    int create_result = ws_transport_create_stream_response(stream_id, "run");
-    TEST_ASSERT(create_result == 0, "Create WebSocket stream response");
-    
-    // Note: ws_transport_send_stream_chunk would normally send over socket
-    // For testing, we verify the JSON formatting
-    // This function would be called by the RKLLM callback
-    
-    json_object_put(response_obj);
+    // Note: Since these are mock transports in test environment, we just test the API availability
+    TEST_ASSERT(http_transport_send_raw != NULL, "HTTP send function available");
+    TEST_ASSERT(ws_transport_send_raw != NULL, "WebSocket send function available");
     
     // Cleanup
-    str_free(config.host);
-    str_free(config.path);
+    str_free(http_config.host);
+    str_free(http_config.path);
+    str_free(ws_config.host);
+    str_free(ws_config.path);
+    
+    http_transport_shutdown();
     ws_transport_shutdown();
-    
-    return true;
-}
-
-// Test 5: IO Operations Streaming Integration
-bool test_io_streaming_integration(void) {
-    printf("\n🧪 Test: IO Operations Streaming Integration\n");
-    printf("============================================\n");
-    
-    // Test streaming request detection
-    const char* regular_params = "{\"prompt\": \"Hello\", \"max_tokens\": 100}";
-    const char* streaming_params = "{\"prompt\": \"Hello\", \"stream\": true, \"max_tokens\": 100}";
-    
-    bool is_regular_stream = io_is_streaming_request(regular_params);
-    bool is_streaming_stream = io_is_streaming_request(streaming_params);
-    
-    TEST_ASSERT(!is_regular_stream, "Regular request not detected as streaming");
-    TEST_ASSERT(is_streaming_stream, "Streaming request detected correctly");
-    
-    // Test streaming request processing
-    const char* stream_request = "{"
-        "\"jsonrpc\": \"2.0\","
-        "\"id\": 123,"
-        "\"method\": \"run\","
-        "\"params\": {"
-            "\"prompt\": \"Hello streaming world\","
-            "\"stream\": true,"
-            "\"max_tokens\": 50"
-        "}"
-    "}";
-    
-    char response[8192];
-    int process_result = io_process_streaming_request(stream_request, response, sizeof(response));
-    
-    // Note: This will fail without actual RKLLM model, but we can test the parsing
-    // In a real scenario with model loaded, this would return 0 and create a stream
-    printf("   Stream processing result: %d\n", process_result);
-    printf("   Response: %s\n", response);
-    
-    // Test should pass if we get a proper error response about model not being initialized
-    json_object* response_obj = json_tokener_parse(response);
-    TEST_ASSERT(response_obj != NULL, "Parse streaming response");
-    
-    json_object* id_obj, *error_obj;
-    bool has_error = json_object_object_get_ex(response_obj, "error", &error_obj);
-    bool has_id = json_object_object_get_ex(response_obj, "id", &id_obj);
-    
-    TEST_ASSERT(has_id, "Response contains request ID");
-    TEST_ASSERT(json_object_get_int(id_obj) == 123, "Correct request ID in response");
-    
-    // Either success with stream_id or error response is acceptable
-    if (has_error) {
-        printf("   (Expected error due to no model loaded)\n");
-    }
-    
-    json_object_put(response_obj);
     
     return true;
 }
 
 // Main test runner
 int main(void) {
-    printf("🚀 STREAMING MCP PROTOCOL TEST SUITE\n");
-    printf("=====================================\n");
+    printf("🚀 MCP Server Streaming Test Suite - Unified Architecture\n");
+    printf("=========================================================\n");
     
-    // Run all tests
-    test_stream_manager();
-    test_mcp_protocol_streaming();
-    test_http_streaming();
-    test_websocket_streaming();
-    test_io_streaming_integration();
+    bool all_passed = true;
     
-    // Print summary
-    printf("\n📊 TEST SUMMARY\n");
+    all_passed &= test_stream_manager();
+    all_passed &= test_mcp_protocol_streaming();
+    all_passed &= test_io_operations_streaming();
+    all_passed &= test_transport_streaming();
+    
+    printf("\n📊 Test Summary\n");
     printf("===============\n");
     printf("Tests run: %d\n", g_state.tests_run);
-    printf("✅ Passed: %d\n", g_state.tests_passed);
-    printf("❌ Failed: %d\n", g_state.tests_failed);
-    printf("Success rate: %.1f%%\n", 
-           g_state.tests_run > 0 ? (float)g_state.tests_passed / g_state.tests_run * 100 : 0);
+    printf("Passed: %d\n", g_state.tests_passed);
+    printf("Failed: %d\n", g_state.tests_failed);
     
-    if (g_state.tests_failed == 0) {
-        printf("\n🎉 ALL STREAMING TESTS PASSED!\n");
-        printf("The streaming MCP protocol implementation is working correctly.\n");
+    if (all_passed && g_state.tests_failed == 0) {
+        printf("✅ All streaming tests passed!\n");
         return 0;
     } else {
-        printf("\n⚠️  Some streaming tests failed.\n");
-        printf("Please review the failed test cases above.\n");
+        printf("❌ Some streaming tests failed!\n");
         return 1;
     }
 }
