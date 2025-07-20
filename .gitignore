@@ -29,9 +29,9 @@
 *.dylib
 
 # Exception: Keep RKLLM libraries as part of source code
-!src/libs/rkllm/*.so
-!src/libs/rkllm/*.dll
-!src/libs/rkllm/*.dylib
+!src/external/rkllm/*.so
+!src/external/rkllm/*.dll
+!src/external/rkllm/*.dylib
 
 # Executables
 *.exe
@@ -59,18 +59,6 @@ dkms.conf
 # debug information files
 *.dwo
 
+node_modules/
 models/
 build/
-/nano
-/io
-/test
-
-# Test executables (only executable files, not directories)
-tests/**/test_json_utils
-tests/**/test_io
-tests/**/test_handle_pool
-tests/**/test_queue
-tests/**/test_system
-tests/**/test_validation
-tests/**/test_qwenvl
-tests/**/test_lora

@@ -8,6 +8,7 @@
 #include <arpa/inet.h>
 #include <unistd.h>
 #include <time.h>
+#include <sys/select.h>
 
 static ws_transport_config_t g_config = {0};
 

@@ -38,6 +38,17 @@ include_directories(
     ${JSON_C_INCLUDE_DIRS}
 )
 
+# Download librkllmrt.so if it doesn't exist
+set(RKLLM_LIB_PATH "${CMAKE_SOURCE_DIR}/src/external/rkllm/librkllmrt.so")
+if(NOT EXISTS ${RKLLM_LIB_PATH})
+    message(STATUS "Downloading librkllmrt.so for aarch64...")
+    file(DOWNLOAD 
+        "https://github.com/airockchip/rknn-llm/raw/main/rkllm-runtime/Linux/librkllm_api/aarch64/librkllmrt.so"
+        ${RKLLM_LIB_PATH}
+        SHOW_PROGRESS
+    )
+endif()
+
 # Link directories
 link_directories(
     ${CMAKE_SOURCE_DIR}/src/external/rkllm

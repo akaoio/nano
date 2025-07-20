@@ -7,6 +7,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <unistd.h>
+#include <sys/select.h>
 
 static http_transport_config_t g_config = {0};
 static int g_socket_fd = -1;

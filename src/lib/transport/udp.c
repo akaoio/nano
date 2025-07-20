@@ -1,3 +1,4 @@
+#define _DEFAULT_SOURCE
 #include "udp.h"
 #include "common/types.h"
 #include "mcp/transport.h"
@@ -9,6 +10,7 @@
 #include <arpa/inet.h>
 #include <unistd.h>
 #include <time.h>
+#include <sys/select.h>
 
 static udp_transport_config_t g_config = {0};
 
@@ -164,12 +166,8 @@ int udp_transport_send_with_retry(const char* data, size_t len) {
         
         attempts++;
         if (attempts < g_config.max_retries) {
-            // Wait before retry
-            struct timespec wait_time = {
-                .tv_sec = g_config.retry_timeout_ms / 1000,
-                .tv_nsec = (g_config.retry_timeout_ms % 1000) * 1000000
-            };
-            nanosleep(&wait_time, NULL);
+            // Wait before retry (convert ms to microseconds for usleep)
+            usleep(g_config.retry_timeout_ms * 1000);
         }
     }
     

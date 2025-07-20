@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include <stddef.h>
 
 #define MCP_PROTOCOL_VERSION "2025-01-07"
 #define MCP_JSONRPC_VERSION "2.0"

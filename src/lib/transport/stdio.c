@@ -17,7 +17,7 @@ int stdio_transport_init(void* config) {
     
     // Set line buffering for stdout for real-time communication
     if (g_config.line_buffered) {
-        setlinebuf(stdout);
+        setvbuf(stdout, NULL, _IOLBF, 0);
     }
     
     g_config.initialized = true;
