@@ -1,7 +1,7 @@
 #define _POSIX_C_SOURCE 199309L
 #include "nano.h"
 #include "../../../common/core.h"
-#include "../../../io/core/io/io.h"
+#include "../io/io.h"
 // Removed proxy layer include - using direct IO operations
 #include <json-c/json.h>
 #include <stdio.h>

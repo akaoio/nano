@@ -1,3 +1,4 @@
+#include "operations.h"
 #include "core/io/io.h"
 #include "../libs/rkllm/rkllm.h"
 #include <json-c/json.h>

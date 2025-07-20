@@ -4,7 +4,7 @@
 #include <stddef.h>
 #include <stdbool.h>
 #include "../libs/rkllm/rkllm.h"
-#include "../nano/transport/streaming/stream_manager.h"
+#include "transport/streaming/stream_manager.h"
 
 // IO Operations Interface - Direct RKLLM integration with streaming support
 // Direct function calls to RKLLM without proxy abstraction
