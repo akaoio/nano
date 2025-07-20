@@ -1,16 +1,16 @@
-# NANO + IO System - Production Plan
+# MCP Server - Production Plan
 
 ## System Overview
 
 ```
-Clients → [UDP|TCP|HTTP|WS|STDIO] → NANO → IO → RKLLM
+Clients → [UDP|TCP|HTTP|WS|STDIO] → MCP Server → RKLLM
 ```
 
 **Status**: PRODUCT IS IN HOT DEVELOPMENT AND IS NOT READY!
 **Status**: PRODUCT IS IN HOT DEVELOPMENT AND IS NOT READY!
 **Status**: PRODUCT IS IN HOT DEVELOPMENT AND IS NOT READY!
 
-## 1. IO Layer (Core Engine)
+## 1. Server Core Engine
 
 ### Architecture
 - **Queue-based**: Request/Response queues with worker pool
@@ -19,17 +19,17 @@ Clients → [UDP|TCP|HTTP|WS|STDIO] → NANO → IO → RKLLM
 - **Memory managed**: Pool-based allocation, NPU memory detection
 
 ### Function Prefix Handling
-- **Nano requests**: Send function names WITHOUT "rkllm_" prefix
-- **IO mapping**: Automatically prepends "rkllm_" to call correct RKLLM functions
-- **Example**: Nano sends "init" → IO calls "rkllm_init"
+- **Server requests**: Send function names WITHOUT "rkllm_" prefix
+- **Core mapping**: Automatically prepends "rkllm_" to call correct RKLLM functions
+- **Example**: Server sends "init" → Core calls "rkllm_init"
 
 ### Public Interface
 ```c
-// io.h
-int io_init(void);
-int io_push_request(const char* json_request);
-int io_pop_response(char* json_response, size_t max_len);
-void io_shutdown(void);
+// server.h
+int mcp_server_init(mcp_server_t* server, const mcp_server_config_t* config);
+int mcp_server_start(mcp_server_t* server);
+int mcp_server_process_request(mcp_server_t* server, const char* raw_request, char* response, size_t response_size);
+void mcp_server_shutdown(mcp_server_t* server);
 ```
 
 ### Handle Management
@@ -38,7 +38,7 @@ void io_shutdown(void);
 - **NPU memory**: Dynamic detection (8GB/16GB based on system RAM)
 - **Model support**: QwenVL (7.7GB), LoRA (4.2GB)
 
-## 2. Nano Layer (MCP Gateway)
+## 2. MCP Protocol Layer
 
 ### Protocol Support
 - **JSON-RPC 2.0**: MCP specification compliant
@@ -113,9 +113,9 @@ typedef struct {
 ### Test Coverage
 ```
 ✅ Common Utilities    - JSON parsing, memory utils
-✅ IO Layer           - Queue operations, worker pool
-✅ Nano Validation    - Model compatibility (simplified)
-✅ Nano System        - Resource detection, memory management
+✅ Server Layer       - Queue operations, worker pool
+✅ MCP Validation     - Model compatibility (simplified)
+✅ Server System      - Resource detection, memory management
 ✅ Integration QwenVL - 7.7GB model loading & inference
 ✅ Integration LoRA   - 4.2GB model loading & inference
 ```
@@ -130,9 +130,8 @@ typedef struct {
 
 ### Make Targets
 ```bash
-make all          # Build nano, io, test
-make nano         # Build nano executable  
-make io           # Build io executable
+make all          # Build server, test
+make server       # Build server executable  
 make test         # Build and run tests
 make clean        # Clean artifacts
 ```
@@ -147,26 +146,23 @@ make clean        # Clean artifacts
 
 ```
 src/
-├── io/                    # IO core engine
-│   ├── core/             # Queue, worker pool, operations
-│   └── mapping/          # Handle pool, RKLLM proxy
-├── nano/                 # MCP gateway
-│   ├── system/           # System info, resource management
-│   ├── validation/       # Model compatibility (simplified)
-│   ├── transport/        # Protocol implementations
-│   └── core/             # Nano main logic
-├── common/               # Shared utilities (C23)
-└── libs/rkllm/          # RKLLM library & headers
+├── server/               # Unified MCP server
+│   ├── core/            # Queue, worker pool, operations
+│   ├── protocol/        # MCP adapter - protocol logic
+│   ├── transport/       # Transport implementations
+│   ├── system/          # System info, resource management
+│   └── validation/      # Model compatibility
+├── common/              # Shared utilities (C23)
+└── libs/rkllm/         # RKLLM library & headers
 
-tests/                    # Test suite
-├── common/              # Utility tests
-├── io/                  # IO layer tests  
-├── nano/                # Nano layer tests
-└── integration/         # Model integration tests
+tests/                   # Test suite
+├── common/             # Utility tests
+├── server/             # Server layer tests  
+└── integration/        # Model integration tests
 
-models/                  # Model files
-├── qwenvl/model.rkllm  # QwenVL model (7.7GB)
-└── lora/model.rkllm    # LoRA model (4.2GB)
+models/                 # Model files
+├── qwenvl/model.rkllm # QwenVL model (7.7GB)
+└── lora/model.rkllm   # LoRA model (4.2GB)
 ```
 
 ## 10. Deployment

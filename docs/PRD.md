@@ -1,10 +1,11 @@
 ## MỤC TIÊU TỔNG QUAN
 
-Xây dựng hệ thống wrapper cho thư viện rkllm với 2 thành phần chính:
-- **io**: Lớp trừu tượng trực tiếp với rkllm  
-- **nano**: Lớp giao tiếp với clients qua nhiều protocol
+Xây dựng hệ thống MCP Server thống nhất cho thư viện rkllm:
+- **MCP Server**: Hệ thống server thống nhất
+- **Transport Layer**: Các transport thuần túy (không logic MCP)
+- **Protocol Layer**: Logic MCP tập trung
 
-## THÀNH PHẦN 1: IO (Core Engine)
+## THÀNH PHẦN 1: MCP Server (Core Engine)
 
 **Mục đích**: Lớp wrapper trực tiếp cho rkllm library
 **Vị trí**: `src/libs/rkllm/` (rkllm.h + librkllmrt.so)
@@ -27,10 +28,10 @@ Request Queue → RKLLM Processing → Response Queue
 - Hỗ trợ đồng thời 2-3 models trên phần cứng mạnh
 - Quản lý memory an toàn
 
-## THÀNH PHẦN 2: NANO (Interface Layer)
+## THÀNH PHẦN 2: Transport Layer
 
-**Mục đích**: Lớp giao tiếp đa protocol với clients
-**Vị trí**: Trung gian giữa clients và io
+**Mục đích**: Lớp truyền tải dữ liệu thuần túy
+**Vị trí**: Chỉ xử lý truyền tải, không logic protocol
 
 **Protocols hỗ trợ**:
 - UDP, TCP, HTTP, WebSocket, STDIO
@@ -38,7 +39,7 @@ Request Queue → RKLLM Processing → Response Queue
 
 **Kiến trúc hoạt động**:
 ```
-Clients → [UDP|TCP|HTTP|WS|STDIO] → NANO → IO → RKLLM
+Clients → [UDP|TCP|HTTP|WS|STDIO] → MCP Server → RKLLM
 ```
 
 ## THÁCH THỨC KỸ THUẬT CHÍNH
@@ -46,9 +47,9 @@ Clients → [UDP|TCP|HTTP|WS|STDIO] → NANO → IO → RKLLM
 **Vấn đề**: MCP sử dụng JSON, nhưng RKLLM cần LLMHandle*
 
 **Giải pháp**: 
-- IO quản lý mapping: `LLMHandle* ↔ unique_id`
+- MCP Server quản lý mapping: `LLMHandle* ↔ unique_id`
 - Client chỉ biết `unique_id`, không truy cập trực tiếp LLMHandle
-- Nano translate giữa JSON và C structs
+- MCP Adapter translate giữa JSON và C structs
 
 ## CẤU TRÚC DỮ LIỆU TEST
 
