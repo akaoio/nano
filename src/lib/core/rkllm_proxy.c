@@ -1,9 +1,10 @@
 #include "rkllm_proxy.h"
+#include "rkllm_auto_generated.h"
 #include "../../common/string_utils/string_utils.h"
+#include "../../external/rkllm/rkllm.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <dlfcn.h>
 
 // Global state
 static bool g_proxy_initialized = false;
@@ -179,6 +180,14 @@ static rkllm_function_desc_t g_rkllm_functions[] = {
             {RKLLM_PARAM_RKLLM_CROSS_ATTN_PARAM_PTR, "cross_attn_params", false}
         },
         .description = "Sets the cross-attention parameters for the LLM decoder"
+    },
+    {
+        .name = "rkllm_get_constants",
+        .function_ptr = NULL, // Special handler - not a real RKLLM function
+        .return_type = RKLLM_RETURN_JSON,
+        .param_count = 0,
+        .params = {},
+        .description = "Get all RKLLM constants, enums, and defines"
     }
 };
 
@@ -396,6 +405,12 @@ int rkllm_proxy_convert_result(rkllm_return_type_t return_type, void* result_dat
             json_object_object_add(result_obj, "default_params", param_obj);
             break;
         }
+        
+        case RKLLM_RETURN_JSON:
+            // For JSON return types (like constants), the result_data is already a JSON string
+            json_object_put(result_obj);  // Don't need wrapper object
+            *result_json = strdup((char*)result_data);
+            return 0;
     }
     
     const char* json_str = json_object_to_json_string(result_obj);
@@ -412,7 +427,7 @@ int rkllm_proxy_init(void) {
     }
     
     g_proxy_initialized = true;
-    printf("✅ Dynamic RKLLM proxy initialized with %d functions\n", g_function_count);
+    printf("✅ RKLLM proxy initialized with %d functions (direct calls)\n", g_function_count);
     return 0;
 }
 
@@ -424,13 +439,24 @@ void rkllm_proxy_shutdown(void) {
     
     g_proxy_initialized = false;
     g_global_handle = NULL;
-    printf("✅ Dynamic RKLLM proxy shutdown\n");
+    printf("✅ RKLLM proxy shutdown\n");
+}
+
+// Get all RKLLM constants and enums
+int rkllm_proxy_get_constants(char** result_json) {
+    // Use the auto-generated comprehensive constants function
+    return rkllm_get_constants_auto(result_json);
 }
 
 // Process RKLLM function call dynamically
 int rkllm_proxy_call(const char* function_name, const char* params_json, char** result_json) {
     if (!g_proxy_initialized || !function_name || !result_json) {
         return -1;
+    }
+    
+    // Special handler for constants function
+    if (strcmp(function_name, "rkllm_get_constants") == 0) {
+        return rkllm_proxy_get_constants(result_json);
     }
     
     // Find function descriptor

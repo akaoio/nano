@@ -20,6 +20,11 @@ int mcp_adapter_init(mcp_adapter_t* adapter) {
     // Initialize stream manager
     stream_manager_init();
     
+    // Initialize IO operations (RKLLM proxy)
+    if (io_operations_init() != 0) {
+        return MCP_ADAPTER_ERROR_INVALID_JSON;
+    }
+    
     return MCP_ADAPTER_OK;
 }
 
@@ -27,6 +32,7 @@ void mcp_adapter_shutdown(mcp_adapter_t* adapter) {
     if (!adapter || !adapter->initialized) return;
     
     stream_manager_shutdown();
+    io_operations_shutdown();
     adapter->initialized = false;
 }
 

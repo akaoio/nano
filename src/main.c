@@ -1,6 +1,5 @@
 #include "include/mcp/server.h"
 #include "common/core.h"
-#include "lib/core/rkllm_dynamic_loader.h"
 #include "lib/core/process_manager.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -178,20 +177,13 @@ int main(int argc, char* argv[]) {
         return 1;
     }
     
-    // Initialize RKLLM dynamic loader
-    fprintf(output_stream, "🔌 Loading RKLLM library...\n");
-    if (rkllm_dynamic_loader_init(NULL) != 0) {
-        fprintf(stderr, "❌ Failed to load RKLLM library\n");
-        process_manager_cleanup();
-        return 1;
-    }
-    fprintf(output_stream, "✅ RKLLM library loaded (%d functions)\n", rkllm_dynamic_loader_get_loaded_count());
+    // RKLLM library is statically linked - no dynamic loading needed
+    fprintf(output_stream, "✅ RKLLM library available (statically linked)\n");
     
     // Initialize server
     fprintf(output_stream, "⚙️  Initializing MCP Server...\n");
     if (mcp_server_init(&g_server, &config) != 0) {
         fprintf(stderr, "❌ Failed to initialize MCP server\n");
-        rkllm_dynamic_loader_cleanup();
         process_manager_cleanup();
         return 1;
     }
@@ -209,7 +201,6 @@ int main(int argc, char* argv[]) {
     if (mcp_server_start(&g_server) != 0) {
         fprintf(stderr, "❌ Failed to start MCP server\n");
         mcp_server_shutdown(&g_server);
-        rkllm_dynamic_loader_cleanup();
         process_manager_cleanup();
         return 1;
     }
@@ -233,7 +224,6 @@ int main(int argc, char* argv[]) {
     
     fprintf(output_stream, "🛑 Shutting down MCP Server...\n");
     mcp_server_shutdown(&g_server);
-    rkllm_dynamic_loader_cleanup();
     process_manager_cleanup();
     fprintf(output_stream, "✅ MCP Server shutdown complete\n");
     
