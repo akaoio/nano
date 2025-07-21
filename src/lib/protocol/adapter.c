@@ -1,4 +1,5 @@
 #include "adapter.h"
+#include "mcp_protocol.h"
 #include "../core/settings_global.h"
 #include "common/types.h"
 #include <json-c/json.h>
@@ -168,6 +169,22 @@ int mcp_adapter_process_request(const mcp_request_t* request, mcp_response_t* re
     // Handle streaming requests
     if (request->is_streaming) {
         return mcp_adapter_handle_stream_request(request, response);
+    }
+    
+    // Handle NPU status polling requests
+    if (strcmp(request->method, "npu_status") == 0) {
+        char status_response[4096];
+        int status_result = mcp_handle_npu_status_request(request->request_id, status_response, sizeof(status_response));
+        
+        if (status_result == 0) {
+            response->is_success = true;
+            strncpy(response->result, status_response, sizeof(response->result) - 1);
+        } else {
+            response->is_success = false;
+            strncpy(response->error_code, "-32002", sizeof(response->error_code) - 1);
+            strncpy(response->error_message, "NPU status request failed", sizeof(response->error_message) - 1);
+        }
+        return MCP_ADAPTER_OK;
     }
     
     // Regular request processing via IO operations

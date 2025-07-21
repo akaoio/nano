@@ -7,6 +7,9 @@
 #include "../transport/stdio.h"
 #include "../transport/tcp.h"
 #include "../transport/udp.h"
+#include "npu_operation_classifier.h"
+#include "npu_queue.h"
+#include "async_response.h"
 #define _DEFAULT_SOURCE
 #include <stdio.h>
 #include <stdlib.h>
@@ -120,6 +123,42 @@ int mcp_server_internal_init(mcp_server_internal_t* server, const mcp_server_con
             mcp_server_internal_log(server, "INFO", "WebSocket transport initialized");
         }
     }
+    
+    // Initialize NPU Queue System
+    server->npu_queue = malloc(sizeof(npu_queue_t));
+    if (!server->npu_queue) {
+        mcp_server_internal_log(server, "ERROR", "Failed to allocate NPU queue");
+        return -1;
+    }
+    
+    if (npu_queue_init(server->npu_queue, NPU_QUEUE_MAX_SIZE) != 0) {
+        mcp_server_internal_log(server, "ERROR", "Failed to initialize NPU queue");
+        free(server->npu_queue);
+        server->npu_queue = NULL;
+        return -1;
+    }
+    
+    // Set global NPU queue reference
+    g_npu_queue = server->npu_queue;
+    
+    // Initialize Async Response Registry
+    server->response_registry = malloc(sizeof(async_response_registry_t));
+    if (!server->response_registry) {
+        mcp_server_internal_log(server, "ERROR", "Failed to allocate response registry");
+        return -1;
+    }
+    
+    if (async_response_registry_init(server->response_registry, ASYNC_RESPONSE_DEFAULT_CAPACITY) != 0) {
+        mcp_server_internal_log(server, "ERROR", "Failed to initialize response registry");
+        free(server->response_registry);
+        server->response_registry = NULL;
+        return -1;
+    }
+    
+    // Set global response registry reference
+    g_response_registry = server->response_registry;
+    
+    mcp_server_internal_log(server, "INFO", "NPU queue and response registry initialized");
     
     server->initialized = true;
     mcp_server_internal_log(server, "INFO", "MCP Server initialized successfully");
@@ -248,6 +287,25 @@ void mcp_server_internal_shutdown(mcp_server_internal_t* server) {
         server->transport_managers = NULL;
     }
     
+    // Shutdown NPU Queue System
+    if (server->npu_queue) {
+        mcp_server_internal_log(server, "INFO", "Shutting down NPU queue...");
+        npu_queue_shutdown(server->npu_queue);
+        npu_queue_cleanup(server->npu_queue);
+        free(server->npu_queue);
+        server->npu_queue = NULL;
+        g_npu_queue = NULL;
+    }
+    
+    // Shutdown Response Registry
+    if (server->response_registry) {
+        mcp_server_internal_log(server, "INFO", "Shutting down response registry...");
+        async_response_registry_shutdown(server->response_registry);
+        free(server->response_registry);
+        server->response_registry = NULL;
+        g_response_registry = NULL;
+    }
+    
     // Shutdown MCP adapter (note: global instance)
     if (server->mcp_adapter && server->mcp_adapter->initialized) {
         mcp_adapter_shutdown(server->mcp_adapter);
@@ -277,15 +335,85 @@ int mcp_server_internal_process_request(mcp_server_internal_t* server, const cha
         return mcp_adapter_format_error(request.request_id, -32600, "Invalid request", response, response_size);
     }
     
-    // Process request through MCP adapter
-    mcp_response_t mcp_response;
-    if (mcp_adapter_process_request(&request, &mcp_response) == MCP_ADAPTER_OK) {
-        // Format response
-        int format_result = mcp_adapter_format_response(&mcp_response, response, response_size);
-        if (format_result == MCP_ADAPTER_OK) {
-            server->requests_processed++;
-            server->responses_sent++;
-            return 0;
+    // **NPU QUEUE INTEGRATION: Classify operation based on NPU requirements**
+    npu_operation_type_t op_type = npu_classify_operation(request.method);
+    
+    switch (op_type) {
+        case OPERATION_INSTANT: {
+            // Process immediately - No NPU needed (15+ functions)
+            printf("⚡ Instant Processing: %s (ID: %s)\n", request.method, request.request_id);
+            
+            mcp_response_t mcp_response;
+            if (mcp_adapter_process_request(&request, &mcp_response) == MCP_ADAPTER_OK) {
+                int format_result = mcp_adapter_format_response(&mcp_response, response, response_size);
+                if (format_result == MCP_ADAPTER_OK) {
+                    server->requests_processed++;
+                    server->responses_sent++;
+                    server->instant_operations_processed++;
+                    return 0;
+                }
+            }
+            break;
+        }
+        
+        case OPERATION_NPU_QUEUE: {
+            // Queue for NPU processing (3-5 functions only)
+            printf("🔄 NPU Queuing: %s (ID: %s)\n", request.method, request.request_id);
+            
+            if (npu_queue_is_full(server->npu_queue)) {
+                server->errors_handled++;
+                return mcp_adapter_format_error(request.request_id, -32603, 
+                    "NPU queue full - server overloaded", response, response_size);
+            }
+            
+            // Create NPU task
+            npu_task_t task = {
+                .method = strdup(request.method),
+                .params_json = strdup(request.params),
+                .transport_index = server->current_transport_index,
+                .connection_handle = server->current_connection,
+                .op_type = op_type
+            };
+            strncpy(task.request_id, request.request_id, NPU_TASK_REQUEST_ID_SIZE - 1);
+            task.request_id[NPU_TASK_REQUEST_ID_SIZE - 1] = '\0';
+            
+            if (npu_queue_add_task(server->npu_queue, &task) == 0) {
+                // Return immediate "queued" response
+                int wait_time = get_estimated_wait_time(request.method);
+                snprintf(response, response_size,
+                    "{\"jsonrpc\":\"2.0\",\"id\":\"%s\",\"result\":{\"status\":\"queued\",\"message\":\"Processing in NPU queue\",\"estimated_wait_ms\":%d,\"queue_position\":%d}}",
+                    request.request_id, wait_time, npu_queue_get_pending_count(server->npu_queue));
+                
+                server->npu_operations_queued++;
+                server->requests_processed++;
+                server->responses_sent++;
+                return 0;
+            } else {
+                // Queue failed
+                free(task.method);
+                free(task.params_json);
+                server->errors_handled++;
+                return mcp_adapter_format_error(request.request_id, -32603, 
+                    "Failed to queue NPU operation", response, response_size);
+            }
+        }
+        
+        case OPERATION_STREAMING: {
+            // Handle streaming operations (also uses NPU but different flow)
+            printf("📡 Streaming Operation: %s (ID: %s)\n", request.method, request.request_id);
+            
+            // For now, treat streaming operations like regular NPU queue operations
+            // TODO: Implement proper streaming with real-time callback integration
+            mcp_response_t mcp_response;
+            if (mcp_adapter_process_request(&request, &mcp_response) == MCP_ADAPTER_OK) {
+                int format_result = mcp_adapter_format_response(&mcp_response, response, response_size);
+                if (format_result == MCP_ADAPTER_OK) {
+                    server->requests_processed++;
+                    server->responses_sent++;
+                    return 0;
+                }
+            }
+            break;
         }
     }
     

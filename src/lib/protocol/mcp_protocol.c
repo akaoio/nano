@@ -1,10 +1,13 @@
 #include "mcp_protocol.h"
 #include "../core/settings_global.h"
+#include "../core/async_response.h"
+#include "../core/npu_queue.h"
 #include "common/types.h"
 #include <json-c/json.h>
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <time.h>
 
 int mcp_protocol_init(mcp_context_t* ctx) {
     if (!ctx) return -1;
@@ -368,6 +371,95 @@ int mcp_handle_stream_poll_request(const char* stream_id, uint32_t from_seq, cha
     response[response_size - 1] = '\0';
     
     json_object_put(error);
+    return -1;
+}
+
+int mcp_handle_npu_status_request(const char* request_id, char* response, size_t response_size) {
+    if (!request_id || !response || response_size == 0) return -1;
+    
+    // Get async response registry (external)
+    extern async_response_registry_t* g_response_registry;
+    extern npu_queue_t* g_npu_queue;
+    
+    if (!g_response_registry) {
+        snprintf(response, response_size,
+            "{\"jsonrpc\":\"2.0\",\"id\":\"%s\",\"error\":{\"code\":-32603,\"message\":\"Response registry not available\"}}",
+            request_id);
+        return -1;
+    }
+    
+    // Look for completed response first
+    async_response_t* async_response = async_response_registry_find(g_response_registry, request_id);
+    
+    if (async_response) {
+        if (async_response->completed) {
+            if (async_response->error) {
+                // Error response
+                snprintf(response, response_size,
+                    "{\"jsonrpc\":\"2.0\",\"id\":\"%s\",\"result\":{\"status\":\"error\",\"error\":\"%s\"}}",
+                    request_id, 
+                    async_response->result_json ? async_response->result_json : "Unknown error");
+            } else {
+                // Success response - return result and cleanup
+                snprintf(response, response_size,
+                    "{\"jsonrpc\":\"2.0\",\"id\":\"%s\",\"result\":{\"status\":\"completed\",\"result\":%s}}",
+                    request_id,
+                    async_response->result_json ? async_response->result_json : "null");
+                
+                // Clean up response after retrieval
+                async_response_registry_remove(g_response_registry, request_id);
+            }
+            return 0;
+        } else {
+            // Still processing
+            time_t elapsed = time(NULL) - async_response->started_at;
+            snprintf(response, response_size,
+                "{\"jsonrpc\":\"2.0\",\"id\":\"%s\",\"result\":{\"status\":\"processing\",\"elapsed_seconds\":%ld}}",
+                request_id, elapsed);
+            return 0;
+        }
+    }
+    
+    // Check if it's in NPU queue
+    if (g_npu_queue) {
+        pthread_mutex_lock(&g_npu_queue->queue_mutex);
+        
+        // Check if currently processing
+        if (g_npu_queue->npu_busy && strcmp(g_npu_queue->current_request_id, request_id) == 0) {
+            time_t elapsed = time(NULL) - g_npu_queue->operation_started_at;
+            snprintf(response, response_size,
+                "{\"jsonrpc\":\"2.0\",\"id\":\"%s\",\"result\":{\"status\":\"processing\",\"operation\":\"%s\",\"elapsed_seconds\":%ld}}",
+                request_id, g_npu_queue->current_operation, elapsed);
+            pthread_mutex_unlock(&g_npu_queue->queue_mutex);
+            return 0;
+        }
+        
+        // Check if in queue
+        bool found_in_queue = false;
+        int queue_position = 0;
+        for (int i = 0; i < g_npu_queue->queue_size; i++) {
+            int index = (g_npu_queue->queue_head + i) % g_npu_queue->queue_capacity;
+            if (strcmp(g_npu_queue->task_queue[index].request_id, request_id) == 0) {
+                found_in_queue = true;
+                queue_position = i + 1;
+                break;
+            }
+        }
+        
+        pthread_mutex_unlock(&g_npu_queue->queue_mutex);
+        
+        if (found_in_queue) {
+            snprintf(response, response_size,
+                "{\"jsonrpc\":\"2.0\",\"id\":\"%s\",\"result\":{\"status\":\"queued\",\"queue_position\":%d}}",
+                request_id, queue_position);
+            return 0;
+        }
+    }
+    
+    // Request not found
+    snprintf(response, response_size,
+        "{\"jsonrpc\":\"2.0\",\"id\":\"%s\",\"error\":{\"code\":-32002,\"message\":\"Request not found\"}}",
+        request_id);
     return -1;
 }
 

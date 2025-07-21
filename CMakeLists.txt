@@ -169,6 +169,10 @@ set(SERVER_CORE_SRCS
     src/lib/core/process_manager.c
     src/lib/core/settings.c
     src/lib/core/settings_global.c
+    src/lib/core/npu_operation_classifier.c
+    src/lib/core/npu_queue.c
+    src/lib/core/npu_worker.c
+    src/lib/core/async_response.c
 )
 
 set(SERVER_SYSTEM_SRCS

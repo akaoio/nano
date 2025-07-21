@@ -9,6 +9,8 @@
 #include "operations.h"
 #include "../protocol/adapter.h"
 #include "../transport/manager.h"
+#include "npu_queue.h"
+#include "async_response.h"
 
 // Unified MCP Server
 // Combines IO operations, transport layer, and MCP protocol handling
@@ -35,11 +37,21 @@ typedef struct mcp_server_internal {
     char version[16];
     uint16_t default_port;
     
+    // NPU Queue System
+    npu_queue_t* npu_queue;
+    async_response_registry_t* response_registry;
+    
+    // Current context for NPU operations
+    int current_transport_index;
+    void* current_connection;
+    
     // Statistics
     uint64_t requests_processed;
     uint64_t responses_sent;
     uint64_t errors_handled;
     uint64_t uptime_seconds;
+    uint64_t npu_operations_queued;
+    uint64_t instant_operations_processed;
 } mcp_server_internal_t;
 
 // Internal server lifecycle (different names to avoid conflicts)

@@ -175,7 +175,6 @@ The RKLLM MCP Server is a sophisticated wrapper system that bridges Rockchip's R
 ```json
 {
   "jsonrpc": "2.0",
-  "method": "rkllm_run_async",
   "id": 123,
   "result": {
     "chunk": {
