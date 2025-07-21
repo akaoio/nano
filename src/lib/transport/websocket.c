@@ -1,4 +1,5 @@
 #include "websocket.h"
+#include "../core/settings_global.h"
 #include "common/types.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -12,7 +13,8 @@ static ws_transport_config_t g_config = {0};
 static pthread_t g_server_thread;
 static volatile bool g_server_running = false;
 static pthread_mutex_t g_message_mutex = PTHREAD_MUTEX_INITIALIZER;
-static char g_received_message[8192] = {0};
+static char* g_received_message = NULL;
+static size_t g_message_buffer_size = 0;
 static volatile bool g_message_ready = false;
 static ws_cli_conn_t g_current_client = 0;
 
@@ -30,7 +32,7 @@ void on_ws_message(ws_cli_conn_t client, const unsigned char *msg, uint64_t size
     pthread_mutex_lock(&g_message_mutex);
     
     // Store the received message
-    if (size < sizeof(g_received_message)) {
+    if (size < g_message_buffer_size) {
         memcpy(g_received_message, msg, size);
         g_received_message[size] = '\0';
         g_current_client = client;
@@ -72,6 +74,15 @@ int ws_transport_init(void* config) {
     }
     if (cfg->path) {
         g_config.path = strdup(cfg->path);
+    }
+    
+    // Initialize message buffer from settings
+    g_message_buffer_size = SETTING_BUFFER(websocket_message_buffer_size);
+    if (g_message_buffer_size == 0) g_message_buffer_size = 8192; // fallback
+    
+    g_received_message = calloc(1, g_message_buffer_size);
+    if (!g_received_message) {
+        return -1;
     }
     
     // WebSocket server defaults
@@ -212,6 +223,11 @@ void ws_transport_shutdown(void) {
         free(g_config.path);
         g_config.path = NULL;
     }
+    
+    // Free message buffer
+    free(g_received_message);
+    g_received_message = NULL;
+    g_message_buffer_size = 0;
     
     g_config.running = false;
     g_config.initialized = false;

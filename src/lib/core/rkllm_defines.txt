@@ -1,0 +1,8 @@
+#define CPU0 (1 << 0)  
+#define CPU1 (1 << 1)  
+#define CPU2 (1 << 2)  
+#define CPU3 (1 << 3)  
+#define CPU4 (1 << 4)  
+#define CPU5 (1 << 5)  
+#define CPU6 (1 << 6)  
+#define CPU7 (1 << 7)  

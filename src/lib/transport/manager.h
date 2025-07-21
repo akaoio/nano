@@ -21,9 +21,10 @@ typedef struct {
     bool initialized;
     bool connected;
     
-    // Dedicated buffers for this transport to prevent contamination
-    char request_buffer[8192];
-    char response_buffer[8192];
+    // Dynamic buffers for this transport to prevent contamination
+    char* request_buffer;
+    char* response_buffer;
+    size_t buffer_size;
     
     // Statistics
     uint32_t messages_sent;

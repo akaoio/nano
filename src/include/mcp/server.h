@@ -67,6 +67,13 @@ int mcp_server_init(mcp_server_t* server, const mcp_server_config_t* config);
 int mcp_server_start(mcp_server_t* server);
 
 /**
+ * @brief Run the main event loop to process requests
+ * @param server Server instance
+ * @return 0 on success, negative on error
+ */
+int mcp_server_run_event_loop(mcp_server_t* server);
+
+/**
  * @brief Stop the MCP server
  * @param server Server instance
  * @return 0 on success, negative on error

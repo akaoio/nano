@@ -38,15 +38,43 @@ include_directories(
     ${JSON_C_INCLUDE_DIRS}
 )
 
-# Download librkllmrt.so if it doesn't exist
+# Download RKLLM library and header files if they don't exist
 set(RKLLM_LIB_PATH "${CMAKE_SOURCE_DIR}/src/external/rkllm/librkllmrt.so")
+set(RKLLM_HEADER_PATH "${CMAKE_SOURCE_DIR}/src/external/rkllm/rkllm.h")
+
+# Create rkllm directory if it doesn't exist
+file(MAKE_DIRECTORY "${CMAKE_SOURCE_DIR}/src/external/rkllm")
+
+# Download librkllmrt.so if it doesn't exist
 if(NOT EXISTS ${RKLLM_LIB_PATH})
     message(STATUS "Downloading librkllmrt.so for aarch64...")
     file(DOWNLOAD 
         "https://github.com/airockchip/rknn-llm/raw/main/rkllm-runtime/Linux/librkllm_api/aarch64/librkllmrt.so"
         ${RKLLM_LIB_PATH}
         SHOW_PROGRESS
+        STATUS download_status
     )
+    list(GET download_status 0 status_code)
+    if(NOT status_code EQUAL 0)
+        message(FATAL_ERROR "Failed to download librkllmrt.so")
+    endif()
+    message(STATUS "Successfully downloaded librkllmrt.so")
+endif()
+
+# Download rkllm.h if it doesn't exist
+if(NOT EXISTS ${RKLLM_HEADER_PATH})
+    message(STATUS "Downloading rkllm.h header file...")
+    file(DOWNLOAD 
+        "https://github.com/airockchip/rknn-llm/raw/main/rkllm-runtime/Linux/librkllm_api/include/rkllm.h"
+        ${RKLLM_HEADER_PATH}
+        SHOW_PROGRESS
+        STATUS download_status
+    )
+    list(GET download_status 0 status_code)
+    if(NOT status_code EQUAL 0)
+        message(FATAL_ERROR "Failed to download rkllm.h")
+    endif()
+    message(STATUS "Successfully downloaded rkllm.h")
 endif()
 
 # Download and build wsServer WebSocket library
@@ -139,6 +167,8 @@ set(SERVER_CORE_SRCS
     src/lib/core/public_api.c
     src/lib/core/rkllm_auto_generated.c
     src/lib/core/process_manager.c
+    src/lib/core/settings.c
+    src/lib/core/settings_global.c
 )
 
 set(SERVER_SYSTEM_SRCS

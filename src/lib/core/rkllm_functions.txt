@@ -1,0 +1,15 @@
+RKLLMParam rkllm_createDefaultParam();
+int rkllm_init(LLMHandle* handle, RKLLMParam* param, LLMResultCallback callback);
+int rkllm_load_lora(LLMHandle handle, RKLLMLoraAdapter* lora_adapter);
+int rkllm_load_prompt_cache(LLMHandle handle, const char* prompt_cache_path);
+int rkllm_release_prompt_cache(LLMHandle handle);
+int rkllm_destroy(LLMHandle handle);
+int rkllm_run(LLMHandle handle, RKLLMInput* rkllm_input, RKLLMInferParam* rkllm_infer_params, void* userdata);
+int rkllm_run_async(LLMHandle handle, RKLLMInput* rkllm_input, RKLLMInferParam* rkllm_infer_params, void* userdata);
+int rkllm_abort(LLMHandle handle);
+int rkllm_is_running(LLMHandle handle);
+int rkllm_clear_kv_cache(LLMHandle handle, int keep_system_prompt, int* start_pos, int* end_pos);
+int rkllm_get_kv_cache_size(LLMHandle handle, int* cache_sizes);
+int rkllm_set_chat_template(LLMHandle handle, const char* system_prompt, const char* prompt_prefix, const char* prompt_postfix);
+int rkllm_set_function_tools(LLMHandle handle, const char* system_prompt, const char* tools, const char* tool_response_str);
+int rkllm_set_cross_attn_params(LLMHandle handle, RKLLMCrossAttnParam* cross_attn_params);

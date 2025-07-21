@@ -1,4 +1,5 @@
 #include "mcp_protocol.h"
+#include "../core/settings_global.h"
 #include "common/types.h"
 #include <json-c/json.h>
 #include <string.h>
@@ -146,13 +147,23 @@ int mcp_handle_message(mcp_context_t* ctx, const char* message, char* response, 
         }
         
         if (has_id && ctx->on_request) {
-            char result[4096];
-            int ret = ctx->on_request(method, params_str, result, sizeof(result));
+            size_t buffer_size = SETTING_BUFFER(response_buffer_size);
+            if (buffer_size == 0) buffer_size = 4096; // fallback
+            char* result = malloc(buffer_size);
+            if (!result) {
+                json_object_put(root);
+                return mcp_format_error(id, MCP_ERROR_INTERNAL, "Memory allocation failed", NULL, response, response_size);
+            }
+            
+            int ret = ctx->on_request(method, params_str, result, buffer_size);
             json_object_put(root);
             
             if (ret == 0) {
-                return mcp_format_response(id, result, response, response_size);
+                int format_ret = mcp_format_response(id, result, response, response_size);
+                free(result);
+                return format_ret;
             } else {
+                free(result);
                 return mcp_format_error(id, MCP_ERROR_INTERNAL, "Request handler failed", NULL, response, response_size);
             }
         } else if (!has_id && ctx->on_notification) {

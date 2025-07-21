@@ -18,6 +18,9 @@ typedef enum {
     RKLLM_PARAM_RKLLM_INFER_PARAM_PTR, // RKLLMInferParam*
     RKLLM_PARAM_RKLLM_LORA_ADAPTER_PTR, // RKLLMLoraAdapter*
     RKLLM_PARAM_RKLLM_CROSS_ATTN_PARAM_PTR, // RKLLMCrossAttnParam*
+    RKLLM_PARAM_RKLLM_LORA_PARAM_PTR, // RKLLMLoraParam*
+    RKLLM_PARAM_RKLLM_PROMPT_CACHE_PARAM_PTR, // RKLLMPromptCacheParam*
+    RKLLM_PARAM_RKLLM_EXTEND_PARAM_PTR, // RKLLMExtendParam*
     RKLLM_PARAM_CALLBACK,         // LLMResultCallback
     RKLLM_PARAM_STRING,           // const char*
     RKLLM_PARAM_INT,              // int
@@ -25,14 +28,20 @@ typedef enum {
     RKLLM_PARAM_VOID_PTR,         // void*
     RKLLM_PARAM_BOOL,             // bool
     RKLLM_PARAM_FLOAT,            // float
-    RKLLM_PARAM_SIZE_T            // size_t
+    RKLLM_PARAM_FLOAT_PTR,        // float*
+    RKLLM_PARAM_SIZE_T,           // size_t
+    RKLLM_PARAM_INT32_T,          // int32_t
+    RKLLM_PARAM_INT32_T_PTR,      // int32_t*
+    RKLLM_PARAM_UINT32_T,         // uint32_t
+    RKLLM_PARAM_UINT8_T           // uint8_t
 } rkllm_param_type_t;
 
 // Return types for RKLLM functions
 typedef enum {
     RKLLM_RETURN_INT,             // int (status code)
     RKLLM_RETURN_VOID,            // void
-    RKLLM_RETURN_RKLLM_PARAM      // RKLLMParam (for createDefaultParam)
+    RKLLM_RETURN_RKLLM_PARAM,     // RKLLMParam (for createDefaultParam)
+    RKLLM_RETURN_JSON             // JSON string (for constants)
 } rkllm_return_type_t;
 
 // Function parameter descriptor
@@ -78,6 +87,13 @@ int rkllm_proxy_call(const char* function_name, const char* params_json, char** 
  * @return 0 on success, -1 on error
  */
 int rkllm_proxy_get_functions(char** functions_json);
+
+/**
+ * @brief Get all RKLLM constants and enums
+ * @param constants_json Output: JSON object of all constants and enums
+ * @return 0 on success, -1 on error
+ */
+int rkllm_proxy_get_constants(char** constants_json);
 
 /**
  * @brief Convert JSON parameter to RKLLM structure

@@ -1,4 +1,5 @@
 #include "server.h"
+#include "settings_global.h"
 #include "mcp/transport.h"
 #include "common/types.h"
 #include "../protocol/adapter.h"
@@ -65,10 +66,11 @@ int mcp_server_internal_init(mcp_server_internal_t* server, const mcp_server_con
     
     if (config->enable_tcp) {
         tcp_transport_config_t tcp_config = {
-            .host = strdup("0.0.0.0"),
-            .port = config->tcp_port,
+            .host = strdup(SETTING_TRANSPORT(tcp, host) ? SETTING_TRANSPORT(tcp, host) : "0.0.0.0"),
+            .port = SETTING_TRANSPORT(tcp, port) ? SETTING_TRANSPORT(tcp, port) : config->tcp_port,
             .is_server = true
         };
+        // Note: TCP timeout_ms and max_retries from JSON are not used by current TCP transport implementation
         
         transport_base_t* tcp_transport = tcp_transport_get_interface();
         if (mcp_server_internal_add_transport(server, tcp_transport, &tcp_config) == 0) {
@@ -78,8 +80,11 @@ int mcp_server_internal_init(mcp_server_internal_t* server, const mcp_server_con
     
     if (config->enable_udp) {
         udp_transport_config_t udp_config = {
-            .host = strdup("0.0.0.0"),
-            .port = config->udp_port ? config->udp_port : 8081
+            .host = strdup(SETTING_TRANSPORT(udp, host) ? SETTING_TRANSPORT(udp, host) : "0.0.0.0"),
+            .port = SETTING_TRANSPORT(udp, port) ? SETTING_TRANSPORT(udp, port) : (config->udp_port ? config->udp_port : 8081),
+            .enable_retry = true,  // Enable UDP reliability features
+            .max_retries = SETTING_TRANSPORT(udp, max_retries) ? SETTING_TRANSPORT(udp, max_retries) : 3,
+            .retry_timeout_ms = SETTING_TRANSPORT(udp, timeout_ms) ? SETTING_TRANSPORT(udp, timeout_ms) : 5000
         };
         
         transport_base_t* udp_transport = udp_transport_get_interface();
@@ -90,11 +95,11 @@ int mcp_server_internal_init(mcp_server_internal_t* server, const mcp_server_con
     
     if (config->enable_http) {
         http_transport_config_t http_config = {
-            .host = strdup("0.0.0.0"),
-            .port = config->http_port ? config->http_port : 8082,
-            .path = strdup(config->http_path ? config->http_path : "/"),
-            .timeout_ms = 30000,
-            .keep_alive = true
+            .host = strdup(SETTING_TRANSPORT(http, host) ? SETTING_TRANSPORT(http, host) : "0.0.0.0"),
+            .port = SETTING_TRANSPORT(http, port) ? SETTING_TRANSPORT(http, port) : (config->http_port ? config->http_port : 8082),
+            .path = strdup(SETTING_TRANSPORT(http, path) ? SETTING_TRANSPORT(http, path) : (config->http_path ? config->http_path : "/")),
+            .timeout_ms = SETTING_TRANSPORT(http, timeout_ms) ? SETTING_TRANSPORT(http, timeout_ms) : 30000,
+            .keep_alive = SETTING_TRANSPORT(http, keep_alive)
         };
         
         transport_base_t* http_transport = http_transport_get_interface();
@@ -105,9 +110,9 @@ int mcp_server_internal_init(mcp_server_internal_t* server, const mcp_server_con
     
     if (config->enable_websocket) {
         ws_transport_config_t ws_config = {
-            .host = strdup("0.0.0.0"),
-            .port = config->ws_port ? config->ws_port : 8083,
-            .path = strdup(config->ws_path ? config->ws_path : "/")
+            .host = strdup(SETTING_TRANSPORT(websocket, host) ? SETTING_TRANSPORT(websocket, host) : "0.0.0.0"),
+            .port = SETTING_TRANSPORT(websocket, port) ? SETTING_TRANSPORT(websocket, port) : (config->ws_port ? config->ws_port : 8083),
+            .path = strdup(SETTING_TRANSPORT(websocket, path) ? SETTING_TRANSPORT(websocket, path) : (config->ws_path ? config->ws_path : "/"))
         };
         
         transport_base_t* ws_transport = ws_transport_get_interface();
@@ -165,17 +170,24 @@ int mcp_server_internal_run_event_loop(mcp_server_internal_t* server) {
             char* request_buffer = manager->request_buffer;
             char* response_buffer = manager->response_buffer;
             
-            // Try to receive a request (with short timeout to avoid blocking)
-            int result = transport_manager_recv_mcp_message(manager, request_buffer, sizeof(manager->request_buffer), 100);
+            // Try to receive a request (use longer timeout for HTTP/WebSocket)
+            int timeout_ms = 100; // Default for TCP/UDP/STDIO
+            if (manager->transport && manager->transport->name) {
+                if (strcmp(manager->transport->name, "http") == 0 || 
+                    strcmp(manager->transport->name, "websocket") == 0) {
+                    timeout_ms = 1000; // 1 second for HTTP/WebSocket to handle connection setup
+                }
+            }
+            int result = transport_manager_recv_mcp_message(manager, request_buffer, manager->buffer_size, timeout_ms);
             
             if (result == TRANSPORT_MANAGER_OK) {
                 // Process the request through MCP layer
-                mcp_server_internal_process_request(server, request_buffer, response_buffer, sizeof(manager->response_buffer));
+                mcp_server_internal_process_request(server, request_buffer, response_buffer, manager->buffer_size);
                 
                 // Ensure response ends with newline for MCP compliance
                 size_t len = strlen(response_buffer);
                 if (len > 0 && response_buffer[len-1] != '\n') {
-                    if (len < sizeof(manager->response_buffer) - 2) {
+                    if (len < manager->buffer_size - 2) {
                         response_buffer[len] = '\n';
                         response_buffer[len + 1] = '\0';
                     }

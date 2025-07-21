@@ -1,0 +1,111 @@
+{
+  "_comment": "MCP Server Configuration - Auto-generated with all available options",
+  "server": {
+    "_comment": "Server-wide settings",
+    "name": "MCP-Server",
+    "version": "1.0.0",
+    "enable_logging": true,
+    "log_file": null,
+    "pid_file": "/tmp/mcp_server.pid",
+    "force_kill_existing": false
+  },
+  "transports": {
+    "_comment": "Transport layer configuration - enable/disable and configure each transport",
+    "enable_stdio": true,
+    "enable_tcp": true,
+    "enable_udp": true,
+    "enable_http": true,
+    "enable_websocket": true,
+    "stdio": {
+      "_comment": "Standard Input/Output transport settings",
+      "line_buffered": true,
+      "log_to_stderr": false
+    },
+    "tcp": {
+      "_comment": "TCP transport settings",
+      "host": "0.0.0.0",
+      "port": 8080,
+      "timeout_ms": 5000,
+      "max_retries": 3
+    },
+    "udp": {
+      "_comment": "UDP transport settings",
+      "host": "0.0.0.0",
+      "port": 8081,
+      "timeout_ms": 5000,
+      "max_retries": 3
+    },
+    "http": {
+      "_comment": "HTTP transport settings",
+      "host": "0.0.0.0",
+      "port": 8082,
+      "path": "/",
+      "timeout_ms": 30000,
+      "keep_alive": true,
+      "max_header_size": 8192,
+      "max_body_size": 1048576
+    },
+    "websocket": {
+      "_comment": "WebSocket transport settings",
+      "host": "0.0.0.0",
+      "port": 8083,
+      "path": "/",
+      "max_frame_length": 16777216,
+      "ping_interval_ms": 30000
+    },
+    "common": {
+      "_comment": "Common transport settings",
+      "buffer_size": 8192,
+      "default_timeout_ms": 5000,
+      "max_retries": 3
+    }
+  },
+  "rkllm": {
+    "_comment": "RKLLM (Rockchip LLM) engine configuration",
+    "default_model_path": "models/qwen3/model.rkllm",
+    "max_context_len": 512,
+    "max_new_tokens": 256,
+    "top_k": 40,
+    "n_keep": 0,
+    "top_p": 0.9,
+    "temperature": 0.8,
+    "repeat_penalty": 1.1,
+    "frequency_penalty": 0.0,
+    "presence_penalty": 0.0,
+    "mirostat": 0,
+    "mirostat_tau": 5.0,
+    "mirostat_eta": 0.1,
+    "skip_special_token": false,
+    "is_async": false,
+    "extend": {
+      "_comment": "Extended RKLLM parameters for advanced configuration",
+      "base_domain_id": 0,
+      "embed_flash": 0,
+      "enabled_cpus_num": 4,
+      "enabled_cpus_mask": 240,
+      "n_batch": 1,
+      "use_cross_attn": 0
+    }
+  },
+  "buffers": {
+    "_comment": "Buffer size configuration for various components",
+    "request_buffer_size": 8192,
+    "response_buffer_size": 65536,
+    "max_json_size": 65536,
+    "proxy_response_buffer_size": 8192,
+    "proxy_arg_buffer_size": 1024,
+    "transport_buffer_size": 8192,
+    "http_request_buffer_size": 8192,
+    "http_response_buffer_size": 32768,
+    "websocket_message_buffer_size": 16384,
+    "log_message_buffer_size": 128
+  },
+  "limits": {
+    "_comment": "System limits and constraints",
+    "max_request_size": 4096,
+    "max_response_size": 8192,
+    "max_settings_file_size": 1048576,
+    "max_concurrent_connections": 100,
+    "max_pending_requests": 1000
+  }
+}

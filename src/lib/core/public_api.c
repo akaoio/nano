@@ -50,6 +50,15 @@ int mcp_server_start(mcp_server_t* server) {
     return result;
 }
 
+int mcp_server_run_event_loop(mcp_server_t* server) {
+    if (!server || !server->running || !server->internal_data) {
+        return -1;
+    }
+    
+    mcp_server_internal_t* internal = (mcp_server_internal_t*)server->internal_data;
+    return mcp_server_internal_run_event_loop(internal);
+}
+
 int mcp_server_stop(mcp_server_t* server) {
     if (!server || !server->internal_data) {
         return -1;

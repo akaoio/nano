@@ -1,5 +1,6 @@
 #include "manager.h"
 #include "common/types.h"
+#include "../core/settings_global.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -9,6 +10,20 @@ int transport_manager_init(transport_manager_t* manager, transport_base_t* trans
     
     memset(manager, 0, sizeof(transport_manager_t));
     manager->transport = transport;
+    
+    // Get buffer size from settings or use default
+    size_t buffer_size = SETTING_BUFFER(transport_buffer_size);
+    if (buffer_size == 0) buffer_size = 8192;  // fallback
+    
+    // Allocate dynamic buffers
+    manager->request_buffer = malloc(buffer_size);
+    manager->response_buffer = malloc(buffer_size);
+    if (!manager->request_buffer || !manager->response_buffer) {
+        free(manager->request_buffer);
+        free(manager->response_buffer);
+        return TRANSPORT_MANAGER_ERROR;
+    }
+    manager->buffer_size = buffer_size;
     
     // Initialize MCP adapter (use global instance)
     manager->mcp_adapter = &g_mcp_adapter;
@@ -36,6 +51,13 @@ void transport_manager_shutdown(transport_manager_t* manager) {
     if (manager->transport->shutdown) {
         manager->transport->shutdown(manager->transport);
     }
+    
+    // Free dynamic buffers
+    free(manager->request_buffer);
+    free(manager->response_buffer);
+    manager->request_buffer = NULL;
+    manager->response_buffer = NULL;
+    manager->buffer_size = 0;
     
     // Note: Don't shutdown MCP adapter as it's global and may be used by other managers
     
@@ -95,8 +117,8 @@ int transport_manager_send_mcp_request(transport_manager_t* manager, const mcp_r
         return TRANSPORT_MANAGER_NOT_CONNECTED;
     }
     
-    // Use MCP adapter to format the request
-    char formatted_data[8192];
+    // Use dynamic buffer for formatting (use response buffer instead)
+    char* formatted_data = manager->response_buffer;
     mcp_response_t temp_response;
     memset(&temp_response, 0, sizeof(temp_response));
     
@@ -106,14 +128,14 @@ int transport_manager_send_mcp_request(transport_manager_t* manager, const mcp_r
     strncpy(temp_response.result, request->params, sizeof(temp_response.result) - 1);
     
     // Format as JSON-RPC request (reverse engineer from response format)
-    char request_json[8192];
-    snprintf(request_json, sizeof(request_json), 
+    char* request_json = manager->response_buffer;
+    snprintf(request_json, manager->buffer_size, 
         "{\"jsonrpc\":\"2.0\",\"method\":\"%s\",\"params\":%s,\"id\":%s}",
         request->method, request->params, request->request_id);
     
     // Add newline for MCP compliance
     size_t len = strlen(request_json);
-    if (len < sizeof(request_json) - 2) {
+    if (len < manager->buffer_size - 2) {
         request_json[len] = '\n';
         request_json[len + 1] = '\0';
         len++;
@@ -139,16 +161,16 @@ int transport_manager_send_mcp_response(transport_manager_t* manager, const mcp_
         return TRANSPORT_MANAGER_NOT_CONNECTED;
     }
     
-    // Use MCP adapter to format the response
-    char formatted_data[8192];
-    if (mcp_adapter_format_response(response, formatted_data, sizeof(formatted_data)) != MCP_ADAPTER_OK) {
+    // Use dynamic buffer for formatting response
+    char* formatted_data = manager->request_buffer;
+    if (mcp_adapter_format_response(response, formatted_data, manager->buffer_size) != MCP_ADAPTER_OK) {
         manager->errors_count++;
         return TRANSPORT_MANAGER_PROTOCOL_ERROR;
     }
     
     // Add newline for MCP compliance
     size_t len = strlen(formatted_data);
-    if (len < sizeof(formatted_data) - 2) {
+    if (len < manager->buffer_size - 2) {
         formatted_data[len] = '\n';
         formatted_data[len + 1] = '\0';
         len++;
@@ -216,16 +238,16 @@ int transport_manager_send_stream_chunk(transport_manager_t* manager, const mcp_
         return TRANSPORT_MANAGER_NOT_CONNECTED;
     }
     
-    // Use MCP adapter to format stream chunk
-    char formatted_chunk[8192];
-    if (mcp_adapter_format_stream_chunk(chunk, formatted_chunk, sizeof(formatted_chunk)) != MCP_ADAPTER_OK) {
+    // Use dynamic buffer for formatting stream chunk
+    char* formatted_chunk = manager->request_buffer;
+    if (mcp_adapter_format_stream_chunk(chunk, formatted_chunk, manager->buffer_size) != MCP_ADAPTER_OK) {
         manager->errors_count++;
         return TRANSPORT_MANAGER_PROTOCOL_ERROR;
     }
     
     // Add newline for MCP compliance
     size_t len = strlen(formatted_chunk);
-    if (len < sizeof(formatted_chunk) - 2) {
+    if (len < manager->buffer_size - 2) {
         formatted_chunk[len] = '\n';
         formatted_chunk[len + 1] = '\0';
         len++;

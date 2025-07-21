@@ -1,4 +1,5 @@
 #include "adapter.h"
+#include "../core/settings_global.h"
 #include "common/types.h"
 #include <json-c/json.h>
 #include <stdio.h>
@@ -362,13 +363,18 @@ int mcp_adapter_format_batch_response(const mcp_response_t* responses, size_t co
     json_object* batch_array = json_object_new_array();
     
     for (size_t i = 0; i < count; i++) {
-        char response_buffer[4096];
-        if (mcp_adapter_format_response(&responses[i], response_buffer, sizeof(response_buffer)) == MCP_ADAPTER_OK) {
+        size_t buffer_size = SETTING_BUFFER(response_buffer_size);
+        if (buffer_size == 0) buffer_size = 4096; // fallback
+        char* response_buffer = malloc(buffer_size);
+        if (!response_buffer) continue;
+        
+        if (mcp_adapter_format_response(&responses[i], response_buffer, buffer_size) == MCP_ADAPTER_OK) {
             json_object* response_obj = json_tokener_parse(response_buffer);
             if (response_obj) {
                 json_object_array_add(batch_array, response_obj);
             }
         }
+        free(response_buffer);
     }
     
     const char* batch_str = json_object_to_json_string(batch_array);

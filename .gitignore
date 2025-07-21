@@ -28,11 +28,6 @@
 *.so.*
 *.dylib
 
-# Exception: Keep RKLLM libraries as part of source code
-!src/external/rkllm/*.so
-!src/external/rkllm/*.dll
-!src/external/rkllm/*.dylib
-
 # Executables
 *.exe
 *.out
@@ -62,3 +57,6 @@ dkms.conf
 node_modules/
 models/
 build/
+
+# External dependencies (downloaded automatically by CMake)
+src/external/

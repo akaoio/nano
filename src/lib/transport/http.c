@@ -1,4 +1,5 @@
 #include "http.h"
+#include "../core/settings_global.h"
 #include "common/types.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -9,6 +10,7 @@
 #include <unistd.h>
 #include <sys/select.h>
 #include <errno.h>
+#include <string.h>
 
 static http_transport_config_t g_config = {0};
 static int g_socket_fd = -1;
@@ -112,8 +114,12 @@ int http_transport_send_raw(const char* data, size_t len) {
         return -1; // No client to send to
     }
     
-    char http_response[8192];
-    int response_len = snprintf(http_response, sizeof(http_response),
+    size_t buffer_size = SETTING_BUFFER(http_response_buffer_size);
+    if (buffer_size == 0) buffer_size = 8192; // fallback
+    char* http_response = malloc(buffer_size);
+    if (!http_response) return -1;
+    
+    int response_len = snprintf(http_response, buffer_size,
         "HTTP/1.1 200 OK\r\n"
         "Content-Type: application/json\r\n"
         "Content-Length: %zu\r\n"
@@ -126,9 +132,10 @@ int http_transport_send_raw(const char* data, size_t len) {
         len,
         (int)len, data);
     
-    if (response_len >= (int)sizeof(http_response)) {
+    if (response_len >= (int)buffer_size) {
         close(g_current_client_fd);
         g_current_client_fd = -1;
+        free(http_response);
         return -1; // Response too large
     }
     
@@ -139,6 +146,7 @@ int http_transport_send_raw(const char* data, size_t len) {
     close(g_current_client_fd);
     g_current_client_fd = -1;
     
+    free(http_response);
     return (sent == response_len) ? 0 : -1;
 }
 
@@ -175,10 +183,18 @@ int http_transport_recv_raw(char* buffer, size_t buffer_size, int timeout_ms) {
     }
     
     // Read HTTP request from client
-    char http_request[8192];
-    ssize_t received = recv(client_fd, http_request, sizeof(http_request) - 1, 0);
+    size_t request_buffer_size = SETTING_BUFFER(http_request_buffer_size);
+    if (request_buffer_size == 0) request_buffer_size = 8192; // fallback
+    char* http_request = malloc(request_buffer_size);
+    if (!http_request) {
+        close(client_fd);
+        return -1;
+    }
+    
+    ssize_t received = recv(client_fd, http_request, request_buffer_size - 1, 0);
     if (received <= 0) {
         close(client_fd);
+        free(http_request);
         return -1;
     }
     
@@ -188,6 +204,7 @@ int http_transport_recv_raw(char* buffer, size_t buffer_size, int timeout_ms) {
     char* body_start = strstr(http_request, "\r\n\r\n");
     if (!body_start) {
         close(client_fd);
+        free(http_request);
         return -1;
     }
     body_start += 4; // Skip "\r\n\r\n"
@@ -196,6 +213,7 @@ int http_transport_recv_raw(char* buffer, size_t buffer_size, int timeout_ms) {
     size_t body_len = strlen(body_start);
     if (body_len >= buffer_size) {
         close(client_fd);
+        free(http_request);
         return -1;
     }
     
@@ -205,6 +223,7 @@ int http_transport_recv_raw(char* buffer, size_t buffer_size, int timeout_ms) {
     // Store client_fd for sending response later
     g_current_client_fd = client_fd;
     
+    free(http_request);
     return 0;
 }
 
@@ -221,11 +240,15 @@ int http_transport_send_http_request(const char* method, const char* path, const
     }
     
     // Build HTTP request
-    char request[8192];
+    size_t request_size = SETTING_BUFFER(http_request_buffer_size);
+    if (request_size == 0) request_size = 8192; // fallback
+    char* request = malloc(request_size);
+    if (!request) return -1;
+    
     int request_len;
     
     if (body) {
-        request_len = snprintf(request, sizeof(request),
+        request_len = snprintf(request, request_size,
             "%s %s HTTP/1.1\r\n"
             "Host: %s:%d\r\n"
             "Content-Type: application/json\r\n"
@@ -236,7 +259,7 @@ int http_transport_send_http_request(const char* method, const char* path, const
             method, path, g_config.host, g_config.port, strlen(body),
             g_config.keep_alive ? "keep-alive" : "close", body);
     } else {
-        request_len = snprintf(request, sizeof(request),
+        request_len = snprintf(request, request_size,
             "%s %s HTTP/1.1\r\n"
             "Host: %s:%d\r\n"
             "Connection: %s\r\n"
@@ -248,12 +271,14 @@ int http_transport_send_http_request(const char* method, const char* path, const
     // Send request
     ssize_t sent = send(g_socket_fd, request, request_len, 0);
     if (sent != request_len) {
+        free(request);
         return -1;
     }
     
     // Read response
     ssize_t received = recv(g_socket_fd, response, response_size - 1, 0);
     if (received <= 0) {
+        free(request);
         return -1;
     }
     
@@ -264,6 +289,7 @@ int http_transport_send_http_request(const char* method, const char* path, const
         http_transport_disconnect();
     }
     
+    free(request);
     return 0;
 }
 

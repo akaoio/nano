@@ -5,9 +5,10 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-#define TRANSPORT_BUFFER_SIZE 8192
-#define TRANSPORT_MAX_RETRIES 3
-#define TRANSPORT_DEFAULT_TIMEOUT_MS 5000
+// Default fallback values (use settings when available)
+#define TRANSPORT_FALLBACK_BUFFER_SIZE 8192
+#define TRANSPORT_FALLBACK_MAX_RETRIES 3
+#define TRANSPORT_FALLBACK_DEFAULT_TIMEOUT_MS 5000
 
 typedef enum {
     TRANSPORT_OK = 0,
