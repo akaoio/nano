@@ -1,5 +1,10 @@
 #include "rkllm_proxy.h"
 #include "rkllm_auto_generated.h"
+#include "rkllm_array_utils.h"
+#include "rkllm_error_mapping.h"
+#include "rkllm_streaming_context.h"
+#include "memory_manager.h"
+#include "performance_monitor.h"
 #include "settings_global.h"
 #include "../../common/string_utils/string_utils.h"
 #include "../../external/rkllm/rkllm.h"
@@ -656,10 +661,22 @@ int rkllm_proxy_convert_param(json_object* json_value, rkllm_param_type_t param_
                         // Handle embed array data
                         if (json_object_object_get_ex(obj, "embed", &embed_obj)) {
                             if (json_object_get_type(embed_obj) == json_type_array) {
-                                int array_len __attribute__((unused)) = json_object_array_length(embed_obj);
-                                // For now, use NULL - would need proper dynamic allocation
-                                input->embed_input.embed = NULL;
-                                // TODO: Implement proper float array parsing and allocation
+                                size_t embed_length = 0;
+                                float* embed_data = NULL;
+                                
+                                // Use the array utility to convert JSON to float array
+                                if (rkllm_convert_float_array(embed_obj, &embed_data, &embed_length) == 0) {
+                                    input->embed_input.embed = embed_data;
+                                    // Verify the length matches n_tokens if specified
+                                    if (input->embed_input.n_tokens > 0 && 
+                                        embed_length != input->embed_input.n_tokens * 1024) { // Assuming 1024 embed size
+                                        printf("⚠️  Embed array size mismatch: expected %zu, got %zu\n",
+                                               input->embed_input.n_tokens * 1024, embed_length);
+                                    }
+                                } else {
+                                    printf("❌ Failed to convert embed array from JSON\n");
+                                    input->embed_input.embed = NULL;
+                                }
                             }
                         }
                     }
@@ -675,10 +692,22 @@ int rkllm_proxy_convert_param(json_object* json_value, rkllm_param_type_t param_
                         // Handle token array data
                         if (json_object_object_get_ex(obj, "input_ids", &token_obj)) {
                             if (json_object_get_type(token_obj) == json_type_array) {
-                                int array_len __attribute__((unused)) = json_object_array_length(token_obj);
-                                // For now, use NULL - would need proper dynamic allocation
-                                input->token_input.input_ids = NULL;
-                                // TODO: Implement proper int32_t array parsing and allocation
+                                size_t token_length = 0;
+                                int32_t* token_data = NULL;
+                                
+                                // Use the array utility to convert JSON to int32_t array
+                                if (rkllm_convert_int32_array(token_obj, &token_data, &token_length) == 0) {
+                                    input->token_input.input_ids = token_data;
+                                    // Verify the length matches n_tokens if specified
+                                    if (input->token_input.n_tokens > 0 && 
+                                        token_length != input->token_input.n_tokens) {
+                                        printf("⚠️  Token array size mismatch: expected %zu, got %zu\n",
+                                               input->token_input.n_tokens, token_length);
+                                    }
+                                } else {
+                                    printf("❌ Failed to convert token array from JSON\n");
+                                    input->token_input.input_ids = NULL;
+                                }
                             }
                         }
                     }
@@ -707,9 +736,24 @@ int rkllm_proxy_convert_param(json_object* json_value, rkllm_param_type_t param_
                         // Handle image_embed array
                         if (json_object_object_get_ex(obj, "image_embed", &mm_obj)) {
                             if (json_object_get_type(mm_obj) == json_type_array) {
-                                // For now, use NULL - would need proper dynamic allocation
-                                input->multimodal_input.image_embed = NULL;
-                                // TODO: Implement proper float array parsing and allocation
+                                size_t embed_length = 0;
+                                float* embed_data = NULL;
+                                
+                                // Use the array utility to convert JSON to float array
+                                if (rkllm_convert_float_array(mm_obj, &embed_data, &embed_length) == 0) {
+                                    input->multimodal_input.image_embed = embed_data;
+                                    // Verify the length matches expected dimensions
+                                    size_t expected_size = input->multimodal_input.n_image * 
+                                                         input->multimodal_input.n_image_tokens * 
+                                                         1024; // Assuming 1024 embed length
+                                    if (embed_length != expected_size && expected_size > 0) {
+                                        printf("⚠️  Image embed array size mismatch: expected %zu, got %zu\n",
+                                               expected_size, embed_length);
+                                    }
+                                } else {
+                                    printf("❌ Failed to convert image embed array from JSON\n");
+                                    input->multimodal_input.image_embed = NULL;
+                                }
                             }
                         }
                     }
@@ -822,13 +866,75 @@ int rkllm_proxy_convert_param(json_object* json_value, rkllm_param_type_t param_
                 cross_attn->num_tokens = json_object_get_int(obj);
             }
             
-            // Note: For real implementation, encoder_k_cache, encoder_v_cache, 
-            // encoder_mask, and encoder_pos would need proper array handling
-            // This is a simplified implementation for now
-            cross_attn->encoder_k_cache = NULL;
-            cross_attn->encoder_v_cache = NULL;
-            cross_attn->encoder_mask = NULL;
-            cross_attn->encoder_pos = NULL;
+            // Handle encoder_k_cache (4D array: [num_layers][num_tokens][num_kv_heads][head_dim])
+            json_object* k_cache_obj;
+            if (json_object_object_get_ex(json_value, "encoder_k_cache", &k_cache_obj)) {
+                if (json_object_get_type(k_cache_obj) == json_type_array) {
+                    size_t d1, d2, d3, d4;
+                    float* k_cache_data = NULL;
+                    if (rkllm_convert_float_array_4d(k_cache_obj, &k_cache_data, &d1, &d2, &d3, &d4) == 0) {
+                        cross_attn->encoder_k_cache = k_cache_data;
+                        printf("✅ Loaded encoder_k_cache: [%zu][%zu][%zu][%zu]\n", d1, d2, d3, d4);
+                    } else {
+                        printf("❌ Failed to convert encoder_k_cache from JSON\n");
+                        cross_attn->encoder_k_cache = NULL;
+                    }
+                }
+            }
+            
+            // Handle encoder_v_cache (4D array: [num_layers][num_kv_heads][head_dim][num_tokens])
+            json_object* v_cache_obj;
+            if (json_object_object_get_ex(json_value, "encoder_v_cache", &v_cache_obj)) {
+                if (json_object_get_type(v_cache_obj) == json_type_array) {
+                    size_t d1, d2, d3, d4;
+                    float* v_cache_data = NULL;
+                    if (rkllm_convert_float_array_4d(v_cache_obj, &v_cache_data, &d1, &d2, &d3, &d4) == 0) {
+                        cross_attn->encoder_v_cache = v_cache_data;
+                        printf("✅ Loaded encoder_v_cache: [%zu][%zu][%zu][%zu]\n", d1, d2, d3, d4);
+                    } else {
+                        printf("❌ Failed to convert encoder_v_cache from JSON\n");
+                        cross_attn->encoder_v_cache = NULL;
+                    }
+                }
+            }
+            
+            // Handle encoder_mask (1D float array)
+            json_object* mask_obj;
+            if (json_object_object_get_ex(json_value, "encoder_mask", &mask_obj)) {
+                if (json_object_get_type(mask_obj) == json_type_array) {
+                    size_t mask_length = 0;
+                    float* mask_data = NULL;
+                    if (rkllm_convert_float_array(mask_obj, &mask_data, &mask_length) == 0) {
+                        cross_attn->encoder_mask = mask_data;
+                        if (mask_length != (size_t)cross_attn->num_tokens) {
+                            printf("⚠️  Encoder mask size mismatch: expected %d, got %zu\n",
+                                   cross_attn->num_tokens, mask_length);
+                        }
+                    } else {
+                        printf("❌ Failed to convert encoder_mask from JSON\n");
+                        cross_attn->encoder_mask = NULL;
+                    }
+                }
+            }
+            
+            // Handle encoder_pos (1D int32_t array)
+            json_object* pos_obj;
+            if (json_object_object_get_ex(json_value, "encoder_pos", &pos_obj)) {
+                if (json_object_get_type(pos_obj) == json_type_array) {
+                    size_t pos_length = 0;
+                    int32_t* pos_data = NULL;
+                    if (rkllm_convert_int32_array(pos_obj, &pos_data, &pos_length) == 0) {
+                        cross_attn->encoder_pos = pos_data;
+                        if (pos_length != (size_t)cross_attn->num_tokens) {
+                            printf("⚠️  Encoder pos size mismatch: expected %d, got %zu\n",
+                                   cross_attn->num_tokens, pos_length);
+                        }
+                    } else {
+                        printf("❌ Failed to convert encoder_pos from JSON\n");
+                        cross_attn->encoder_pos = NULL;
+                    }
+                }
+            }
             
             return 0;
         }
@@ -920,71 +1026,6 @@ int rkllm_proxy_convert_param(json_object* json_value, rkllm_param_type_t param_
     }
 }
 
-// Convert RKLLM result to JSON
-int rkllm_proxy_convert_result(rkllm_return_type_t return_type, void* result_data, char** result_json) {
-    if (!result_json) {
-        return -1;
-    }
-    
-    json_object* result_obj = json_object_new_object();
-    
-    switch (return_type) {
-        case RKLLM_RETURN_INT: {
-            int status = *(int*)result_data;
-            json_object_object_add(result_obj, "status", json_object_new_int(status));
-            json_object_object_add(result_obj, "success", json_object_new_boolean(status == 0));
-            
-            if (status == 0) {
-                json_object_object_add(result_obj, "message", json_object_new_string("Operation completed successfully"));
-                
-                // If we have captured response text from the callback, include it
-                if (strlen(g_response_buffer) > 0) {
-                    json_object_object_add(result_obj, "response_text", json_object_new_string(g_response_buffer));
-                    json_object_object_add(result_obj, "has_response", json_object_new_boolean(true));
-                } else {
-                    json_object_object_add(result_obj, "has_response", json_object_new_boolean(false));
-                }
-            } else {
-                json_object_object_add(result_obj, "message", json_object_new_string("Operation failed"));
-            }
-            break;
-        }
-        
-        case RKLLM_RETURN_VOID:
-            json_object_object_add(result_obj, "success", json_object_new_boolean(true));
-            json_object_object_add(result_obj, "message", json_object_new_string("Operation completed"));
-            break;
-            
-        case RKLLM_RETURN_RKLLM_PARAM: {
-            // For createDefaultParam, return the parameter structure as JSON
-            RKLLMParam* param = (RKLLMParam*)result_data;
-            json_object* param_obj = json_object_new_object();
-            
-            json_object_object_add(param_obj, "max_context_len", json_object_new_int(param->max_context_len));
-            json_object_object_add(param_obj, "max_new_tokens", json_object_new_int(param->max_new_tokens));
-            json_object_object_add(param_obj, "top_k", json_object_new_int(param->top_k));
-            json_object_object_add(param_obj, "top_p", json_object_new_double(param->top_p));
-            json_object_object_add(param_obj, "temperature", json_object_new_double(param->temperature));
-            json_object_object_add(param_obj, "repeat_penalty", json_object_new_double(param->repeat_penalty));
-            
-            json_object_object_add(result_obj, "success", json_object_new_boolean(true));
-            json_object_object_add(result_obj, "default_params", param_obj);
-            break;
-        }
-        
-        case RKLLM_RETURN_JSON:
-            // For JSON return types (like constants), the result_data is already a JSON string
-            json_object_put(result_obj);  // Don't need wrapper object
-            *result_json = strdup((char*)result_data);
-            return 0;
-    }
-    
-    const char* json_str = json_object_to_json_string(result_obj);
-    *result_json = strdup(json_str);
-    json_object_put(result_obj);
-    
-    return 0;
-}
 
 // Initialize the dynamic RKLLM proxy system
 int rkllm_proxy_init(void) {
@@ -1002,6 +1043,47 @@ int rkllm_proxy_init(void) {
         return -1;
     }
     
+    // Initialize enhanced memory management system
+    if (memory_manager_init(true, true) != 0) {
+        printf("⚠️  Enhanced memory management initialization failed, using basic allocation\n");
+    }
+    
+    // Initialize memory pool for arrays (default 64MB)
+    size_t pool_size = 64 * 1024 * 1024; // 64MB default
+    // TODO: Add array_pool_size to settings if needed
+    
+    // Create enhanced pool for RKLLM arrays
+    enhanced_memory_pool_t* enhanced_pool = memory_manager_create_pool(
+        "rkllm_arrays", pool_size, MEMORY_TYPE_RKLLM_ARRAYS, 32);
+    
+    if (enhanced_pool) {
+        printf("✅ Created enhanced memory pool for RKLLM arrays: %zu bytes\n", pool_size);
+    }
+    
+    // Fallback to basic pool for compatibility
+    g_rkllm_array_pool = rkllm_pool_create(pool_size);
+    if (!g_rkllm_array_pool) {
+        printf("⚠️  RKLLM array pool creation failed, will use malloc instead\n");
+    }
+    
+    // Initialize streaming context manager
+    if (rkllm_stream_manager_init() != 0) {
+        printf("⚠️  RKLLM streaming context manager initialization failed\n");
+        // Continue without streaming support
+    }
+    
+    // Initialize performance monitoring system
+    if (performance_monitor_init(true, 1000) != 0) {
+        printf("⚠️  Performance monitoring initialization failed, continuing without monitoring\n");
+    }
+    
+    // Create RKLLM-specific performance counters
+    performance_counter_create("rkllm_function_calls", PERF_CATEGORY_RKLLM, PERF_METRIC_COUNTER);
+    performance_counter_create("rkllm_active_sessions", PERF_CATEGORY_RKLLM, PERF_METRIC_GAUGE);
+    performance_counter_create("rkllm_inference_errors", PERF_CATEGORY_RKLLM, PERF_METRIC_COUNTER);
+    performance_timer_create("rkllm_inference_time", PERF_CATEGORY_RKLLM);
+    performance_timer_create("rkllm_function_call_time", PERF_CATEGORY_RKLLM);
+    
     g_proxy_initialized = true;
     printf("✅ RKLLM proxy initialized with %d functions (direct calls), buffer size: %zu\n", g_function_count, g_response_buffer_size);
     return 0;
@@ -1017,6 +1099,24 @@ void rkllm_proxy_shutdown(void) {
     free(g_response_buffer);
     g_response_buffer = NULL;
     g_response_buffer_size = 0;
+    
+    // Destroy memory pool for arrays
+    if (g_rkllm_array_pool) {
+        rkllm_pool_destroy(g_rkllm_array_pool);
+        g_rkllm_array_pool = NULL;
+    }
+    
+    // Shutdown streaming context manager
+    rkllm_stream_manager_shutdown();
+    
+    // Shutdown enhanced memory management system
+    int leaked_allocations = memory_manager_shutdown();
+    if (leaked_allocations > 0) {
+        printf("⚠️  RKLLM proxy detected %d memory leaks during shutdown\n", leaked_allocations);
+    }
+    
+    // Shutdown performance monitoring system
+    performance_monitor_shutdown();
     
     g_proxy_initialized = false;
     g_global_handle = NULL;
@@ -1271,8 +1371,8 @@ int rkllm_proxy_call(const char* function_name, const char* params_json, char** 
         printf("🧹 RKLLM handle destroyed and cleared globally\n");
     }
     
-    // Convert result to JSON
-    int convert_result = rkllm_proxy_convert_result(func_desc->return_type, result_data, result_json);
+    // Convert result to JSON with error mapping
+    int convert_result = rkllm_proxy_convert_result(func_desc->return_type, result_data, result_json, function_name, status);
     
     if (params) json_object_put(params);
     return convert_result;
@@ -1315,6 +1415,125 @@ int rkllm_proxy_get_functions(char** functions_json) {
 // Get global RKLLM handle
 LLMHandle rkllm_proxy_get_handle(void) {
     return g_global_handle;
+}
+
+// Convert RKLLM result to JSON with error mapping
+int rkllm_proxy_convert_result(rkllm_return_type_t return_type, void* result_data, 
+                               char** result_json, const char* function_name, int status) {
+    if (!result_json) {
+        return -1;
+    }
+    
+    // Handle error cases first
+    if (status != 0) {
+        // Use error mapping to create proper JSON-RPC error response
+        uint32_t request_id = 0; // We don't have request_id at this level
+        *result_json = rkllm_create_error_response(request_id, status, function_name);
+        rkllm_log_error(status, function_name, "Operation failed");
+        return -1; // Indicate this is an error response
+    }
+    
+    // Handle success cases based on return type
+    switch (return_type) {
+        case RKLLM_RETURN_INT: {
+            // Integer result (typically status code)
+            int* int_result = (int*)result_data;
+            json_object* response = json_object_new_object();
+            json_object_object_add(response, "status", json_object_new_string("success"));
+            json_object_object_add(response, "return_code", json_object_new_int(*int_result));
+            
+            const char* json_str = json_object_to_json_string(response);
+            *result_json = strdup(json_str);
+            json_object_put(response);
+            break;
+        }
+        
+        case RKLLM_RETURN_VOID: {
+            // Void result (success only)
+            json_object* response = json_object_new_object();
+            json_object_object_add(response, "status", json_object_new_string("success"));
+            json_object_object_add(response, "message", json_object_new_string("Operation completed"));
+            
+            const char* json_str = json_object_to_json_string(response);
+            *result_json = strdup(json_str);
+            json_object_put(response);
+            break;
+        }
+        
+        case RKLLM_RETURN_RKLLM_PARAM: {
+            // RKLLMParam struct result (for createDefaultParam)
+            RKLLMParam* param = (RKLLMParam*)result_data;
+            json_object* response = json_object_new_object();
+            json_object_object_add(response, "status", json_object_new_string("success"));
+            
+            // Convert RKLLMParam to JSON
+            json_object* param_obj = json_object_new_object();
+            json_object_object_add(param_obj, "model_path", json_object_new_string(param->model_path ? param->model_path : ""));
+            json_object_object_add(param_obj, "max_context_len", json_object_new_int(param->max_context_len));
+            json_object_object_add(param_obj, "max_new_tokens", json_object_new_int(param->max_new_tokens));
+            json_object_object_add(param_obj, "top_k", json_object_new_int(param->top_k));
+            json_object_object_add(param_obj, "n_keep", json_object_new_int(param->n_keep));
+            json_object_object_add(param_obj, "top_p", json_object_new_double(param->top_p));
+            json_object_object_add(param_obj, "temperature", json_object_new_double(param->temperature));
+            json_object_object_add(param_obj, "repeat_penalty", json_object_new_double(param->repeat_penalty));
+            json_object_object_add(param_obj, "frequency_penalty", json_object_new_double(param->frequency_penalty));
+            json_object_object_add(param_obj, "presence_penalty", json_object_new_double(param->presence_penalty));
+            json_object_object_add(param_obj, "mirostat", json_object_new_int(param->mirostat));
+            json_object_object_add(param_obj, "mirostat_tau", json_object_new_double(param->mirostat_tau));
+            json_object_object_add(param_obj, "mirostat_eta", json_object_new_double(param->mirostat_eta));
+            json_object_object_add(param_obj, "skip_special_token", json_object_new_boolean(param->skip_special_token));
+            json_object_object_add(param_obj, "is_async", json_object_new_boolean(param->is_async));
+            
+            // Add extend parameters
+            json_object* extend_obj = json_object_new_object();
+            json_object_object_add(extend_obj, "base_domain_id", json_object_new_int(param->extend_param.base_domain_id));
+            json_object_object_add(extend_obj, "embed_flash", json_object_new_int(param->extend_param.embed_flash));
+            json_object_object_add(extend_obj, "enabled_cpus_num", json_object_new_int(param->extend_param.enabled_cpus_num));
+            json_object_object_add(extend_obj, "enabled_cpus_mask", json_object_new_int64(param->extend_param.enabled_cpus_mask));
+            json_object_object_add(extend_obj, "n_batch", json_object_new_int(param->extend_param.n_batch));
+            json_object_object_add(extend_obj, "use_cross_attn", json_object_new_int(param->extend_param.use_cross_attn));
+            json_object_object_add(param_obj, "extend_param", extend_obj);
+            
+            json_object_object_add(response, "param", param_obj);
+            
+            const char* json_str = json_object_to_json_string(response);
+            *result_json = strdup(json_str);
+            json_object_put(response);
+            break;
+        }
+        
+        case RKLLM_RETURN_JSON: {
+            // Already JSON (for meta functions like get_functions, get_constants)
+            if (function_name && strcmp(function_name, "rkllm_get_functions") == 0) {
+                return rkllm_proxy_get_functions(result_json);
+            } else if (function_name && strcmp(function_name, "rkllm_get_constants") == 0) {
+                return rkllm_proxy_get_constants(result_json);
+            } else {
+                // Generic JSON response
+                json_object* response = json_object_new_object();
+                json_object_object_add(response, "status", json_object_new_string("success"));
+                json_object_object_add(response, "data", json_object_new_string("JSON result"));
+                
+                const char* json_str = json_object_to_json_string(response);
+                *result_json = strdup(json_str);
+                json_object_put(response);
+            }
+            break;
+        }
+        
+        default:
+            // Unknown return type
+            json_object* response = json_object_new_object();
+            json_object_object_add(response, "status", json_object_new_string("error"));
+            json_object_object_add(response, "message", json_object_new_string("Unknown return type"));
+            
+            const char* json_str = json_object_to_json_string(response);
+            *result_json = strdup(json_str);
+            json_object_put(response);
+            return -1;
+    }
+    
+    return 0;
 }
 
 // Set global RKLLM handle

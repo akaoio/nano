@@ -166,6 +166,14 @@ set(SERVER_CORE_SRCS
     src/lib/core/rkllm_proxy.c
     src/lib/core/public_api.c
     src/lib/core/rkllm_auto_generated.c
+    src/lib/core/rkllm_array_utils.c
+    src/lib/core/rkllm_error_mapping.c
+    src/lib/core/rkllm_streaming_context.c
+    src/lib/core/streaming_integration.c
+    src/lib/core/memory_manager.c
+    src/lib/core/memory_management_operations.c
+    src/lib/core/performance_monitor.c
+    src/lib/core/performance_operations.c
     src/lib/core/process_manager.c
     src/lib/core/settings.c
     src/lib/core/settings_global.c
@@ -185,6 +193,7 @@ set(SERVER_SYSTEM_SRCS
 set(SERVER_TRANSPORT_SRCS
     src/lib/transport/base.c
     src/lib/transport/manager.c
+    src/lib/transport/streaming_buffer_manager.c
     src/lib/transport/stdio.c
     src/lib/transport/tcp.c
     src/lib/transport/udp.c

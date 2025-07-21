@@ -21,6 +21,13 @@ typedef enum {
     RKLLM_PARAM_RKLLM_LORA_PARAM_PTR, // RKLLMLoraParam*
     RKLLM_PARAM_RKLLM_PROMPT_CACHE_PARAM_PTR, // RKLLMPromptCacheParam*
     RKLLM_PARAM_RKLLM_EXTEND_PARAM_PTR, // RKLLMExtendParam*
+    RKLLM_PARAM_RKLLM_RESULT_PTR,              // RKLLMResult*
+    RKLLM_PARAM_RKLLM_EMBED_INPUT_PTR,         // RKLLMEmbedInput*  
+    RKLLM_PARAM_RKLLM_TOKEN_INPUT_PTR,         // RKLLMTokenInput*
+    RKLLM_PARAM_RKLLM_MULTIMODEL_INPUT_PTR,    // RKLLMMultiModelInput*
+    RKLLM_PARAM_RKLLM_RESULT_LAST_HIDDEN_LAYER_PTR,  // RKLLMResultLastHiddenLayer*
+    RKLLM_PARAM_RKLLM_RESULT_LOGITS_PTR,       // RKLLMResultLogits*
+    RKLLM_PARAM_RKLLM_PERF_STAT_PTR,           // RKLLMPerfStat*
     RKLLM_PARAM_CALLBACK,         // LLMResultCallback
     RKLLM_PARAM_STRING,           // const char*
     RKLLM_PARAM_INT,              // int
@@ -107,13 +114,16 @@ int rkllm_proxy_convert_param(json_object* json_value, rkllm_param_type_t param_
                               void* output, size_t output_size);
 
 /**
- * @brief Convert RKLLM result to JSON
+ * @brief Convert RKLLM result to JSON with error mapping
  * @param return_type Return type
  * @param result_data Result data
  * @param result_json Output: JSON result string (caller must free)
+ * @param function_name Function name for error context
+ * @param status RKLLM function return status
  * @return 0 on success, -1 on error
  */
-int rkllm_proxy_convert_result(rkllm_return_type_t return_type, void* result_data, char** result_json);
+int rkllm_proxy_convert_result(rkllm_return_type_t return_type, void* result_data, 
+                               char** result_json, const char* function_name, int status);
 
 /**
  * @brief Get global RKLLM handle (for functions that need it)

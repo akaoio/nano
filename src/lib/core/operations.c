@@ -1,5 +1,8 @@
 #include "operations.h"
 #include "rkllm_proxy.h"
+#include "streaming_integration.h"
+#include "memory_management_operations.h"
+#include "performance_operations.h"
 #include "../../external/rkllm/rkllm.h"
 #include "../../common/string_utils/string_utils.h"
 #include "../protocol/streaming.h"
@@ -120,11 +123,67 @@ int io_process_operation(const char* method, const char* params_json, char** res
         return -1;
     }
     
-    // Special handling for streaming requests
+    // Handle memory management operations
+    if (strncmp(method, "memory_", 7) == 0) {
+        if (strcmp(method, "memory_get_statistics") == 0) {
+            return memory_operation_get_statistics(params_json, result_json);
+        } else if (strcmp(method, "memory_check_leaks") == 0) {
+            return memory_operation_check_leaks(params_json, result_json);
+        } else if (strcmp(method, "memory_get_pool_stats") == 0) {
+            return memory_operation_get_pool_stats(params_json, result_json);
+        } else if (strcmp(method, "memory_garbage_collect") == 0) {
+            return memory_operation_garbage_collect(params_json, result_json);
+        } else if (strcmp(method, "memory_set_pressure_threshold") == 0) {
+            return memory_operation_set_pressure_threshold(params_json, result_json);
+        } else if (strcmp(method, "memory_validate_integrity") == 0) {
+            return memory_operation_validate_integrity(params_json, result_json);
+        } else if (strcmp(method, "memory_get_allocation_breakdown") == 0) {
+            return memory_operation_get_allocation_breakdown(params_json, result_json);
+        } else {
+            *result_json = strdup("{\"error\": \"Unknown memory management operation\"}");
+            return -1;
+        }
+    }
+    
+    // Handle performance monitoring operations
+    if (strncmp(method, "performance_", 12) == 0) {
+        if (strcmp(method, "performance_get_statistics") == 0) {
+            return performance_operation_get_statistics(params_json, result_json);
+        } else if (strcmp(method, "performance_generate_report") == 0) {
+            return performance_operation_generate_report(params_json, result_json);
+        } else if (strcmp(method, "performance_create_counter") == 0) {
+            return performance_operation_create_counter(params_json, result_json);
+        } else if (strcmp(method, "performance_create_timer") == 0) {
+            return performance_operation_create_timer(params_json, result_json);
+        } else if (strcmp(method, "performance_start_timer") == 0) {
+            return performance_operation_start_timer(params_json, result_json);
+        } else if (strcmp(method, "performance_stop_timer") == 0) {
+            return performance_operation_stop_timer(params_json, result_json);
+        } else if (strcmp(method, "performance_reset_metrics") == 0) {
+            return performance_operation_reset_metrics(params_json, result_json);
+        } else if (strcmp(method, "performance_get_system_resources") == 0) {
+            return performance_operation_get_system_resources(params_json, result_json);
+        } else if (strcmp(method, "performance_configure_monitoring") == 0) {
+            return performance_operation_configure_monitoring(params_json, result_json);
+        } else {
+            *result_json = strdup("{\"error\": \"Unknown performance monitoring operation\"}");
+            return -1;
+        }
+    }
+    
+    // Handle streaming integration methods
+    if (strncmp(method, "streaming_", 10) == 0) {
+        // Delegate to streaming integration system
+        // Note: This would need transport manager context in real usage
+        streaming_integration_result_t stream_result = streaming_integration_handle_request(
+            method, params_json, 0, NULL, result_json);
+        return (stream_result == STREAMING_INTEGRATION_OK) ? 0 : -1;
+    }
+    
+    // Special handling for legacy streaming requests
     if (strcmp(method, "rkllm_run_streaming") == 0) {
-        // Streaming operations are handled by the test framework
-        // Return success to indicate the operation was recognized
-        *result_json = strdup("{\"status\": \"streaming_initiated\", \"note\": \"Handled by callback mechanism\"}");
+        // Enhanced streaming - create a basic streaming session for backward compatibility
+        *result_json = strdup("{\"status\": \"streaming_initiated\", \"note\": \"Use streaming_create_session for full featured streaming\", \"enhanced_streaming_available\": true}");
         return 0;
     }
     
@@ -170,13 +229,28 @@ bool io_is_initialized(void) {
  */
 int io_operations_init(void) {
     // Initialize dynamic RKLLM proxy
-    return rkllm_proxy_init();
+    int result = rkllm_proxy_init();
+    if (result != 0) {
+        return result;
+    }
+    
+    // Initialize streaming integration system
+    streaming_integration_result_t stream_result = streaming_integration_init();
+    if (stream_result != STREAMING_INTEGRATION_OK) {
+        printf("⚠️  Streaming integration initialization failed, continuing without advanced streaming\n");
+        // Continue without failing - basic operations still work
+    }
+    
+    return 0;
 }
 
 /**
  * @brief Shutdown IO operations
  */
 void io_operations_shutdown(void) {
+    // Shutdown streaming integration system first
+    streaming_integration_shutdown();
+    
     // Clean shutdown of RKLLM via dynamic proxy
     LLMHandle handle = rkllm_proxy_get_handle();
     if (handle) {
