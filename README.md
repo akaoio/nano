@@ -297,19 +297,6 @@ Current implementation: **~30% complete**
 - Docker containerization
 - Comprehensive documentation
 
-## Testing
-
-```bash
-# Run quick function tests
-node test_quick_functions.js
-
-# Run exhaustive test suite
-node test_exhaustive.js
-
-# Test specific transport
-node test_http.js
-```
-
 ## Troubleshooting
 
 ### Server won't start
