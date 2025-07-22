@@ -6,11 +6,13 @@ A high-performance Model Context Protocol (MCP) server that bridges Rockchip's R
 
 The RKLLM MCP Server provides universal access to Rockchip's AI acceleration capabilities by wrapping the native RKLLM C library in a JSON-RPC 2.0 compliant server. It supports simultaneous connections through STDIO, TCP, UDP, HTTP, and WebSocket transports, enabling seamless integration with applications written in any language.
 
+**Important**: The RKLLM library manages NPU memory internally based on the loaded model size (e.g., 2GB for large models, 512MB for smaller models). The MCP server only manages application-level buffers for JSON requests, transport data, and temporary arrays.
+
 ### Key Features
 
 - 🚀 **Multi-Transport Support**: Connect via STDIO, TCP, UDP, HTTP, or WebSocket
 - 🔄 **Real-Time Streaming**: Live token streaming for interactive AI experiences
-- 🛠️ **Complete RKLLM API**: All 21+ RKLLM functions exposed through MCP
+- 🛠️ **Complete RKLLM API**: All 18 RKLLM functions exposed through MCP
 - ⚙️ **Flexible Configuration**: JSON-based settings with CLI overrides
 - 🔌 **Language Agnostic**: Works with JavaScript, Python, Go, Rust, or any language
 - 📊 **Production Ready**: Process management, logging, and error handling
@@ -84,6 +86,11 @@ The server automatically generates a `settings.json` file on first run with all 
       "enabled": true,
       "host": "0.0.0.0",
       "port": 8080
+    },
+    "udp": {
+      "enabled": true,
+      "host": "0.0.0.0",
+      "port": 8081
     },
     "http": {
       "enabled": true,
@@ -228,7 +235,7 @@ ws.on('message', (data) => {
 }
 ```
 
-## Streaming (Work in Progress)
+## Streaming Architecture
 
 The server supports real-time token streaming for `rkllm_run_async`:
 
@@ -273,29 +280,29 @@ Due to HTTP's stateless nature, clients must poll for chunks:
 
 ## Development Status
 
-Current implementation: **~30% complete**
+Current implementation: **~40% complete** (updated post-cleanup)
 
 ### ✅ Working
-- Multi-transport architecture
+- Multi-transport architecture (STDIO, TCP, UDP, HTTP, WebSocket)
 - JSON-RPC 2.0 protocol handling
-- Settings system with hot reload
-- Meta functions (get_functions, get_constants, createDefaultParam)
-- Basic HTTP and WebSocket transports
+- Complete RKLLM proxy with all 18 functions
+- RKLLM array utilities and error mapping
+- Streaming context management infrastructure
+- Settings system with CLI overrides
 - Process management and port conflict detection
 
 ### 🚧 In Progress
-- Asynchronous operation handling for long-running tasks
-- Real-time streaming implementation
-- Complete transport connection management
-- Error handling and recovery
+- Real-time streaming callback integration
+- Transport connection handling improvements
+- Error handling and recovery mechanisms
+- Threading cleanup issues resolution
 
 ### ❌ TODO
 - Production logging system
-- Performance monitoring
 - Security (authentication/authorization)
 - Client libraries for popular languages
 - Docker containerization
-- Comprehensive documentation
+- Load testing and performance benchmarks
 
 ## Troubleshooting
 
@@ -330,4 +337,4 @@ Contributions are welcome! Please read our contributing guidelines and submit pu
 
 ---
 
-For detailed technical documentation, see the [Product Requirements Document](tmp/PRD.md) and [Technical Design](tmp/IDEA.md).
+For detailed technical documentation, see the [Product Requirements Document](docs/PRD.md) and [Technical Design](docs/IDEA.md).
