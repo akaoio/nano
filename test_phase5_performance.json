@@ -1,0 +1,1 @@
+{"jsonrpc":"2.0","id":"test_perf","method":"performance_stress_test","params":{"concurrent_streams":20,"tokens_per_stream":100,"target_latency_ms":10}}

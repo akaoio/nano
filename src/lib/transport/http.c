@@ -11,6 +11,7 @@
 #include <sys/select.h>
 #include <errno.h>
 #include <string.h>
+#include <fcntl.h>
 
 static http_transport_config_t g_config = {0};
 static int g_socket_fd = -1;
@@ -56,6 +57,15 @@ int http_transport_connect(void) {
     int reuse = 1;
     if (setsockopt(g_socket_fd, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse)) < 0) {
         printf("HTTP setsockopt failed: %s\n", strerror(errno));
+        close(g_socket_fd);
+        g_socket_fd = -1;
+        return -1;
+    }
+    
+    // Set non-blocking mode for server socket
+    int flags = fcntl(g_socket_fd, F_GETFL, 0);
+    if (flags < 0 || fcntl(g_socket_fd, F_SETFL, flags | O_NONBLOCK) < 0) {
+        printf("HTTP failed to set non-blocking mode: %s\n", strerror(errno));
         close(g_socket_fd);
         g_socket_fd = -1;
         return -1;
@@ -174,12 +184,15 @@ int http_transport_recv_raw(char* buffer, size_t buffer_size, int timeout_ms) {
         return -1; // Timeout or error
     }
     
-    // Accept incoming connection
+    // Accept incoming connection (non-blocking)
     struct sockaddr_in client_addr;
     socklen_t client_addr_len = sizeof(client_addr);
     int client_fd = accept(g_socket_fd, (struct sockaddr*)&client_addr, &client_addr_len);
     if (client_fd < 0) {
-        return -1;
+        if (errno == EAGAIN || errno == EWOULDBLOCK) {
+            return -1; // No connection available (non-blocking)
+        }
+        return -1; // Other error
     }
     
     // Read HTTP request from client

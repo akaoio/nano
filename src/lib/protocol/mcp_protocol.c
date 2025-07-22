@@ -1,4 +1,5 @@
 #include "mcp_protocol.h"
+#include "http_buffer_manager.h"
 #include "../core/settings_global.h"
 #include "../core/async_response.h"
 #include "../core/npu_queue.h"
@@ -314,21 +315,46 @@ int mcp_format_stream_chunk(const char* method, uint32_t seq, const char* delta,
     return 0;
 }
 
-int mcp_handle_stream_poll_request(uint32_t from_seq, char* response, size_t response_size) {
-    if (!response || response_size == 0) return -1;
+int mcp_handle_stream_poll_request(const char* request_id, char* response, size_t response_size) {
+    if (!request_id || !response || response_size == 0) return -1;
     
-    // This is a placeholder - actual implementation would interface with stream manager
-    // For now, return a "not implemented" error
-    json_object* error = json_object_new_object();
-    json_object_object_add(error, "code", json_object_new_int(MCP_ERROR_METHOD_NOT_FOUND));
-    json_object_object_add(error, "message", json_object_new_string("Stream polling not implemented at protocol level"));
+    // Get global HTTP buffer manager (declared in adapter.c)
+    extern struct http_buffer_manager_t* get_global_http_buffer_manager(void);
+    struct http_buffer_manager_t* manager = get_global_http_buffer_manager();
     
-    const char* error_str = json_object_to_json_string(error);
-    strncpy(response, error_str, response_size - 1);
-    response[response_size - 1] = '\0';
+    if (!manager) {
+        snprintf(response, response_size,
+                 "{\"jsonrpc\":\"2.0\",\"id\":\"%s\",\"error\":{\"code\":-32603,\"message\":\"HTTP buffer manager not initialized\"}}",
+                 request_id);
+        return -1;
+    }
     
-    json_object_put(error);
-    return -1;
+    // Get buffered chunks for this request_id
+    char chunks_buffer[HTTP_MAX_CHUNK_SIZE];
+    int result = http_buffer_manager_get_chunks(manager, request_id, chunks_buffer, sizeof(chunks_buffer), false);
+    
+    if (result != 0) {
+        // No buffer found or error - check if it's a valid request ID format
+        snprintf(response, response_size,
+                 "{\"jsonrpc\":\"2.0\",\"id\":\"%s\",\"error\":{\"code\":-32602,\"message\":\"No streaming session found or buffer error\"}}",
+                 request_id);
+        return -1;
+    }
+    
+    // Format response with chunks
+    if (strlen(chunks_buffer) == 0) {
+        // No chunks available yet
+        snprintf(response, response_size,
+                 "{\"jsonrpc\":\"2.0\",\"id\":\"%s\",\"result\":{\"chunk\":null,\"status\":\"waiting\"}}", 
+                 request_id);
+    } else {
+        // Return accumulated chunks
+        snprintf(response, response_size,
+                 "{\"jsonrpc\":\"2.0\",\"id\":\"%s\",\"result\":{\"chunk\":{\"chunks\":[%s]},\"status\":\"data_available\"}}",
+                 request_id, chunks_buffer);
+    }
+    
+    return 0;
 }
 
 int mcp_handle_npu_status_request(const char* request_id, char* response, size_t response_size) {

@@ -1,0 +1,1 @@
+{"jsonrpc":"2.0","id":"test1","method":"test_rkllm_error_mapping","params":{"simulate_error":"RKLLM_INVALID_PARAM","expected_json_rpc_code":-32602}}

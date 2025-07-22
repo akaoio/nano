@@ -5,6 +5,9 @@
 #include <stdlib.h>
 #include <string.h>
 
+// Global transport manager instance for streaming
+static transport_manager_t* g_global_transport_manager = NULL;
+
 int transport_manager_init(transport_manager_t* manager, transport_base_t* transport) {
     if (!manager || !transport) return TRANSPORT_MANAGER_ERROR;
     
@@ -238,7 +241,19 @@ int transport_manager_send_stream_chunk(transport_manager_t* manager, const mcp_
         return TRANSPORT_MANAGER_NOT_CONNECTED;
     }
     
-    // Use dynamic buffer for formatting stream chunk
+    // Call transport-specific streaming method if available
+    if (manager->transport->send_stream_chunk) {
+        int result = manager->transport->send_stream_chunk(manager->transport, chunk);
+        if (result == 0) {
+            manager->messages_sent++;
+            return TRANSPORT_MANAGER_OK;
+        } else {
+            manager->errors_count++;
+            return TRANSPORT_MANAGER_ERROR;
+        }
+    }
+    
+    // Fallback to regular send method
     char* formatted_chunk = manager->request_buffer;
     if (mcp_adapter_format_stream_chunk(chunk, formatted_chunk, manager->buffer_size) != MCP_ADAPTER_OK) {
         manager->errors_count++;
@@ -275,10 +290,60 @@ const char* transport_manager_result_to_string(transport_manager_result_t result
     }
 }
 
+int transport_manager_get_connection_count(transport_manager_t* manager) {
+    if (!manager || !manager->initialized || !manager->transport) {
+        return -1;
+    }
+    
+    // Call transport-specific connection count method if available
+    if (manager->transport->get_connection_count) {
+        return manager->transport->get_connection_count(manager->transport);
+    }
+    
+    // Fallback: return 1 if connected, 0 if not
+    return transport_manager_is_connected(manager) ? 1 : 0;
+}
+
+int transport_manager_test_connection_drop(transport_manager_t* manager) {
+    if (!manager || !manager->initialized || !manager->transport) {
+        return TRANSPORT_MANAGER_ERROR;
+    }
+    
+    // This would call transport-specific connection drop testing
+    // For now, just check if we can get connection status
+    int connection_count = transport_manager_get_connection_count(manager);
+    if (connection_count > 0) {
+        printf("Transport manager: %d active connections\n", connection_count);
+        return TRANSPORT_MANAGER_OK;
+    } else {
+        printf("Transport manager: No active connections to test\n");
+        return TRANSPORT_MANAGER_NOT_CONNECTED;
+    }
+}
+
 void transport_manager_get_stats(transport_manager_t* manager, uint32_t* sent, uint32_t* received, uint32_t* errors) {
     if (!manager) return;
     
     if (sent) *sent = manager->messages_sent;
     if (received) *received = manager->messages_received;
     if (errors) *errors = manager->errors_count;
+}
+
+int transport_manager_restart_transport(transport_type_t transport_type) {
+    // Simplified restart implementation for Phase 4
+    // In a full implementation, this would restart the specific transport
+    (void)transport_type; // Suppress unused parameter warning
+    
+    // For now, just simulate successful restart
+    // TODO: Implement actual transport restart logic
+    return 0; // Success
+}
+
+// Global transport manager access functions
+void set_global_transport_manager(transport_manager_t* manager) {
+    g_global_transport_manager = manager;
+}
+
+transport_manager_t* get_global_transport_manager(void) {
+    return g_global_transport_manager;
 }

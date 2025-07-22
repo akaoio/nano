@@ -83,7 +83,7 @@ int mcp_format_notification(const char* method, const char* params, char* buffer
 // Streaming support
 int mcp_format_stream_chunk(const char* method, uint32_t seq, const char* delta, bool end, const char* error_msg, char* buffer, size_t buffer_size);
 int mcp_parse_stream_request(const char* params, bool* is_stream, char* other_params, size_t params_size);
-int mcp_handle_stream_poll_request(uint32_t from_seq, char* response, size_t response_size);
+int mcp_handle_stream_poll_request(const char* request_id, char* response, size_t response_size);
 
 // NPU status polling support
 int mcp_handle_npu_status_request(const char* request_id, char* response, size_t response_size);

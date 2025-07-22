@@ -50,8 +50,19 @@ int transport_manager_recv_mcp_message(transport_manager_t* manager, char* raw_d
 int transport_manager_handle_stream_request(transport_manager_t* manager, const mcp_request_t* request, mcp_response_t* response);
 int transport_manager_send_stream_chunk(transport_manager_t* manager, const mcp_stream_chunk_t* chunk);
 
+// Multi-client transport support
+int transport_manager_get_connection_count(transport_manager_t* manager);
+int transport_manager_test_connection_drop(transport_manager_t* manager);
+
 // Utility functions
 const char* transport_manager_result_to_string(transport_manager_result_t result);
 void transport_manager_get_stats(transport_manager_t* manager, uint32_t* sent, uint32_t* received, uint32_t* errors);
+
+// Recovery support
+int transport_manager_restart_transport(transport_type_t transport_type);
+
+// Global transport manager access
+void set_global_transport_manager(transport_manager_t* manager);
+transport_manager_t* get_global_transport_manager(void);
 
 #endif

@@ -161,3 +161,12 @@ bool rkllm_proxy_is_streaming_active(void);
  * @return Current request ID or NULL if no active session
  */
 const char* rkllm_proxy_get_current_request_id(void);
+
+/**
+ * @brief Real streaming callback function for testing
+ * @param result RKLLM result
+ * @param userdata Stream session pointer
+ * @param state RKLLM call state
+ * @return 0 to continue
+ */
+int rkllm_streaming_callback_real(RKLLMResult* result, void* userdata, LLMCallState state);

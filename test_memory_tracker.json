@@ -1,0 +1,1 @@
+{"jsonrpc":"2.0","id":"test2","method":"test_memory_tracker","params":{"operations":["allocate","track","free"],"allocation_size":1024}}

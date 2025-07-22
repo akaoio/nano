@@ -43,6 +43,10 @@ typedef struct transport_base {
     int (*recv)(struct transport_base* base, char* buffer, size_t buffer_size, int timeout_ms);
     int (*is_connected)(struct transport_base* base);
     
+    // Streaming support (optional) - forward declared type
+    int (*send_stream_chunk)(struct transport_base* base, const void* chunk);
+    int (*get_connection_count)(struct transport_base* base);
+    
     void* impl_data;
     
     void (*on_error)(struct transport_base* base, transport_error_t error, const char* msg);

@@ -37,12 +37,16 @@ typedef struct {
     char* error_message;
 } mcp_stream_chunk_t;
 
+// Forward declaration
+struct http_buffer_manager_t;
+
 // MCP Protocol Adapter API
 typedef struct {
     bool initialized;
     char protocol_version[16];
     bool utf8_validation_enabled;
     bool message_batching_enabled;
+    struct http_buffer_manager_t* http_buffers;  // HTTP buffer manager for polling
     
     // Statistics
     uint32_t requests_processed;
@@ -87,5 +91,8 @@ int mcp_adapter_validate_json_rpc(const char* data);
 
 // Global adapter instance
 extern mcp_adapter_t g_mcp_adapter;
+
+// HTTP buffer manager access
+struct http_buffer_manager_t* get_global_http_buffer_manager(void);
 
 #endif

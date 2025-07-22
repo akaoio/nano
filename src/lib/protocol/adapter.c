@@ -1,6 +1,8 @@
 #include "adapter.h"
+#include "http_buffer_manager.h"
 #include "mcp_protocol.h"
 #include "../core/settings_global.h"
+#include "../core/stream_manager.h"
 #include "common/types.h"
 #include <json-c/json.h>
 #include <stdio.h>
@@ -17,26 +19,60 @@ int mcp_adapter_init(mcp_adapter_t* adapter) {
     strncpy(adapter->protocol_version, "2025-03-26", sizeof(adapter->protocol_version) - 1);
     adapter->utf8_validation_enabled = true;
     adapter->message_batching_enabled = true;
-    adapter->initialized = true;
     
-    // TODO: Initialize proper streaming manager
-    // stream_manager_init();
+    // Initialize stream manager
+    stream_manager_t* stream_manager = get_global_stream_manager();
+    if (stream_manager_init(stream_manager) != 0) {
+        return MCP_ADAPTER_ERROR_STREAM_ERROR;
+    }
+    
+    // Initialize HTTP buffer manager
+    adapter->http_buffers = malloc(sizeof(http_buffer_manager_t));
+    if (!adapter->http_buffers) {
+        stream_manager_shutdown(stream_manager);
+        return MCP_ADAPTER_ERROR_STREAM_ERROR;
+    }
+    
+    if (http_buffer_manager_init(adapter->http_buffers) != 0) {
+        free(adapter->http_buffers);
+        adapter->http_buffers = NULL;
+        stream_manager_shutdown(stream_manager);
+        return MCP_ADAPTER_ERROR_STREAM_ERROR;
+    }
     
     // Initialize IO operations (RKLLM proxy)
     if (io_operations_init() != 0) {
+        http_buffer_manager_shutdown(adapter->http_buffers);
+        free(adapter->http_buffers);
+        adapter->http_buffers = NULL;
+        stream_manager_shutdown(stream_manager);
         return MCP_ADAPTER_ERROR_INVALID_JSON;
     }
     
+    adapter->initialized = true;
+    printf("MCP Adapter: Initialized with HTTP buffer manager\n");
     return MCP_ADAPTER_OK;
 }
 
 void mcp_adapter_shutdown(mcp_adapter_t* adapter) {
     if (!adapter || !adapter->initialized) return;
     
-    // TODO: Shutdown proper streaming manager
-    // stream_manager_shutdown();
+    printf("MCP Adapter: Shutting down...\n");
+    
+    // Shutdown HTTP buffer manager
+    if (adapter->http_buffers) {
+        http_buffer_manager_shutdown(adapter->http_buffers);
+        free(adapter->http_buffers);
+        adapter->http_buffers = NULL;
+    }
+    
+    // Shutdown stream manager
+    stream_manager_t* stream_manager = get_global_stream_manager();
+    stream_manager_shutdown(stream_manager);
+    
     io_operations_shutdown();
     adapter->initialized = false;
+    printf("MCP Adapter: Shutdown complete\n");
 }
 
 // UTF-8 Validation - Single implementation for all transports
@@ -399,4 +435,9 @@ int mcp_adapter_format_batch_response(const mcp_response_t* responses, size_t co
     
     json_object_put(batch_array);
     return MCP_ADAPTER_OK;
+}
+
+// Get global HTTP buffer manager
+struct http_buffer_manager_t* get_global_http_buffer_manager(void) {
+    return g_mcp_adapter.http_buffers;
 }

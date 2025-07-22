@@ -63,8 +63,12 @@ transport_error_t transport_base_send_json_rpc(transport_base_t* base, const cha
     int ret = base->send(base, json_rpc, len);
     
     if (ret < 0) {
-        if (ret == -2) return TRANSPORT_TIMEOUT;
-        if (ret == -3) return TRANSPORT_DISCONNECTED;
+        if (ret == -2) {
+            return TRANSPORT_TIMEOUT;
+        }
+        if (ret == -3) {
+            return TRANSPORT_DISCONNECTED;
+        }
         return TRANSPORT_ERROR;
     }
     
@@ -87,8 +91,12 @@ transport_error_t transport_base_recv_json_rpc(transport_base_t* base, char* buf
     int ret = base->recv(base, buffer, buffer_size, timeout_ms);
     
     if (ret < 0) {
-        if (ret == -2) return TRANSPORT_TIMEOUT;
-        if (ret == -3) return TRANSPORT_DISCONNECTED;
+        if (ret == -2) {
+            return TRANSPORT_TIMEOUT;
+        }
+        if (ret == -3) {
+            return TRANSPORT_DISCONNECTED;
+        }
         return TRANSPORT_ERROR;
     }
     

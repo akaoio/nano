@@ -57,6 +57,7 @@ dkms.conf
 node_modules/
 models/
 build/
+reports/
 
 # External dependencies (downloaded automatically by CMake)
 src/external/

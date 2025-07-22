@@ -24,11 +24,12 @@ typedef struct transport_base transport_base_t;
  * @brief Transport types
  */
 typedef enum {
-    TRANSPORT_STDIO = 0,
-    TRANSPORT_HTTP,
-    TRANSPORT_WEBSOCKET,
-    TRANSPORT_TCP,
-    TRANSPORT_UDP
+    TRANSPORT_TYPE_STDIO = 0,
+    TRANSPORT_TYPE_HTTP,
+    TRANSPORT_TYPE_WEBSOCKET,
+    TRANSPORT_TYPE_TCP,
+    TRANSPORT_TYPE_UDP,
+    TRANSPORT_TYPE_COUNT  // Must be last for array sizing
 } transport_type_t;
 
 /**

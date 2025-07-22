@@ -1,0 +1,67 @@
+🔍 Checking for existing server instances...
+✅ No port conflicts detected
+✅ RKLLM library available (statically linked)
+⚙️  Initializing MCP Server...
+[STDIO] STDIO transport initialized
+[2025-07-22 17:29:59] [INFO] STDIO transport initialized
+[2025-07-22 17:29:59] [INFO] TCP transport initialized
+[2025-07-22 17:29:59] [INFO] UDP transport initialized
+[2025-07-22 17:29:59] [INFO] HTTP transport initialized
+[2025-07-22 17:29:59] [INFO] WebSocket transport initialized
+🚀 MCP Server - Model Context Protocol Server
+====================================================
+📋 Loading configuration from settings.json...
+✅ Configuration loaded successfully
+🔧 Active Configuration:
+   Server: MCP-Server v1.0.0
+   Logging: enabled
+⚠️  Found stale PID file (PID 28830 no longer running)
+📝 Created PID file: /tmp/mcp_server.pid (PID: 29245)
+[STREAM_MANAGER] Initialized with 64 max sessions
+HTTP Buffer Manager: Initialized with 100 max buffers
+🏊 RKLLM Array Pool: Created with 64 MB capacity
+✅ RKLLM array pool created: 64 MB
+✅ RKLLM streaming context manager initialized (max sessions: 16)
+✅ RKLLM proxy initialized with 21 functions (direct calls), buffer size: 8192
+ℹ️  Streaming integration system initialized with stream manager
+HTTP Buffer Manager: Cleanup thread started
+MCP Adapter: Initialized with HTTP buffer manager
+✅ NPU Queue: Initialized with capacity 100
+✅ Async Response Registry: Initialized with capacity 100
+🚀 NPU Worker: Thread started
+[2025-07-22 17:29:59] [INFO] NPU queue and response registry initialized
+[2025-07-22 17:29:59] [INFO] MCP Server initialized successfully
+📡 Enabled transports:
+   • STDIO (stdin/stdout)
+   • TCP (0.0.0.0:8080)
+   • UDP (0.0.0.0:8081)
+   • HTTP (0.0.0.0:8082/)
+   • WebSocket (0.0.0.0:8083/)
+🤖 RKLLM Configuration:
+   • Default model: models/qwen3/model.rkllm
+   • Max context: 512 tokens
+   • Max new tokens: 256
+   • Temperature: 0.80
+   • CPU mask: 0xF0 (4 CPUs)
+📊 Buffer Configuration:
+   • Request buffer: 8192 bytes
+   • Response buffer: 16384 bytes
+   • Max JSON size: 65536 bytes
+🚀 Starting MCP Server...
+[2025-07-22 17:29:59] [INFO] Starting MCP Server...
+[2025-07-22 17:29:59] [INFO] Transport 0 connected successfully
+TCP: Server listening on 0.0.0.0:8080
+✅ TCP multi-client server started on port 8080
+TCP bind failed on port 8080: Address already in use
+[2025-07-22 17:29:59] [WARNING] Failed to connect transport 1
+UDP: Server listening on 0.0.0.0:8081
+✅ UDP multi-client server started on port 8081
+UDP bind failed on port 8081: Address already in use
+[2025-07-22 17:29:59] [WARNING] Failed to connect transport 2
+✅ HTTP server listening on port 8082
+[2025-07-22 17:29:59] [INFO] Transport 3 connected successfully
+WebSocket: Starting server on port 8083
+Waiting for incoming connections...
+✅ WebSocket multi-client server started on port 8083
+✅ WebSocket legacy server listening on port 8083
+Bind failed: Address already in use

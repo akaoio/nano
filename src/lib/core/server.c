@@ -7,9 +7,15 @@
 #include "../transport/stdio.h"
 #include "../transport/tcp.h"
 #include "../transport/udp.h"
+#include "../transport/recovery.h"
 #include "npu_operation_classifier.h"
 #include "npu_queue.h"
 #include "async_response.h"
+#include "error_mapping.h"
+#include "memory_tracker.h"
+#include "../system/logger.h"
+#include "../system/metrics.h"
+#include "../system/performance.h"
 #define _DEFAULT_SOURCE
 #include <stdio.h>
 #include <stdlib.h>
@@ -36,6 +42,48 @@ int mcp_server_internal_init(mcp_server_internal_t* server, const mcp_server_con
             sizeof(server->server_name) - 1);
     strncpy(server->version, "1.0.0", sizeof(server->version) - 1);
     server->default_port = config->tcp_port ? config->tcp_port : 8080;
+    
+    // Initialize error mapping system
+    if (error_mapping_init() != 0) {
+        mcp_server_internal_log(server, "ERROR", "Failed to initialize error mapping");
+        return -1;
+    }
+    
+    // Initialize memory tracker
+    if (memory_tracker_init(false) != 0) {  // Don't log every allocation by default
+        mcp_server_internal_log(server, "WARNING", "Failed to initialize memory tracker");
+        // Continue without memory tracking
+    }
+    
+    // Initialize transport recovery system
+    if (transport_recovery_init(true) != 0) {  // Enable auto-recovery
+        mcp_server_internal_log(server, "WARNING", "Failed to initialize transport recovery");
+        // Continue without recovery system
+    }
+    
+    // Phase 5: Initialize production logging system
+    if (logger_init("mcp_server.log", LOG_LEVEL_INFO, false) != 0) {
+        mcp_server_internal_log(server, "WARNING", "Failed to initialize production logger");
+        // Continue without production logging
+    } else {
+        mcp_server_internal_log(server, "INFO", "Production logging system initialized");
+    }
+    
+    // Phase 5: Initialize metrics system
+    if (metrics_init() != 0) {
+        mcp_server_internal_log(server, "WARNING", "Failed to initialize metrics system");
+        // Continue without metrics
+    } else {
+        mcp_server_internal_log(server, "INFO", "Performance metrics system initialized");
+    }
+    
+    // Phase 5: Initialize performance optimization system
+    if (performance_init() != 0) {
+        mcp_server_internal_log(server, "WARNING", "Failed to initialize performance system");
+        // Continue without performance optimizations
+    } else {
+        mcp_server_internal_log(server, "INFO", "Performance optimization system initialized (buffer pools active)");
+    }
     
     // Initialize MCP adapter
     server->mcp_adapter = &g_mcp_adapter;
@@ -118,10 +166,12 @@ int mcp_server_internal_init(mcp_server_internal_t* server, const mcp_server_con
             .path = strdup(SETTING_TRANSPORT(websocket, path) ? SETTING_TRANSPORT(websocket, path) : (config->ws_path ? config->ws_path : "/"))
         };
         
-        transport_base_t* ws_transport = ws_transport_get_interface();
-        if (mcp_server_internal_add_transport(server, ws_transport, &ws_config) == 0) {
-            mcp_server_internal_log(server, "INFO", "WebSocket transport initialized");
-        }
+        // WebSocket transport disabled - requires ws library
+        // transport_base_t* ws_transport = ws_transport_get_interface();
+        // if (mcp_server_internal_add_transport(server, ws_transport, &ws_config) == 0) {
+        //     mcp_server_internal_log(server, "INFO", "WebSocket transport initialized");
+        // }
+        mcp_server_internal_log(server, "WARN", "WebSocket transport disabled - requires ws library");
     }
     
     // Initialize NPU Queue System
@@ -314,6 +364,16 @@ void mcp_server_internal_shutdown(mcp_server_internal_t* server) {
     server->transport_count = 0;
     server->initialized = false;
     
+    // Shutdown Phase 4 components
+    transport_recovery_shutdown();
+    memory_tracker_shutdown();
+    error_mapping_shutdown();
+    
+    // Shutdown Phase 5 components
+    performance_shutdown();
+    metrics_shutdown();
+    logger_shutdown();  // Logger last so we can log shutdown messages
+    
     mcp_server_internal_log(server, "INFO", "MCP Server shutdown complete");
 }
 
@@ -431,6 +491,12 @@ int mcp_server_internal_add_transport(mcp_server_internal_t* server, transport_b
     if (transport_manager_init(manager, transport) == TRANSPORT_MANAGER_OK) {
         if (transport->init && transport->init(transport, config) == 0) {
             server->transport_count++;
+            
+            // Set the first transport manager as global for streaming
+            if (server->transport_count == 1) {
+                set_global_transport_manager(manager);
+            }
+            
             return 0;
         }
     }

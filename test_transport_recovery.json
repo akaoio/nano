@@ -1,0 +1,1 @@
+{"jsonrpc":"2.0","id":"test3","method":"test_transport_recovery","params":{"transport_type":"http","simulate_failure":"CONNECTION_LOST","test_recovery":true}}
