@@ -76,12 +76,12 @@ void io_operations_shutdown(void);
 bool io_is_streaming_request(const char* params_json);
 
 /**
- * @brief Add chunk to active stream
- * @param stream_id Stream ID
+ * @brief Add chunk to active stream using request ID
+ * @param request_id JSON-RPC request ID  
  * @param delta Chunk content
  * @param end End of stream flag
  * @param error_msg Error message (if any)
  * @return 0 on success, -1 on error
  */
-int io_add_stream_chunk(const char* stream_id, const char* delta, bool end, const char* error_msg);
+int io_add_stream_chunk(const char* request_id, const char* delta, bool end, const char* error_msg);
 

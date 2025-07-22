@@ -1,5 +1,222 @@
 {
+  "name": "rkllm-mcp-server",
+  "version": "1.0.0",
+  "description": "Multi-transport MCP (Model Context Protocol) server wrapping Rockchip's RKLLM library with real-time streaming support",
+  "type": "module",
+  "main": "build/mcp_server",
+  "bin": {
+    "rkllm-mcp-server": "build/mcp_server"
+  },
+  "scripts": {
+    "build": "mkdir -p build && cd build && cmake .. && make",
+    "build:clean": "rm -rf build && npm run build",
+    "build:release": "mkdir -p build && cd build && cmake -DCMAKE_BUILD_TYPE=Release .. && make",
+    "test": "node tests/client.js",
+    "test:all": "npm run test:unit && npm run test:integration && npm run test:streaming",
+    "test:unit": "node tests/unit/test_runner.js",
+    "test:integration": "node tests/integration/test_runner.js", 
+    "test:streaming": "node tests/streaming/test_runner.js",
+    "test:performance": "node tests/performance/benchmark.js",
+    "test:coverage": "c8 npm run test",
+    "start": "./build/mcp_server",
+    "start:stdio": "./build/mcp_server --transport stdio",
+    "start:tcp": "./build/mcp_server --transport tcp --port 8080",
+    "start:http": "./build/mcp_server --transport http --port 8081",
+    "start:websocket": "./build/mcp_server --transport websocket --port 8082",
+    "start:all": "./build/mcp_server --enable-all-transports",
+    "dev": "./scripts/dev.sh",
+    "dev:watch": "nodemon --watch src --ext c,h --exec 'npm run build && npm start'",
+    "lint": "clang-format -i src/**/*.c src/**/*.h",
+    "lint:check": "clang-format --dry-run --Werror src/**/*.c src/**/*.h",
+    "docs": "doxygen docs/Doxyfile",
+    "docs:api": "node tools/generate_api_docs.js",
+    "clean": "rm -rf build docs/html coverage .nyc_output",
+    "install:deps": "sudo apt-get update && sudo apt-get install -y build-essential cmake pkg-config libjson-c-dev clang",
+    "setup": "npm run install:deps && npm run build",
+    "validate": "npm run lint:check && npm run test:all",
+    "release": "npm run clean && npm run build:release && npm run test:all",
+    "benchmark": "node tests/performance/benchmark.js",
+    "stress-test": "node tests/stress/stress_test.js",
+    "health-check": "node tools/health_check.js"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "rkllm",
+    "rockchip",
+    "ai",
+    "llm",
+    "streaming",
+    "jsonrpc",
+    "websocket",
+    "tcp",
+    "udp",
+    "http",
+    "stdio",
+    "real-time",
+    "npu",
+    "inference"
+  ],
+  "author": {
+    "name": "RKLLM MCP Team",
+    "email": "dev@rkllm-mcp.org"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/rkllm/mcp-server.git"
+  },
+  "bugs": {
+    "url": "https://github.com/rkllm/mcp-server/issues"
+  },
+  "homepage": "https://github.com/rkllm/mcp-server#readme",
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=8.0.0"
+  },
+  "os": [
+    "linux"
+  ],
+  "cpu": [
+    "arm64",
+    "x64"
+  ],
   "dependencies": {
-    "ws": "^8.18.3"
+    "ws": "^8.18.3",
+    "commander": "^11.1.0",
+    "chalk": "^5.3.0",
+    "ora": "^7.0.1",
+    "inquirer": "^9.2.12"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2",
+    "c8": "^8.0.1",
+    "jsdoc": "^4.0.2",
+    "eslint": "^8.56.0",
+    "prettier": "^3.1.1",
+    "husky": "^8.0.3",
+    "lint-staged": "^15.2.0",
+    "cross-env": "^7.0.3",
+    "concurrently": "^8.2.2",
+    "wait-on": "^7.2.0",
+    "artillery": "^2.0.3",
+    "autocannon": "^7.15.0"
+  },
+  "optionalDependencies": {
+    "dtrace-provider": "^0.8.8"
+  },
+  "peerDependencies": {
+    "cmake": ">=3.20.0",
+    "clang": ">=12.0.0"
+  },
+  "files": [
+    "build/mcp_server",
+    "build/libmcp_server_lib.a",
+    "src/",
+    "tests/client.js",
+    "settings.json",
+    "README.md",
+    "LICENSE",
+    "docs/",
+    "tools/",
+    "scripts/"
+  ],
+  "config": {
+    "default_port": 8080,
+    "max_connections": 1000,
+    "log_level": "info"
+  },
+  "funding": {
+    "type": "opencollective",
+    "url": "https://opencollective.com/rkllm-mcp-server"
+  },
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org/",
+    "access": "public"
+  },
+  "lint-staged": {
+    "*.{c,h}": [
+      "clang-format -i",
+      "git add"
+    ],
+    "*.{js,json}": [
+      "prettier --write",
+      "git add"
+    ]
+  },
+  "husky": {
+    "hooks": {
+      "pre-commit": "lint-staged",
+      "pre-push": "npm run test:all"
+    }
+  },
+  "c8": {
+    "reporter": [
+      "text",
+      "html",
+      "lcov"
+    ],
+    "exclude": [
+      "tests/**",
+      "build/**",
+      "docs/**"
+    ]
+  },
+  "nodemonConfig": {
+    "watch": [
+      "src/"
+    ],
+    "ext": "c,h",
+    "ignore": [
+      "build/",
+      "tests/",
+      "docs/"
+    ],
+    "exec": "npm run build && npm start"
+  },
+  "rkllm": {
+    "version": "1.6.0",
+    "supported_models": [
+      "gemma",
+      "qwen",
+      "qwenvl",
+      "llama",
+      "baichuan",
+      "chatglm"
+    ],
+    "transports": {
+      "stdio": {
+        "default": true,
+        "buffering": "line"
+      },
+      "tcp": {
+        "default_port": 8080,
+        "max_connections": 100
+      },
+      "udp": {
+        "default_port": 8081,
+        "max_packet_size": 65507
+      },
+      "http": {
+        "default_port": 8082,
+        "max_body_size": "10mb",
+        "timeout": 30000
+      },
+      "websocket": {
+        "default_port": 8083,
+        "max_frame_size": "1mb",
+        "ping_interval": 30000
+      }
+    },
+    "streaming": {
+      "chunk_size": 256,
+      "buffer_size": 16384,
+      "timeout_ms": 30000
+    },
+    "performance": {
+      "max_memory_mb": 100,
+      "gc_threshold": 0.8,
+      "metrics_interval": 5000
+    }
   }
 }

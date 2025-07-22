@@ -2,7 +2,7 @@
 #define NANO_MCP_ADAPTER_H
 
 #include "mcp/transport.h"
-#include "streaming.h"
+// Removed unused streaming.h include
 #include "../core/operations.h"
 #include <stdint.h>
 #include <stdbool.h>
@@ -15,7 +15,7 @@ typedef struct {
     char method[64];
     char params[4096];
     bool is_streaming;
-    char* stream_id;
+    char* request_id_ref;  // Reference to the request ID for streaming
 } mcp_request_t;
 
 typedef struct {
@@ -25,11 +25,11 @@ typedef struct {
     char error_code[16];
     char error_message[256];
     bool is_streaming_response;
-    char* stream_id;
+    char* request_id_ref;  // Reference to the request ID for streaming
 } mcp_response_t;
 
 typedef struct {
-    char stream_id[32];
+    char request_id[32];    // CRITICAL: Add request_id for proper JSON-RPC response wrapping
     char method[64];
     uint32_t seq;
     char delta[2048];
@@ -65,7 +65,7 @@ int mcp_adapter_format_response(const mcp_response_t* response, char* output, si
 int mcp_adapter_format_error(const char* request_id, int error_code, const char* message, char* output, size_t output_size);
 
 // Streaming Support
-int mcp_adapter_create_stream(const char* method, const char* request_id, char* stream_id_out);
+int mcp_adapter_create_stream(const char* method, const char* request_id);
 int mcp_adapter_format_stream_chunk(const mcp_stream_chunk_t* chunk, char* output, size_t output_size);
 int mcp_adapter_handle_stream_request(const mcp_request_t* request, mcp_response_t* response);
 

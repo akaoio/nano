@@ -124,7 +124,7 @@ const char* mcp_error_message(mcp_error_code_t code);
 /**
  * @brief Format streaming chunk message
  * @param method Original method name
- * @param stream_id Stream identifier
+ * @param request_id JSON-RPC request ID (reused for streaming)
  * @param seq Sequence number
  * @param delta Content delta
  * @param end End of stream flag
@@ -133,7 +133,7 @@ const char* mcp_error_message(mcp_error_code_t code);
  * @param buffer_size Buffer size
  * @return 0 on success, negative on error
  */
-int mcp_format_stream_chunk(const char* method, const char* stream_id, 
+int mcp_format_stream_chunk(const char* method, const char* request_id, 
                            uint32_t seq, const char* delta, bool end, 
                            const char* error_msg, char* buffer, size_t buffer_size);
 
@@ -150,13 +150,13 @@ int mcp_parse_stream_request(const char* params, bool* is_stream,
 
 /**
  * @brief Handle stream polling request
- * @param stream_id Stream identifier
+ * @param request_id JSON-RPC request ID (reused for streaming)
  * @param from_seq Starting sequence number
  * @param response Output response buffer
  * @param response_size Response buffer size
  * @return 0 on success, negative on error
  */
-int mcp_handle_stream_poll_request(const char* stream_id, uint32_t from_seq, 
+int mcp_handle_stream_poll_request(const char* request_id, uint32_t from_seq, 
                                   char* response, size_t response_size);
 
 #ifdef __cplusplus

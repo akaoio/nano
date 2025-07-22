@@ -158,6 +158,7 @@ set(COMMON_SRCS
     src/common/error_utils/error_utils.c
     src/common/handle_utils/handle_utils.c
     src/common/transport_utils/transport_utils.c
+    src/common/time_utils/time_utils.c
 )
 
 set(SERVER_CORE_SRCS
@@ -169,7 +170,6 @@ set(SERVER_CORE_SRCS
     src/lib/core/rkllm_array_utils.c
     src/lib/core/rkllm_error_mapping.c
     src/lib/core/rkllm_streaming_context.c
-    src/lib/core/streaming_integration.c
     src/lib/core/process_manager.c
     src/lib/core/settings.c
     src/lib/core/settings_global.c
@@ -201,7 +201,7 @@ set(SERVER_PROTOCOL_SRCS
     src/lib/protocol/mcp_protocol.c
     src/lib/protocol/jsonrpc.c
     src/lib/protocol/adapter.c
-    src/lib/protocol/streaming.c
+    # src/lib/protocol/streaming.c - removed duplicate
 )
 
 # JavaScript test client (no C tests)

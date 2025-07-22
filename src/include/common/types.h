@@ -69,8 +69,8 @@ void io_operations_shutdown(void);
 typedef struct stream_session stream_session_t;
 
 // Streaming functions
-int stream_add_chunk(const char* stream_id, const char* delta, bool end, const char* error_msg);
-stream_session_t* stream_create_session(const char* method, uint32_t request_id);
+int stream_add_chunk(const char* request_id, const char* delta, bool end, const char* error_msg);
+stream_session_t* stream_create_session(const char* method, const char* request_id);
 
 // IO context structure
 typedef struct io_context {
@@ -83,7 +83,7 @@ typedef struct io_context {
 } io_context_t;
 
 // Stream management types
-#define STREAM_ID_LENGTH 16
+#define REQUEST_ID_LENGTH 32
 #define MAX_ACTIVE_STREAMS 64
 #define STREAM_BUFFER_SIZE 8192
 #define STREAM_SESSION_TIMEOUT_SEC 300

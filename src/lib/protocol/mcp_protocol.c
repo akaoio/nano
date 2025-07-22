@@ -286,15 +286,14 @@ int mcp_format_notification(const char* method, const char* params, char* buffer
 }
 
 // Streaming Support Functions
-int mcp_format_stream_chunk(const char* method, const char* stream_id, uint32_t seq, const char* delta, bool end, const char* error_msg, char* buffer, size_t buffer_size) {
-    if (!method || !stream_id || !buffer || buffer_size == 0) return -1;
+int mcp_format_stream_chunk(const char* method, uint32_t seq, const char* delta, bool end, const char* error_msg, char* buffer, size_t buffer_size) {
+    if (!method || !buffer || buffer_size == 0) return -1;
     
     json_object* msg = json_object_new_object();
     json_object_object_add(msg, "jsonrpc", json_object_new_string(MCP_JSONRPC_VERSION));
     json_object_object_add(msg, "method", json_object_new_string(method));
     
     json_object* params = json_object_new_object();
-    json_object_object_add(params, "stream_id", json_object_new_string(stream_id));
     json_object_object_add(params, "seq", json_object_new_int(seq));
     json_object_object_add(params, "delta", json_object_new_string(delta ? delta : ""));
     json_object_object_add(params, "end", json_object_new_boolean(end));
@@ -315,50 +314,8 @@ int mcp_format_stream_chunk(const char* method, const char* stream_id, uint32_t 
     return 0;
 }
 
-int mcp_parse_stream_request(const char* params, bool* is_stream, char* other_params, size_t params_size) {
-    if (!params || !is_stream || !other_params || params_size == 0) return -1;
-    
-    *is_stream = false;
-    other_params[0] = '\0';
-    
-    json_object* params_obj = json_tokener_parse(params);
-    if (!params_obj) {
-        strncpy(other_params, params, params_size - 1);
-        other_params[params_size - 1] = '\0';
-        return 0;
-    }
-    
-    // Check for stream parameter
-    json_object* stream_obj;
-    if (json_object_object_get_ex(params_obj, "stream", &stream_obj)) {
-        *is_stream = json_object_get_boolean(stream_obj);
-        
-        // Remove stream parameter and create new params object
-        json_object* new_params = json_object_new_object();
-        
-        json_object_object_foreach(params_obj, key, val) {
-            if (strcmp(key, "stream") != 0) {
-                json_object_object_add(new_params, key, json_object_get(val));
-            }
-        }
-        
-        const char* new_params_str = json_object_to_json_string(new_params);
-        strncpy(other_params, new_params_str, params_size - 1);
-        other_params[params_size - 1] = '\0';
-        
-        json_object_put(new_params);
-    } else {
-        // No stream parameter, copy original params
-        strncpy(other_params, params, params_size - 1);
-        other_params[params_size - 1] = '\0';
-    }
-    
-    json_object_put(params_obj);
-    return 0;
-}
-
-int mcp_handle_stream_poll_request(const char* stream_id, uint32_t from_seq, char* response, size_t response_size) {
-    if (!stream_id || !response || response_size == 0) return -1;
+int mcp_handle_stream_poll_request(uint32_t from_seq, char* response, size_t response_size) {
+    if (!response || response_size == 0) return -1;
     
     // This is a placeholder - actual implementation would interface with stream manager
     // For now, return a "not implemented" error

@@ -2,6 +2,7 @@
 #include "rkllm_streaming_context.h"
 #include "rkllm_error_mapping.h"
 #include "../../common/string_utils/string_utils.h"
+#include "../../common/time_utils/time_utils.h"
 #include <json-c/json.h>
 #include <stdlib.h>
 #include <string.h>
@@ -14,11 +15,6 @@
 static rkllm_stream_manager_t g_stream_manager = {0};
 
 // Helper functions
-static uint64_t get_timestamp_ms(void) {
-    struct timespec ts;
-    clock_gettime(CLOCK_MONOTONIC, &ts);
-    return (uint64_t)(ts.tv_sec * 1000 + ts.tv_nsec / 1000000);
-}
 
 static void generate_session_id(char* session_id, size_t size) {
     snprintf(session_id, size, "rkllm_stream_%u_%lu", 

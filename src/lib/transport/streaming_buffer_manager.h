@@ -79,7 +79,7 @@ typedef struct {
     
     // Transport-specific streaming state
     uint32_t current_sequence;
-    char current_stream_id[64];
+    char current_request_id[64];
     
     // Performance monitoring
     uint64_t start_timestamp;
@@ -126,13 +126,13 @@ int enhanced_transport_manager_detach_stream(enhanced_transport_manager_t* manag
 /**
  * @brief Transport callback for streaming context
  * This is called by the RKLLM streaming context when tokens are available
- * @param session_id Session identifier
+ * @param request_id JSON-RPC request ID (reused for streaming)
  * @param data Token data
  * @param data_len Token data length
  * @param is_final Whether this is the final token
  * @param userdata Enhanced transport manager pointer
  */
-void enhanced_transport_streaming_callback(const char* session_id, const char* data, 
+void enhanced_transport_streaming_callback(const char* request_id, const char* data, 
                                           size_t data_len, bool is_final, void* userdata);
 
 /**

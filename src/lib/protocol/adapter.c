@@ -19,8 +19,8 @@ int mcp_adapter_init(mcp_adapter_t* adapter) {
     adapter->message_batching_enabled = true;
     adapter->initialized = true;
     
-    // Initialize stream manager
-    stream_manager_init();
+    // TODO: Initialize proper streaming manager
+    // stream_manager_init();
     
     // Initialize IO operations (RKLLM proxy)
     if (io_operations_init() != 0) {
@@ -33,7 +33,8 @@ int mcp_adapter_init(mcp_adapter_t* adapter) {
 void mcp_adapter_shutdown(mcp_adapter_t* adapter) {
     if (!adapter || !adapter->initialized) return;
     
-    stream_manager_shutdown();
+    // TODO: Shutdown proper streaming manager
+    // stream_manager_shutdown();
     io_operations_shutdown();
     adapter->initialized = false;
 }
@@ -268,40 +269,25 @@ int mcp_adapter_format_error(const char* request_id, int error_code, const char*
 }
 
 // Streaming Support - Single implementation
-int mcp_adapter_create_stream(const char* method, const char* request_id, char* stream_id_out) {
-    if (!method || !request_id || !stream_id_out) return MCP_ADAPTER_ERROR_INVALID_JSON;
+int mcp_adapter_create_stream(const char* method, const char* request_id) {
+    if (!method || !request_id) return MCP_ADAPTER_ERROR_INVALID_JSON;
     
-    uint32_t req_id = atoi(request_id);
-    stream_session_t* session = stream_create_session(method, req_id);
-    if (!session) return MCP_ADAPTER_ERROR_STREAM_ERROR;
-    
-    strncpy(stream_id_out, session->stream_id, STREAM_ID_LENGTH + 1);
+    // No need to create separate stream ID - just use request_id directly
     return MCP_ADAPTER_OK;
 }
 
 int mcp_adapter_handle_stream_request(const mcp_request_t* request, mcp_response_t* response) {
     if (!request || !response) return MCP_ADAPTER_ERROR_INVALID_JSON;
     
-    // Create stream session
-    char stream_id[STREAM_ID_LENGTH + 1];
-    int create_result = mcp_adapter_create_stream(request->method, request->request_id, stream_id);
-    if (create_result != MCP_ADAPTER_OK) {
-        response->is_success = false;
-        strncpy(response->error_code, "-32603", sizeof(response->error_code) - 1);
-        strncpy(response->error_message, "Failed to create stream", sizeof(response->error_message) - 1);
-        return create_result;
-    }
-    
-    // Format stream initialization response
+    // Format stream initialization response using request_id
     json_object* result = json_object_new_object();
-    json_object_object_add(result, "stream_id", json_object_new_string(stream_id));
     json_object_object_add(result, "status", json_object_new_string("streaming_started"));
     
     const char* result_str = json_object_to_json_string(result);
     strncpy(response->result, result_str, sizeof(response->result) - 1);
     response->is_success = true;
     response->is_streaming_response = true;
-    response->stream_id = strdup(stream_id);
+    response->request_id_ref = strdup(request->request_id);
     
     json_object_put(result);
     return MCP_ADAPTER_OK;
@@ -310,23 +296,36 @@ int mcp_adapter_handle_stream_request(const mcp_request_t* request, mcp_response
 int mcp_adapter_format_stream_chunk(const mcp_stream_chunk_t* chunk, char* output, size_t output_size) {
     if (!chunk || !output || output_size == 0) return MCP_ADAPTER_ERROR_INVALID_JSON;
     
+    // CRITICAL FIX: Stream chunks must be JSON-RPC responses with original request_id
+    // NOT notifications - they need the "id" field to match the original request
     json_object* root = json_object_new_object();
     json_object_object_add(root, "jsonrpc", json_object_new_string("2.0"));
-    json_object_object_add(root, "method", json_object_new_string(chunk->method));
     
-    json_object* params = json_object_new_object();
-    json_object_object_add(params, "stream_id", json_object_new_string(chunk->stream_id));
-    json_object_object_add(params, "seq", json_object_new_int(chunk->seq));
-    json_object_object_add(params, "delta", json_object_new_string(chunk->delta));
-    json_object_object_add(params, "end", json_object_new_boolean(chunk->end));
+    // Add original request_id - this is the key fix
+    if (chunk->request_id[0] != '\0') {
+        json_object_object_add(root, "id", json_object_new_int(atoi(chunk->request_id)));
+    }
+    
+    // Wrap chunk data in "result" object (proper JSON-RPC response format)
+    json_object* result = json_object_new_object();
+    json_object* chunk_data = json_object_new_object();
+    
+    json_object_object_add(chunk_data, "seq", json_object_new_int(chunk->seq));
+    json_object_object_add(chunk_data, "delta", json_object_new_string(chunk->delta));
+    
+    // Only add "end" field when true (as per spec)
+    if (chunk->end) {
+        json_object_object_add(chunk_data, "end", json_object_new_boolean(true));
+    }
     
     if (chunk->error_message) {
         json_object* error_obj = json_object_new_object();
         json_object_object_add(error_obj, "message", json_object_new_string(chunk->error_message));
-        json_object_object_add(params, "error", error_obj);
+        json_object_object_add(chunk_data, "error", error_obj);
     }
     
-    json_object_object_add(root, "params", params);
+    json_object_object_add(result, "chunk", chunk_data);
+    json_object_object_add(root, "result", result);
     
     const char* json_str = json_object_to_json_string(root);
     strncpy(output, json_str, output_size - 1);

@@ -48,7 +48,7 @@ static int rkllm_proxy_callback(RKLLMResult* result, void* userdata, LLMCallStat
             };
             
             // Add chunk to ALL active transports
-            stream_add_chunk(g_current_stream_session->stream_id, &chunk);
+            stream_add_chunk(g_current_stream_session->request_id, &chunk);
         }
     }
     return 0;
@@ -59,12 +59,12 @@ static int rkllm_proxy_callback(RKLLMResult* result, void* userdata, LLMCallStat
 **File mới**: `src/lib/core/stream_session_tracker.h`
 ```c
 typedef struct {
-    char stream_id[64];
     char request_id[64];
-    int active_transport_mask;  // Bitmask of active transports
-    int chunk_count;
-    time_t started_at;
-    bool is_streaming;
+    char method[64];
+    uint32_t seq;
+    char delta[2048];
+    bool end;
+    char* error_message;
 } stream_session_t;
 
 // Global tracking
@@ -72,7 +72,7 @@ extern stream_session_t* g_current_stream_session;
 
 // Functions
 int stream_session_start(const char* request_id, int transport_mask);
-void stream_session_end(const char* stream_id);
+void stream_session_end(const char* request_id);
 ```
 
 ### **Priority 1.2: Real-Time Transport Streaming**
@@ -259,6 +259,7 @@ http_stream_buffer_t* http_stream_buffer_find(const char* request_id);
 int http_stream_buffer_add_chunk(const char* request_id, const stream_chunk_t* chunk);
 void http_stream_buffer_clear(http_stream_buffer_t* buffer);
 void http_stream_buffer_cleanup_expired(void);  // Called every 30s
+void stream_session_end(const char* request_id);
 ```
 
 ## Phase 2: Transport Layer Completion (1.5 tuần)

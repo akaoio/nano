@@ -63,7 +63,7 @@ void mcp_server_internal_shutdown(mcp_server_internal_t* server);
 
 // Internal server operations
 int mcp_server_internal_process_request(mcp_server_internal_t* server, const char* raw_request, char* response, size_t response_size);
-int mcp_server_internal_handle_streaming(mcp_server_internal_t* server, const char* stream_id);
+int mcp_server_internal_handle_streaming(mcp_server_internal_t* server, const char* request_id);
 
 // Internal server management
 int mcp_server_internal_add_transport(mcp_server_internal_t* server, transport_base_t* transport, void* config);

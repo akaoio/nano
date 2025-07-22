@@ -2,6 +2,7 @@
 #include "streaming_buffer_manager.h"
 #include "../core/settings_global.h"
 #include "../../common/string_utils/string_utils.h"
+#include "../../common/time_utils/time_utils.h"
 #include <json-c/json.h>
 #include <stdlib.h>
 #include <string.h>
@@ -10,12 +11,11 @@
 #include <unistd.h>
 #include <errno.h>
 
+// Enable usleep definition
+#define _DEFAULT_SOURCE
+#include <sys/types.h>
+
 // Helper functions
-static uint64_t get_timestamp_ms(void) {
-    struct timespec ts;
-    clock_gettime(CLOCK_MONOTONIC, &ts);
-    return (uint64_t)(ts.tv_sec * 1000 + ts.tv_nsec / 1000000);
-}
 
 static int transport_streaming_buffer_init(transport_streaming_buffer_t* buffer,
                                          const transport_stream_config_t* config) {
@@ -195,7 +195,7 @@ int enhanced_transport_manager_attach_stream(enhanced_transport_manager_t* manag
     }
     
     manager->active_stream_context = stream_context;
-    strncpy(manager->current_stream_id, stream_context->session_id, sizeof(manager->current_stream_id) - 1);
+    strncpy(manager->current_request_id, stream_context->session_id, sizeof(manager->current_request_id) - 1);
     
     // Set the transport callback in the streaming context
     stream_context->transport_callback = enhanced_transport_streaming_callback;
@@ -215,10 +215,10 @@ int enhanced_transport_manager_detach_stream(enhanced_transport_manager_t* manag
     manager->active_stream_context->transport_userdata = NULL;
     
     printf("🔓 Detached streaming context %s from transport %s\n", 
-           manager->current_stream_id, manager->base_manager->transport->name);
+           manager->current_request_id, manager->base_manager->transport->name);
     
     manager->active_stream_context = NULL;
-    manager->current_stream_id[0] = '\0';
+    manager->current_request_id[0] = '\0';
     
     return 0;
 }
@@ -237,9 +237,14 @@ void enhanced_transport_streaming_callback(const char* session_id, const char* d
            session_id, data_len, is_final ? "true" : "false", 
            manager->base_manager->transport->name);
     
-    // Create MCP stream chunk
+    // Create MCP stream chunk with original request_id from streaming context
     mcp_stream_chunk_t chunk = {0};
-    strncpy(chunk.stream_id, session_id, sizeof(chunk.stream_id) - 1);
+    
+    // CRITICAL FIX: Get original request_id from active streaming context
+    if (manager->active_stream_context) {
+        snprintf(chunk.request_id, sizeof(chunk.request_id), "%u", manager->active_stream_context->request_id);
+    }
+    
     strncpy(chunk.method, "rkllm_stream", sizeof(chunk.method) - 1);
     chunk.seq = manager->current_sequence++;
     chunk.end = is_final;
@@ -266,6 +271,9 @@ void enhanced_transport_streaming_callback(const char* session_id, const char* d
 int enhanced_transport_send_chunk_async(enhanced_transport_manager_t* manager,
                                        const char* data, size_t data_len, bool is_final) {
     if (!manager || !manager->initialized) return -1;
+    
+    // Suppress unused parameter warnings
+    (void)data; (void)is_final;
     
     // Get chunk from queue for actual sending
     mcp_stream_chunk_t chunk;
@@ -385,8 +393,8 @@ int enhanced_transport_get_streaming_stats(enhanced_transport_manager_t* manager
     json_object* stats = json_object_new_object();
     json_object_object_add(stats, "transport_name", 
                           json_object_new_string(manager->base_manager->transport->name));
-    json_object_object_add(stats, "stream_id", 
-                          json_object_new_string(manager->current_stream_id));
+    json_object_object_add(stats, "current_request_id", 
+                          json_object_new_string(manager->current_request_id));
     json_object_object_add(stats, "total_chunks_sent", 
                           json_object_new_int64(manager->streaming_buffer.total_chunks_sent));
     json_object_object_add(stats, "total_bytes_sent", 
@@ -450,3 +458,97 @@ int enhanced_transport_handle_stream_event(enhanced_transport_manager_t* manager
     
     return 0;
 }
+
+// Generic streaming worker with transport-specific formatting
+static int format_chunk_for_transport(transport_stream_type_t type, const mcp_stream_chunk_t* chunk, 
+                                     char* output, size_t output_size) {
+    switch (type) {
+        case TRANSPORT_STREAM_TYPE_WEBSOCKET:
+            return snprintf(output, output_size,
+                "{\"jsonrpc\":\"2.0\",\"method\":\"%s\","
+                "\"params\":{\"seq\":%u,\"delta\":\"%s\",\"end\":%s}}",
+                chunk->method, chunk->seq, chunk->delta, chunk->end ? "true" : "false");
+                
+        case TRANSPORT_STREAM_TYPE_HTTP_SSE:
+            return snprintf(output, output_size,
+                "id: %u\nevent: stream_chunk\n"
+                "data: {\"seq\":%u,\"delta\":\"%s\",\"end\":%s}\n\n",
+                chunk->seq, chunk->seq, chunk->delta, chunk->end ? "true" : "false");
+                
+        case TRANSPORT_STREAM_TYPE_TCP_FRAMED: {
+            char json_part[3800];
+            int json_len = snprintf(json_part, sizeof(json_part),
+                "{\"seq\":%u,\"delta\":\"%s\",\"end\":%s}",
+                chunk->seq, chunk->delta, chunk->end ? "true" : "false");
+            
+            if (json_len + sizeof(uint32_t) >= output_size) return -1;
+            
+            // Frame format: 4-byte length + JSON data
+            uint32_t length = (uint32_t)json_len;
+            memcpy(output, &length, sizeof(uint32_t));
+            memcpy(output + sizeof(uint32_t), json_part, json_len);
+            return sizeof(uint32_t) + json_len;
+        }
+        
+        default:
+            return snprintf(output, output_size, "{\"error\":\"unsupported_transport\"}");
+    }
+}
+
+void* generic_streaming_worker(void* arg) {
+    enhanced_transport_manager_t* manager = (enhanced_transport_manager_t*)arg;
+    if (!manager) return NULL;
+    
+    const char* transport_name = manager->base_manager->transport->name;
+    printf("[STREAM_WORKER] Started worker for %s transport\n", transport_name);
+    
+    mcp_stream_chunk_t chunk;
+    char formatted_data[4096];
+    
+    while (manager->streaming_thread_active && manager->streaming_buffer.active) {
+        // Try to get chunk from queue
+        if (transport_chunk_queue_pop(&manager->streaming_buffer, &chunk) == 0) {
+            // Format chunk based on transport type
+            int data_len = format_chunk_for_transport(manager->streaming_buffer.config.type, 
+                                                    &chunk, formatted_data, sizeof(formatted_data));
+            
+            if (data_len > 0) {
+                // Send via transport
+                if (manager->base_manager->transport->send(manager->base_manager->transport, 
+                                                         formatted_data, data_len) != 0) {
+                    printf("[STREAM_WORKER] Failed to send via %s transport\n", transport_name);
+                }
+            } else {
+                printf("[STREAM_WORKER] Failed to format chunk for %s\n", transport_name);
+            }
+        }
+        
+        // Handle keep-alive for WebSocket
+        if (manager->streaming_buffer.config.keep_alive_enabled && 
+            manager->streaming_buffer.config.type == TRANSPORT_STREAM_TYPE_WEBSOCKET) {
+            uint64_t now = get_timestamp_ms();
+            if (now - manager->streaming_buffer.last_flush_timestamp > 
+                manager->streaming_buffer.config.keep_alive_interval_ms) {
+                
+                const char* ping = "{\"type\":\"ping\"}";
+                manager->base_manager->transport->send(manager->base_manager->transport, ping, strlen(ping));
+                manager->streaming_buffer.last_flush_timestamp = now;
+            }
+        }
+        
+        // Sleep for configured interval
+        struct timespec sleep_time = {
+            .tv_sec = manager->streaming_buffer.config.flush_interval_ms / 1000,
+            .tv_nsec = (manager->streaming_buffer.config.flush_interval_ms % 1000) * 1000000
+        };
+        nanosleep(&sleep_time, NULL);
+    }
+    
+    printf("[STREAM_WORKER] Worker stopped for %s transport\n", transport_name);
+    return NULL;
+}
+
+// Legacy function aliases for compatibility
+void* websocket_streaming_worker(void* arg) { return generic_streaming_worker(arg); }
+void* http_sse_streaming_worker(void* arg) { return generic_streaming_worker(arg); }
+void* tcp_streaming_worker(void* arg) { return generic_streaming_worker(arg); }

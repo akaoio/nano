@@ -136,3 +136,28 @@ LLMHandle rkllm_proxy_get_handle(void);
  * @param handle Handle to set
  */
 void rkllm_proxy_set_handle(LLMHandle handle);
+
+/**
+ * @brief Start streaming session for real-time token streaming
+ * @param request_id JSON-RPC request ID
+ * @param method RKLLM method name (e.g., "rkllm_run_async")
+ * @return 0 on success, -1 on error
+ */
+int rkllm_proxy_start_streaming_session(const char* request_id, const char* method);
+
+/**
+ * @brief Stop current streaming session
+ */
+void rkllm_proxy_stop_streaming_session(void);
+
+/**
+ * @brief Check if streaming is currently active
+ * @return true if streaming session is active
+ */
+bool rkllm_proxy_is_streaming_active(void);
+
+/**
+ * @brief Get current request ID for active streaming session
+ * @return Current request ID or NULL if no active session
+ */
+const char* rkllm_proxy_get_current_request_id(void);

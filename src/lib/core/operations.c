@@ -1,9 +1,9 @@
 #include "operations.h"
 #include "rkllm_proxy.h"
-#include "streaming_integration.h"
+// Removed unused streaming_integration.h include
 #include "../../external/rkllm/rkllm.h"
 #include "../../common/string_utils/string_utils.h"
-#include "../protocol/streaming.h"
+// Removed unused streaming.h include
 #include <json-c/json.h>
 #include <string.h>
 #include <stdlib.h>
@@ -133,13 +133,10 @@ int io_process_operation(const char* method, const char* params_json, char** res
         return -1;
     }
     
-    // Handle streaming integration methods
+    // Handle streaming methods - TODO: implement proper streaming integration
     if (strncmp(method, "streaming_", 10) == 0) {
-        // Delegate to streaming integration system
-        // Note: This would need transport manager context in real usage
-        streaming_integration_result_t stream_result = streaming_integration_handle_request(
-            method, params_json, 0, NULL, result_json);
-        return (stream_result == STREAMING_INTEGRATION_OK) ? 0 : -1;
+        *result_json = strdup("{\"error\": \"Streaming integration not yet implemented\"}");
+        return -1;
     }
     
     // Special handling for legacy streaming requests
@@ -196,12 +193,8 @@ int io_operations_init(void) {
         return result;
     }
     
-    // Initialize streaming integration system
-    streaming_integration_result_t stream_result = streaming_integration_init();
-    if (stream_result != STREAMING_INTEGRATION_OK) {
-        printf("⚠️  Streaming integration initialization failed, continuing without advanced streaming\n");
-        // Continue without failing - basic operations still work
-    }
+    // TODO: Initialize proper streaming integration system
+    printf("ℹ️  Streaming integration system not yet implemented\n");
     
     return 0;
 }
@@ -210,8 +203,7 @@ int io_operations_init(void) {
  * @brief Shutdown IO operations
  */
 void io_operations_shutdown(void) {
-    // Shutdown streaming integration system first
-    streaming_integration_shutdown();
+    // TODO: Shutdown proper streaming integration system
     
     // Clean shutdown of RKLLM via dynamic proxy
     LLMHandle handle = rkllm_proxy_get_handle();
@@ -246,7 +238,9 @@ bool io_is_streaming_request(const char* params_json) {
 
 
 
-int io_add_stream_chunk(const char* stream_id, const char* delta, bool end, const char* error_msg) {
-    return stream_add_chunk(stream_id, delta, end, error_msg);
+int io_add_stream_chunk(const char* request_id, const char* delta, bool end, const char* error_msg) {
+    // TODO: Implement proper streaming chunk integration
+    (void)request_id; (void)delta; (void)end; (void)error_msg; // Suppress unused warnings
+    return -1; // Not implemented
 }
 

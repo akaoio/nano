@@ -6,9 +6,11 @@
 #include "settings_global.h"
 #include "../../common/string_utils/string_utils.h"
 #include "../../external/rkllm/rkllm.h"
+// Removed unused streaming.h include
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdbool.h>
 #include <unistd.h>
 #include <errno.h>
 #include <math.h>
@@ -29,6 +31,10 @@ static size_t g_response_buffer_size = 0;
 static bool g_response_ready = false;
 static LLMCallState g_last_call_state = RKLLM_RUN_NORMAL;
 
+// Global streaming session tracking (Phase 3.1 from fix_rkllm_proxy.md)
+static char g_current_request_id[64] = {0};
+static bool g_streaming_active = false;
+
 // RKLLM Callback function to capture model responses
 static int rkllm_proxy_callback(RKLLMResult* result, void* userdata __attribute__((unused)), LLMCallState state) {
     printf("[CALLBACK] State: %d, Result ptr: %p\n", state, result);
@@ -48,7 +54,7 @@ static int rkllm_proxy_callback(RKLLMResult* result, void* userdata __attribute_
         printf("[CALLBACK] Text content: '%.100s'%s\n", result->text, 
                strlen(result->text) > 100 ? "..." : "");
         
-        // Append to response buffer
+        // Existing local buffer logic (keep for compatibility)
         size_t current_len = strlen(g_response_buffer);
         size_t text_len = strlen(result->text);
         printf("[CALLBACK] Buffer state: current_len=%zu, text_len=%zu, buffer_size=%zu\n", 
@@ -59,6 +65,15 @@ static int rkllm_proxy_callback(RKLLMResult* result, void* userdata __attribute_
             printf("[CALLBACK] Text appended to buffer successfully\n");
         } else {
             printf("[CALLBACK] WARNING: Buffer overflow prevented, text truncated\n");
+        }
+        
+        // TODO: Implement proper streaming integration with transport layer
+        if (g_streaming_active && g_current_request_id[0] != '\0') {
+            bool is_final = (state == RKLLM_RUN_FINISH || state == RKLLM_RUN_ERROR);
+            
+            printf("[CALLBACK] Streaming session active: request_id=%s, delta='%.50s', is_final=%s\n",
+                   g_current_request_id, result->text, is_final ? "true" : "false");
+            printf("[CALLBACK] TODO: Forward to actual transport streaming system\n");
         }
     } else {
         printf("[CALLBACK] No text content in result (text=%p, len=%zu)\n", 
@@ -78,10 +93,49 @@ static int rkllm_proxy_callback(RKLLMResult* result, void* userdata __attribute_
                g_response_buffer, strlen(g_response_buffer) > 200 ? "..." : "");
         printf("[CALLBACK] Setting response ready flag to true\n");
         g_response_ready = true;
+        
+        // Clean up streaming session on completion
+        if (g_streaming_active) {
+            printf("[CALLBACK] Cleaning up streaming session: %s\n", g_current_request_id);
+            g_streaming_active = false;
+            memset(g_current_request_id, 0, sizeof(g_current_request_id));
+        }
     }
     
     fflush(stdout);
     return 0; // Continue inference
+}
+
+// Phase 3.1: Streaming Session Management Functions
+int rkllm_proxy_start_streaming_session(const char* request_id, const char* method) {
+    if (!request_id) return -1;
+    
+    // Generate unique stream ID based on request ID
+    snprintf(g_current_request_id, sizeof(g_current_request_id), "stream_%s", request_id);
+    g_streaming_active = true;
+    
+    printf("[STREAMING] Started streaming session: request_id=%s\\n", 
+           g_current_request_id);
+    
+    // TODO: Create actual streaming session integration with transports
+    printf("[STREAMING] Placeholder: Would create streaming session for method=%s\\n", method);
+    return 0;
+}
+
+void rkllm_proxy_stop_streaming_session(void) {
+    if (g_streaming_active) {
+        printf("[STREAMING] Stopping streaming session: %s\\n", g_current_request_id);
+        g_streaming_active = false;
+        memset(g_current_request_id, 0, sizeof(g_current_request_id));
+    }
+}
+
+bool rkllm_proxy_is_streaming_active(void) {
+    return g_streaming_active;
+}
+
+const char* rkllm_proxy_get_current_request_id(void) {
+    return g_streaming_active ? g_current_request_id : NULL;
 }
 
 // RKLLM Function Registry - All available RKLLM functions
@@ -1214,6 +1268,23 @@ int rkllm_proxy_call(const char* function_name, const char* params_json, char** 
             
             printf("🔧 AFTER validation - n_batch: %d\n", param->extend_param.n_batch);
             fflush(stdout);
+        }
+    }
+    
+    // Phase 3.1: Initialize streaming session for rkllm_run_async
+    char temp_request_id[32] = {0};
+    if (strcmp(function_name, "rkllm_run_async") == 0) {
+        // Generate a simple request ID for this async operation
+        snprintf(temp_request_id, sizeof(temp_request_id), "%ld", (long)time(NULL));
+        
+        printf("[STREAMING] Pre-call: Starting streaming session for %s (req_id: %s)\n", 
+               function_name, temp_request_id);
+        
+        // Start streaming session before RKLLM call
+        if (rkllm_proxy_start_streaming_session(temp_request_id, function_name) != 0) {
+            printf("[STREAMING] WARNING: Failed to start streaming session, proceeding without streaming\n");
+        } else {
+            printf("[STREAMING] Streaming session initialized successfully\n");
         }
     }
     
