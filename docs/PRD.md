@@ -42,7 +42,7 @@ The RKLLM MCP Server is a sophisticated wrapper system that bridges Rockchip's R
 - **Stream Manager**: Session management, chunk buffering, cleanup
 - **HTTP Polling**: Specialized buffer system for non-realtime transports
 - **Chunk Sequencing**: Proper ordering and end-of-stream detection
-- **Memory Management**: Automatic cleanup and buffer size management
+- **Buffer Management**: Automatic cleanup of application buffers (JSON, transport)
 
 #### 4. Testing Infrastructure (50% Complete)
 - **Comprehensive Test Suite**: 25+ test files covering all functions
@@ -56,7 +56,7 @@ The RKLLM MCP Server is a sophisticated wrapper system that bridges Rockchip's R
 - **Function Mapping**: Auto-generated proxy with 20+ RKLLM functions
 - **Parameter Handling**: Type-safe parameter conversion (C ↔ JSON)
 - **Handle Management**: Global handle tracking and lifecycle
-- **Missing**: Error code mapping, memory leak prevention, callback handling
+- **Missing**: Error code mapping, application buffer management, callback handling
 
 #### 2. Streaming Implementation (45% Complete)
 - **Architecture**: Complete streaming design documented
@@ -80,7 +80,7 @@ The RKLLM MCP Server is a sophisticated wrapper system that bridges Rockchip's R
 #### 2. Production Features (15% Complete)
 - **Logging System**: Basic structure, needs implementation
 - **Performance Monitoring**: No metrics collection
-- **Resource Management**: Memory usage tracking missing
+- **Resource Management**: Application memory tracking missing (NPU memory managed by RKLLM)
 - **Security**: No authentication or authorization
 
 #### 3. Documentation & Tooling (20% Complete)
@@ -134,6 +134,16 @@ The RKLLM MCP Server is a sophisticated wrapper system that bridges Rockchip's R
                 │   (Rockchip C)    │
                 └───────────────────┘
 ```
+
+### Memory Architecture Clarification
+
+**Important**: RKLLM manages its own NPU memory internally based on the loaded model size. The MCP server only manages application-level memory for:
+- JSON request/response buffers
+- Transport layer buffers (TCP, UDP, HTTP, WebSocket)
+- Temporary arrays for parameter conversion
+- Streaming token buffers
+
+We do NOT manage, allocate, or control NPU memory - this is entirely handled by the RKLLM library. When `rkllm_init` is called, RKLLM allocates the necessary NPU memory based on the model size (e.g., 2GB for large models, 512MB for smaller models). Only one model can be loaded per NPU at a time.
 
 ### Real-Time Streaming Architecture
 
@@ -269,7 +279,7 @@ The RKLLM MCP Server is a sophisticated wrapper system that bridges Rockchip's R
 
 #### 2.1 Performance & Monitoring
 - Implement performance metrics collection
-- Add memory usage tracking and optimization
+- Add application memory tracking (RKLLM manages NPU memory internally)
 - Create performance benchmarking suite
 - Optimize buffer management for high throughput
 
@@ -307,7 +317,7 @@ The RKLLM MCP Server is a sophisticated wrapper system that bridges Rockchip's R
 ### Technical Metrics
 - **Streaming Latency**: <10ms per token chunk
 - **Throughput**: >1000 requests/second sustained
-- **Memory Usage**: <100MB base memory footprint
+- **Application Memory**: <100MB base footprint (excluding RKLLM model NPU memory)
 - **Error Rate**: <0.1% failed requests
 - **Connection Capacity**: 100+ concurrent connections
 
@@ -335,9 +345,10 @@ The RKLLM MCP Server is a sophisticated wrapper system that bridges Rockchip's R
 - **Mitigation**: Early prototyping, performance testing, buffer optimization
 
 #### 2. RKLLM Integration Stability (HIGH)
-- **Risk**: Memory leaks or crashes in C library integration
+- **Risk**: Application memory leaks or crashes in C integration layer
 - **Impact**: Server instability, data loss
-- **Mitigation**: Comprehensive testing, memory monitoring, graceful error handling
+- **Mitigation**: Comprehensive testing, application buffer monitoring, graceful error handling
+- **Note**: NPU memory is managed internally by RKLLM based on model size
 
 #### 3. Concurrent Connection Handling (MEDIUM)
 - **Risk**: Transport layers may not handle high concurrency
@@ -353,7 +364,7 @@ The RKLLM MCP Server is a sophisticated wrapper system that bridges Rockchip's R
 
 #### 2. Architecture Concerns
 - Global state management needs refactoring
-- Memory management patterns need standardization
+- Application buffer management needs standardization
 - Configuration system needs validation improvements
 
 ---
