@@ -170,10 +170,6 @@ set(SERVER_CORE_SRCS
     src/lib/core/rkllm_error_mapping.c
     src/lib/core/rkllm_streaming_context.c
     src/lib/core/streaming_integration.c
-    src/lib/core/memory_manager.c
-    src/lib/core/memory_management_operations.c
-    src/lib/core/performance_monitor.c
-    src/lib/core/performance_operations.c
     src/lib/core/process_manager.c
     src/lib/core/settings.c
     src/lib/core/settings_global.c

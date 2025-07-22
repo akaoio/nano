@@ -3,8 +3,6 @@
 #include "rkllm_array_utils.h"
 #include "rkllm_error_mapping.h"
 #include "rkllm_streaming_context.h"
-#include "memory_manager.h"
-#include "performance_monitor.h"
 #include "settings_global.h"
 #include "../../common/string_utils/string_utils.h"
 #include "../../external/rkllm/rkllm.h"
@@ -1043,25 +1041,19 @@ int rkllm_proxy_init(void) {
         return -1;
     }
     
-    // Initialize enhanced memory management system
-    if (memory_manager_init(true, true) != 0) {
-        printf("⚠️  Enhanced memory management initialization failed, using basic allocation\n");
-    }
+    // Memory management removed - RKLLM handles NPU memory internally
     
     // Initialize memory pool for arrays (default 64MB)
     size_t pool_size = 64 * 1024 * 1024; // 64MB default
     // TODO: Add array_pool_size to settings if needed
     
-    // Create enhanced pool for RKLLM arrays
-    enhanced_memory_pool_t* enhanced_pool = memory_manager_create_pool(
-        "rkllm_arrays", pool_size, MEMORY_TYPE_RKLLM_ARRAYS, 32);
+    // Pool management removed - RKLLM handles NPU memory internally
     
-    if (enhanced_pool) {
-        printf("✅ Created enhanced memory pool for RKLLM arrays: %zu bytes\n", pool_size);
-    }
-    
-    // Fallback to basic pool for compatibility
+    // Create simple array pool for temporary buffers
     g_rkllm_array_pool = rkllm_pool_create(pool_size);
+    if (g_rkllm_array_pool) {
+        printf("✅ RKLLM array pool created: %zu MB\n", pool_size / (1024 * 1024));
+    }
     if (!g_rkllm_array_pool) {
         printf("⚠️  RKLLM array pool creation failed, will use malloc instead\n");
     }
@@ -1072,17 +1064,9 @@ int rkllm_proxy_init(void) {
         // Continue without streaming support
     }
     
-    // Initialize performance monitoring system
-    if (performance_monitor_init(true, 1000) != 0) {
-        printf("⚠️  Performance monitoring initialization failed, continuing without monitoring\n");
-    }
+    // Performance monitoring removed - simplified architecture
     
-    // Create RKLLM-specific performance counters
-    performance_counter_create("rkllm_function_calls", PERF_CATEGORY_RKLLM, PERF_METRIC_COUNTER);
-    performance_counter_create("rkllm_active_sessions", PERF_CATEGORY_RKLLM, PERF_METRIC_GAUGE);
-    performance_counter_create("rkllm_inference_errors", PERF_CATEGORY_RKLLM, PERF_METRIC_COUNTER);
-    performance_timer_create("rkllm_inference_time", PERF_CATEGORY_RKLLM);
-    performance_timer_create("rkllm_function_call_time", PERF_CATEGORY_RKLLM);
+    // Performance monitoring removed - simplified architecture
     
     g_proxy_initialized = true;
     printf("✅ RKLLM proxy initialized with %d functions (direct calls), buffer size: %zu\n", g_function_count, g_response_buffer_size);
@@ -1109,14 +1093,9 @@ void rkllm_proxy_shutdown(void) {
     // Shutdown streaming context manager
     rkllm_stream_manager_shutdown();
     
-    // Shutdown enhanced memory management system
-    int leaked_allocations = memory_manager_shutdown();
-    if (leaked_allocations > 0) {
-        printf("⚠️  RKLLM proxy detected %d memory leaks during shutdown\n", leaked_allocations);
-    }
+    // Memory management removed - RKLLM handles NPU memory internally
     
-    // Shutdown performance monitoring system
-    performance_monitor_shutdown();
+    // Performance monitoring removed
     
     g_proxy_initialized = false;
     g_global_handle = NULL;

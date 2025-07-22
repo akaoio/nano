@@ -1,8 +1,6 @@
 #include "operations.h"
 #include "rkllm_proxy.h"
 #include "streaming_integration.h"
-#include "memory_management_operations.h"
-#include "performance_operations.h"
 #include "../../external/rkllm/rkllm.h"
 #include "../../common/string_utils/string_utils.h"
 #include "../protocol/streaming.h"
@@ -123,52 +121,16 @@ int io_process_operation(const char* method, const char* params_json, char** res
         return -1;
     }
     
-    // Handle memory management operations
+    // Handle memory management operations - REMOVED
     if (strncmp(method, "memory_", 7) == 0) {
-        if (strcmp(method, "memory_get_statistics") == 0) {
-            return memory_operation_get_statistics(params_json, result_json);
-        } else if (strcmp(method, "memory_check_leaks") == 0) {
-            return memory_operation_check_leaks(params_json, result_json);
-        } else if (strcmp(method, "memory_get_pool_stats") == 0) {
-            return memory_operation_get_pool_stats(params_json, result_json);
-        } else if (strcmp(method, "memory_garbage_collect") == 0) {
-            return memory_operation_garbage_collect(params_json, result_json);
-        } else if (strcmp(method, "memory_set_pressure_threshold") == 0) {
-            return memory_operation_set_pressure_threshold(params_json, result_json);
-        } else if (strcmp(method, "memory_validate_integrity") == 0) {
-            return memory_operation_validate_integrity(params_json, result_json);
-        } else if (strcmp(method, "memory_get_allocation_breakdown") == 0) {
-            return memory_operation_get_allocation_breakdown(params_json, result_json);
-        } else {
-            *result_json = strdup("{\"error\": \"Unknown memory management operation\"}");
-            return -1;
-        }
+        *result_json = strdup("{\"error\": \"Memory operations removed - RKLLM handles NPU memory internally\"}");
+        return -1;
     }
     
-    // Handle performance monitoring operations
+    // Handle performance monitoring operations - REMOVED
     if (strncmp(method, "performance_", 12) == 0) {
-        if (strcmp(method, "performance_get_statistics") == 0) {
-            return performance_operation_get_statistics(params_json, result_json);
-        } else if (strcmp(method, "performance_generate_report") == 0) {
-            return performance_operation_generate_report(params_json, result_json);
-        } else if (strcmp(method, "performance_create_counter") == 0) {
-            return performance_operation_create_counter(params_json, result_json);
-        } else if (strcmp(method, "performance_create_timer") == 0) {
-            return performance_operation_create_timer(params_json, result_json);
-        } else if (strcmp(method, "performance_start_timer") == 0) {
-            return performance_operation_start_timer(params_json, result_json);
-        } else if (strcmp(method, "performance_stop_timer") == 0) {
-            return performance_operation_stop_timer(params_json, result_json);
-        } else if (strcmp(method, "performance_reset_metrics") == 0) {
-            return performance_operation_reset_metrics(params_json, result_json);
-        } else if (strcmp(method, "performance_get_system_resources") == 0) {
-            return performance_operation_get_system_resources(params_json, result_json);
-        } else if (strcmp(method, "performance_configure_monitoring") == 0) {
-            return performance_operation_configure_monitoring(params_json, result_json);
-        } else {
-            *result_json = strdup("{\"error\": \"Unknown performance monitoring operation\"}");
-            return -1;
-        }
+        *result_json = strdup("{\"error\": \"Performance operations removed - simplified architecture\"}");
+        return -1;
     }
     
     // Handle streaming integration methods
