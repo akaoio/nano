@@ -60,25 +60,18 @@ sudo apt-get install -y build-essential cmake pkg-config libjson-c-dev
 ### Build
 
 ```bash
-# Clone and build
-git clone <repository-url>
-cd nano
+# Shortest command - automated build script (works on Linux and Termux)
+./scripts/build.sh
 
-# Create build directory
-mkdir build && cd build
-
-# Configure and build
-cmake ..
-make
-
-# The executable will be: build/rkllm_uds_server
+# Manual build (alternative)
+cmake -S . -B build && make -C build
 ```
 
 ### Run
 
 ```bash
-# From build directory
-LD_LIBRARY_PATH=../src/external/rkllm ./rkllm_uds_server
+# From root directory
+LD_LIBRARY_PATH=build ./build/server
 
 # Server starts and listens on /tmp/rkllm.sock
 # Ready for client connections

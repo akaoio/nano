@@ -17,90 +17,105 @@ command_exists() {
     command -v "$1" >/dev/null 2>&1
 }
 
-# Function to get Ubuntu version
-get_ubuntu_version() {
-    if [ -f /etc/os-release ]; then
-        . /etc/os-release
-        echo "$VERSION_ID"
-    else
-        echo "unknown"
-    fi
-}
-
 # Detect system
 echo -e "Detecting system..."
-if [[ "$OSTYPE" == "linux-gnu"* ]]; then
+if [[ "$OSTYPE" == "linux-android"* ]] || [[ -n "$TERMUX_VERSION" ]]; then
+    echo "Detected Termux (Android Linux environment)"
+    SYSTEM="termux"
+elif [[ "$OSTYPE" == "linux-gnu"* ]]; then
     DISTRO=$(lsb_release -si 2>/dev/null || echo "Unknown")
     echo "Linux distribution: $DISTRO"
+    SYSTEM="linux"
 else
-    echo -e "This script is designed for Linux systems only"
+    echo -e "Unsupported system: $OSTYPE"
     exit 1
 fi
 
-# Install essential packages
+# Install essential packages based on system
 echo -e "Installing essential development packages..."
-if command_exists apt-get; then
-    sudo apt-get update
-    sudo apt-get install -y \
-        build-essential \
-        cmake \
-        pkg-config \
-        git \
-        wget \
-        curl \
-        libjson-c-dev \
-        python3-pip \
-        software-properties-common \
-        gnupg \
-        lsb-release
-else
-    echo -e "apt-get not found. Please install packages manually."
+if [[ "$SYSTEM" == "termux" ]]; then
+    # Termux package installation
+    echo "Installing packages for Termux..."
+    if command_exists pkg; then
+        pkg update -y
+        pkg install -y \
+            build-essential \
+            cmake \
+            pkg-config \
+            git \
+            wget \
+            curl \
+            libjansson \
+            python \
+            clang \
+            make
+    else
+        echo -e "pkg command not found. Please install packages manually."
+    fi
+    
+    # Check if json-c is available, fallback to libjansson
+    if ! pkg list-installed | grep -q json-c 2>/dev/null; then
+        echo "Note: Using libjansson instead of json-c in Termux"
+    fi
+    
+elif [[ "$SYSTEM" == "linux" ]]; then
+    # Standard Linux package installation
+    if command_exists apt-get; then
+        apt-get update
+        apt-get install -y \
+            build-essential \
+            cmake \
+            pkg-config \
+            git \
+            wget \
+            curl \
+            libjson-c-dev \
+            python3-pip \
+            clang
+    elif command_exists yum; then
+        yum install -y \
+            gcc \
+            gcc-c++ \
+            cmake \
+            pkgconfig \
+            git \
+            wget \
+            curl \
+            json-c-devel \
+            python3-pip \
+            clang
+    elif command_exists pacman; then
+        pacman -Sy --noconfirm \
+            base-devel \
+            cmake \
+            pkgconf \
+            git \
+            wget \
+            curl \
+            json-c \
+            python-pip \
+            clang
+    else
+        echo -e "No supported package manager found. Please install packages manually."
+    fi
 fi
 
-# Install LLVM and Clang (latest version)
-echo -e "Installing LLVM and Clang..."
-if command_exists apt-get; then
-    UBUNTU_VERSION=$(get_ubuntu_version)
-    LLVM_VERSION=18
-    
-    # Add LLVM repository
-    wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
-    sudo add-apt-repository -y "deb http://apt.llvm.org/$(lsb_release -sc)/ llvm-toolchain-$(lsb_release -sc)- main"
-    sudo apt-get update
-    
-    # Install LLVM and Clang
-    sudo apt-get install -y \
-        llvm- \
-        clang- \
-        clang-tools- \
-        libc++--dev \
-        libc++abi--dev
-    
-    # Set as default
-    sudo update-alternatives --install /usr/bin/clang clang /usr/bin/clang- 100
-    sudo update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++- 100
+# Display versions
+echo "System information:"
+if command_exists clang; then
+    echo "Clang version: $(clang --version | head -1)"
 fi
-
-# Install Node.js (latest LTS)
-echo -e "Installing Node.js..."
-if ! command_exists node; then
-    curl -fsSL https://deb.nodesource.com/setup_lts.x | sudo -E bash -
-    sudo apt-get install -y nodejs
+if command_exists cmake; then
+    echo "CMake version: $(cmake --version | head -1)"
 fi
-echo "Node.js version: $(node --version)"
-echo "npm version: $(npm --version)"
-
-# Install Python (latest version)
-echo -e "Installing Python..."
-if command_exists apt-get; then
-    sudo add-apt-repository -y ppa:deadsnakes/ppa
-    sudo apt-get update
-    sudo apt-get install -y python3.12 python3.12-venv python3.12-dev
-    
-    # Set Python 3.12 as default python3
-    sudo update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.12 100
+if command_exists git; then
+    echo "Git version: $(git --version)"
 fi
-echo "Python version: $(python3 --version)"
+if command_exists python3; then
+    echo "Python version: $(python3 --version)"
+elif command_exists python; then
+    echo "Python version: $(python --version)"
+fi
 
 # Create build directory
 echo -e "Creating build directory..."
@@ -109,16 +124,20 @@ cd build
 
 # Configure with CMake
 echo -e "Configuring with CMake..."
-cmake .. -DCMAKE_BUILD_TYPE=Release
+cmake .. -DCMAKE_BUILD_TYPE=RelWithDebInfo
 
 # Build
 echo -e "Building..."
-make -j$(nproc)
+if command_exists nproc; then
+    make -j$(nproc)
+else
+    make -j4  # Fallback for systems without nproc
+fi
 
 # Check if build was successful
-if [ -f ../server ]; then
-    echo -e "Build successful! Server executable is in the root directory."
-    echo -e "To run the server: ./server"
+if [ -f ./server ]; then
+    echo -e "Build successful! Server executable is in the build directory."
+    echo -e "To run the server: LD_LIBRARY_PATH=. ./server"
 else
     echo -e "Build failed!"
     exit 1

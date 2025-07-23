@@ -61,3 +61,11 @@ reports/
 
 # External dependencies (downloaded automatically by CMake)
 third_party/
+
+# CMake build files in root (should be in build/ directory)
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+server
+librkllmrt.so

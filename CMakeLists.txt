@@ -123,11 +123,7 @@ set_target_properties(server PROPERTIES
 # POST-BUILD COMMANDS
 # =============================================================================
 
-# Copy server to root directory after build
-add_custom_command(TARGET server POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:server> ${CMAKE_SOURCE_DIR}/server
-    COMMENT "Copying server executable to root directory"
-)
+# Server executable stays in build directory - no copying needed
 
 # Copy RKLLM library to build directory
 add_custom_command(TARGET server POST_BUILD
@@ -163,90 +159,105 @@ command_exists() {
     command -v \"$1\" >/dev/null 2>&1
 }
 
-# Function to get Ubuntu version
-get_ubuntu_version() {
-    if [ -f /etc/os-release ]; then
-        . /etc/os-release
-        echo \"$VERSION_ID\"
-    else
-        echo \"unknown\"
-    fi
-}
-
 # Detect system
 echo -e \"${YELLOW}Detecting system...${NC}\"
-if [[ \"$OSTYPE\" == \"linux-gnu\"* ]]; then
+if [[ \"$OSTYPE\" == \"linux-android\"* ]] || [[ -n \"$TERMUX_VERSION\" ]]; then
+    echo \"Detected Termux (Android Linux environment)\"
+    SYSTEM=\"termux\"
+elif [[ \"$OSTYPE\" == \"linux-gnu\"* ]]; then
     DISTRO=$(lsb_release -si 2>/dev/null || echo \"Unknown\")
     echo \"Linux distribution: $DISTRO\"
+    SYSTEM=\"linux\"
 else
-    echo -e \"${RED}This script is designed for Linux systems only${NC}\"
+    echo -e \"${RED}Unsupported system: $OSTYPE${NC}\"
     exit 1
 fi
 
-# Install essential packages
+# Install essential packages based on system
 echo -e \"${YELLOW}Installing essential development packages...${NC}\"
-if command_exists apt-get; then
-    sudo apt-get update
-    sudo apt-get install -y \\
-        build-essential \\
-        cmake \\
-        pkg-config \\
-        git \\
-        wget \\
-        curl \\
-        libjson-c-dev \\
-        python3-pip \\
-        software-properties-common \\
-        gnupg \\
-        lsb-release
-else
-    echo -e \"${RED}apt-get not found. Please install packages manually.${NC}\"
+if [[ \"$SYSTEM\" == \"termux\" ]]; then
+    # Termux package installation
+    echo \"Installing packages for Termux...\"
+    if command_exists pkg; then
+        pkg update -y
+        pkg install -y \\
+            build-essential \\
+            cmake \\
+            pkg-config \\
+            git \\
+            wget \\
+            curl \\
+            libjansson \\
+            python \\
+            clang \\
+            make
+    else
+        echo -e \"${RED}pkg command not found. Please install packages manually.${NC}\"
+    fi
+    
+    # Check if json-c is available, fallback to libjansson
+    if ! pkg list-installed | grep -q json-c 2>/dev/null; then
+        echo \"Note: Using libjansson instead of json-c in Termux\"
+    fi
+    
+elif [[ \"$SYSTEM\" == \"linux\" ]]; then
+    # Standard Linux package installation
+    if command_exists apt-get; then
+        apt-get update
+        apt-get install -y \\
+            build-essential \\
+            cmake \\
+            pkg-config \\
+            git \\
+            wget \\
+            curl \\
+            libjson-c-dev \\
+            python3-pip \\
+            clang
+    elif command_exists yum; then
+        yum install -y \\
+            gcc \\
+            gcc-c++ \\
+            cmake \\
+            pkgconfig \\
+            git \\
+            wget \\
+            curl \\
+            json-c-devel \\
+            python3-pip \\
+            clang
+    elif command_exists pacman; then
+        pacman -Sy --noconfirm \\
+            base-devel \\
+            cmake \\
+            pkgconf \\
+            git \\
+            wget \\
+            curl \\
+            json-c \\
+            python-pip \\
+            clang
+    else
+        echo -e \"${RED}No supported package manager found. Please install packages manually.${NC}\"
+    fi
 fi
 
-# Install LLVM and Clang (latest version)
-echo -e \"${YELLOW}Installing LLVM and Clang...${NC}\"
-if command_exists apt-get; then
-    UBUNTU_VERSION=$(get_ubuntu_version)
-    LLVM_VERSION=18
-    
-    # Add LLVM repository
-    wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
-    sudo add-apt-repository -y \"deb http://apt.llvm.org/$(lsb_release -sc)/ llvm-toolchain-$(lsb_release -sc)-${LLVM_VERSION} main\"
-    sudo apt-get update
-    
-    # Install LLVM and Clang
-    sudo apt-get install -y \\
-        llvm-${LLVM_VERSION} \\
-        clang-${LLVM_VERSION} \\
-        clang-tools-${LLVM_VERSION} \\
-        libc++-${LLVM_VERSION}-dev \\
-        libc++abi-${LLVM_VERSION}-dev
-    
-    # Set as default
-    sudo update-alternatives --install /usr/bin/clang clang /usr/bin/clang-${LLVM_VERSION} 100
-    sudo update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-${LLVM_VERSION} 100
+# Display versions
+echo \"System information:\"
+if command_exists clang; then
+    echo \"Clang version: $(clang --version | head -1)\"
 fi
-
-# Install Node.js (latest LTS)
-echo -e \"${YELLOW}Installing Node.js...${NC}\"
-if ! command_exists node; then
-    curl -fsSL https://deb.nodesource.com/setup_lts.x | sudo -E bash -
-    sudo apt-get install -y nodejs
+if command_exists cmake; then
+    echo \"CMake version: $(cmake --version | head -1)\"
 fi
-echo \"Node.js version: $(node --version)\"
-echo \"npm version: $(npm --version)\"
-
-# Install Python (latest version)
-echo -e \"${YELLOW}Installing Python...${NC}\"
-if command_exists apt-get; then
-    sudo add-apt-repository -y ppa:deadsnakes/ppa
-    sudo apt-get update
-    sudo apt-get install -y python3.12 python3.12-venv python3.12-dev
-    
-    # Set Python 3.12 as default python3
-    sudo update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.12 100
+if command_exists git; then
+    echo \"Git version: $(git --version)\"
 fi
-echo \"Python version: $(python3 --version)\"
+if command_exists python3; then
+    echo \"Python version: $(python3 --version)\"
+elif command_exists python; then
+    echo \"Python version: $(python --version)\"
+fi
 
 # Create build directory
 echo -e \"${YELLOW}Creating build directory...${NC}\"
@@ -259,12 +270,16 @@ cmake .. -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
 
 # Build
 echo -e \"${YELLOW}Building...${NC}\"
-make -j$(nproc)
+if command_exists nproc; then
+    make -j$(nproc)
+else
+    make -j4  # Fallback for systems without nproc
+fi
 
 # Check if build was successful
-if [ -f ../server ]; then
-    echo -e \"${GREEN}Build successful! Server executable is in the root directory.${NC}\"
-    echo -e \"${GREEN}To run the server: ./server${NC}\"
+if [ -f ./server ]; then
+    echo -e \"${GREEN}Build successful! Server executable is in the build directory.${NC}\"
+    echo -e \"${GREEN}To run the server: LD_LIBRARY_PATH=. ./server${NC}\"
 else
     echo -e \"${RED}Build failed!${NC}\"
     exit 1
@@ -278,55 +293,6 @@ file(CHMOD ${CMAKE_SOURCE_DIR}/scripts/build.sh
                     WORLD_READ WORLD_EXECUTE
 )
 
-# =============================================================================
-# GENERATE ROOT MAKEFILE
-# =============================================================================
-
-# Generate Makefile in root directory
-file(WRITE ${CMAKE_SOURCE_DIR}/Makefile
-"# Auto-generated Makefile for RKLLM Unix Domain Socket Server
-
-.PHONY: all clean build run help
-
-# Default target
-all: build
-
-# Build the project
-build:
-	@mkdir -p build
-	@cd build && cmake .. && make -j$$(nproc)
-
-# Clean build artifacts
-clean:
-	@rm -rf build/
-	@rm -f server
-	@echo \"Build artifacts cleaned.\"
-
-# Run the server
-run: build
-	@if [ -f ./server ]; then \\
-		LD_LIBRARY_PATH=./build:$$LD_LIBRARY_PATH ./server; \\
-	else \\
-		echo \"Server not found. Please build first.\"; \\
-		exit 1; \\
-	fi
-
-# Display help
-help:
-	@echo \"RKLLM Unix Domain Socket Server Makefile\"
-	@echo \"\"
-	@echo \"Available targets:\"
-	@echo \"  all     - Build the project (default)\"
-	@echo \"  build   - Build the project\"
-	@echo \"  clean   - Remove build artifacts\"
-	@echo \"  run     - Build and run the server\"
-	@echo \"  help    - Display this help message\"
-	@echo \"\"
-	@echo \"Usage:\"
-	@echo \"  make          # Build the project\"
-	@echo \"  make clean    # Clean build artifacts\"
-	@echo \"  make run      # Build and run the server\"
-")
 
 # =============================================================================
 # DEVELOPMENT TARGETS
@@ -334,7 +300,7 @@ help:
 
 # Run target
 add_custom_target(run
-    COMMAND LD_LIBRARY_PATH=${CMAKE_BINARY_DIR} ./server
+    COMMAND LD_LIBRARY_PATH=${CMAKE_BINARY_DIR} ${CMAKE_BINARY_DIR}/server
     DEPENDS server
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
     COMMENT "Running RKLLM UDS server"
@@ -352,7 +318,6 @@ message(STATUS "  RKLLM library: ${RKLLM_LIB_PATH}")
 message(STATUS "  RKLLM header: ${RKLLM_HEADER_PATH}")
 message(STATUS "  json-c version: ${JSON_C_VERSION}")
 message(STATUS "  Build directory: ${CMAKE_BINARY_DIR}")
-message(STATUS "  Output executable: ${CMAKE_SOURCE_DIR}/server")
+message(STATUS "  Output executable: ${CMAKE_BINARY_DIR}/server")
 message(STATUS "")
 message(STATUS "Build script generated at: ${CMAKE_SOURCE_DIR}/scripts/build.sh")
-message(STATUS "Root Makefile generated at: ${CMAKE_SOURCE_DIR}/Makefile")
