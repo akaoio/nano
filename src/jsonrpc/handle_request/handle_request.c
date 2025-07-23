@@ -40,6 +40,13 @@ int handle_request(JSONRPCRequest* req, Connection* conn) {
             request_id = json_object_get_int(req->id);
         }
         result = call_rkllm_run(req->params, conn->fd, request_id);
+        
+        // CRITICAL FIX: For rkllm.run, NULL return means "async streaming in progress"
+        // The callback handles all responses, so don't send error - just return success
+        if (!result) {
+            printf("[DEBUG] rkllm.run returned NULL - async streaming active, no response needed\n");
+            return 0; // Success - callback handles responses
+        }
     } else if (strcmp(req->method, "rkllm.run_async") == 0) {
         // Extract request ID for callback context
         int request_id = 0;

@@ -46,7 +46,7 @@ function createRKLLMParam(modelPath = TEST_MODELS.NORMAL) {
   return {
     model_path: modelPath,
     max_context_len: 512,
-    max_new_tokens: 10, // Small for testing
+    max_new_tokens: 50, // FIXED: Increased from 10 to 50 for proper text generation
     top_k: 40,
     n_keep: 0,
     top_p: 0.9,

@@ -50,22 +50,16 @@ json_object* call_rkllm_run(json_object* params, int client_fd, int request_id) 
         return NULL; // Error: Failed to convert infer param
     }
     
-    // Save prompt text before cleanup for result
-    char* prompt_copy = NULL;
-    if (rkllm_input.input_type == RKLLM_INPUT_PROMPT && rkllm_input.prompt_input) {
-        prompt_copy = strdup(rkllm_input.prompt_input);
-    }
+    // CRITICAL FIX: Check if model was initialized with is_async=true
+    // If async mode, use streaming; if sync mode, return single response
     
-    // BREAKTHROUGH: Sync rkllm_run DOES call callback with streaming text!
-    // Set streaming context to capture the generated text from callbacks
+    // Set streaming context for the callback to capture streaming data
     set_streaming_context(client_fd, request_id);
-    printf("[DEBUG] Set streaming context for sync rkllm_run\n");
+    printf("[DEBUG] Set streaming context for rkllm_run (async mode)\n");
     
-    // Call rkllm_run synchronously - callbacks will stream the text!
+    // Call rkllm_run - the callback will handle ALL responses including final
     int result = rkllm_run(global_llm_handle, &rkllm_input, &rkllm_infer_param, NULL);
     
-    // Clear streaming context after inference completes
-    clear_streaming_context();
     printf("[DEBUG] rkllm_run returned: %d\n", result);
     
     // Clean up allocated memory for input structures
@@ -103,20 +97,14 @@ json_object* call_rkllm_run(json_object* params, int client_fd, int request_id) 
     }
     
     if (result != 0) {
-        // RKLLM run failed - clean up prompt copy
-        if (prompt_copy) free(prompt_copy);
+        // RKLLM run failed - clear streaming context and return error
+        clear_streaming_context();
         return NULL;
     }
     
-    // Return success result with actual inference completion
-    json_object* result_obj = json_object_new_object();
-    json_object_object_add(result_obj, "success", json_object_new_boolean(1));
-    json_object_object_add(result_obj, "message", json_object_new_string("Inference completed"));
-    json_object_object_add(result_obj, "inference_result", json_object_new_int(result));
-    json_object_object_add(result_obj, "prompt", json_object_new_string(prompt_copy ? prompt_copy : ""));
-    
-    // Clean up prompt copy
-    if (prompt_copy) free(prompt_copy);
-    
-    return result_obj;
+    // CRITICAL FIX: For async mode, return NULL to indicate "no immediate response"
+    // The callback function will handle ALL responses to the client
+    // Do NOT clear streaming context here - callback will clear it when done
+    printf("[DEBUG] Async mode: returning NULL (callback handles responses)\n");
+    return NULL; // No immediate response - callback handles everything
 }

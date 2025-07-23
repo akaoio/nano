@@ -40,6 +40,253 @@ class TestClient {
   }
 
   /**
+   * RAW JSON STREAMING - Shows the actual JSON-RPC responses being sent
+   */
+  async sendRawJsonStreamingRequest(method, params = []) {
+    if (!this.isConnected || !this.socket) {
+      throw new Error('Not connected to server');
+    }
+
+    const request = {
+      jsonrpc: '2.0',
+      method: method,
+      params: params,
+      id: this.requestId++
+    };
+
+    console.log(`📤 RAW JSON STREAMING REQUEST: ${method}`);
+    
+    return new Promise((resolve, reject) => {
+      let tokens = [];
+      let fullText = '';
+      let finalPerf = null;
+      let responseData = '';
+      let timeout = null;
+      let dataHandler = null;
+      let chunkCount = 0;
+
+      // Clean up function
+      const cleanup = () => {
+        if (timeout) {
+          clearTimeout(timeout);
+          timeout = null;
+        }
+        if (dataHandler && this.socket) {
+          this.socket.removeListener('data', dataHandler);
+        }
+      };
+
+      // RAW JSON DATA HANDLER - Shows complete JSON responses
+      dataHandler = (data) => {
+        responseData += data.toString();
+        
+        // Process each complete line
+        const lines = responseData.split('\n');
+        responseData = lines.pop() || ''; // Keep incomplete line for next chunk
+        
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          
+          try {
+            const response = JSON.parse(line.trim());
+            
+            // Check if this is our streaming response
+            if (response.id === request.id && response.result) {
+              chunkCount++;
+              
+              // SHOW THE ACTUAL RAW JSON CHUNK
+              console.log(`\n🔥 RAW JSON CHUNK ${chunkCount}:`);
+              console.log('─'.repeat(80));
+              console.log(JSON.stringify(response, null, 2));
+              console.log('─'.repeat(80));
+              
+              // Show final completion state
+              if (response.result._callback_state === 2) { // RKLLM_RUN_FINISH
+                finalPerf = response.result.perf;
+                console.log(`\n✅ STREAMING COMPLETE! Received ${chunkCount} JSON-RPC responses`);
+                cleanup();
+                resolve({
+                  tokens: tokens,
+                  fullText: fullText,
+                  finalPerf: finalPerf
+                });
+                return;
+              }
+              
+              // Extract and accumulate text for summary
+              if (response.result.text !== null && response.result.text !== undefined) {
+                tokens.push({
+                  text: response.result.text,
+                  token_id: response.result.token_id,
+                  callback_state: response.result._callback_state
+                });
+                fullText += response.result.text;
+              }
+            }
+          } catch (e) {
+            // Invalid JSON line, continue
+          }
+        }
+      };
+
+      // Set up handlers
+      this.socket.on('data', dataHandler);
+
+      // Set longer timeout for streaming
+      timeout = setTimeout(() => {
+        cleanup();
+        if (tokens.length > 0) {
+          // We got some tokens, return partial result
+          console.log(`\n⏰ TIMEOUT after ${chunkCount} JSON responses`);
+          resolve({
+            tokens: tokens,
+            fullText: fullText,
+            finalPerf: finalPerf
+          });
+        } else {
+          reject(new Error('Raw JSON streaming timeout - no responses received'));
+        }
+      }, 15000); // 15 second timeout
+
+      // Send request and start raw JSON display
+      try {
+        console.log('🎬 LIVE RAW JSON STREAMING (complete JSON-RPC responses):');
+        this.socket.write(JSON.stringify(request) + '\n');
+      } catch (error) {
+        cleanup();
+        reject(new Error(`Failed to send raw JSON streaming request: ${error.message}`));
+      }
+    });
+  }
+
+  /**
+   * REAL-TIME STREAMING - Shows tokens instantly as they appear
+   */
+  async sendRealTimeStreamingRequest(method, params = []) {
+    if (!this.isConnected || !this.socket) {
+      throw new Error('Not connected to server');
+    }
+
+    const request = {
+      jsonrpc: '2.0',
+      method: method,
+      params: params,
+      id: this.requestId++
+    };
+
+    console.log(`📤 REAL-TIME REQUEST: ${method}`);
+    
+    return new Promise((resolve, reject) => {
+      let tokens = [];
+      let fullText = '';
+      let finalPerf = null;
+      let responseData = '';
+      let timeout = null;
+      let dataHandler = null;
+      let tokenCount = 0;
+
+      // Clean up function
+      const cleanup = () => {
+        if (timeout) {
+          clearTimeout(timeout);
+          timeout = null;
+        }
+        if (dataHandler && this.socket) {
+          this.socket.removeListener('data', dataHandler);
+        }
+      };
+
+      // REAL-TIME DATA HANDLER - Shows tokens instantly
+      dataHandler = (data) => {
+        responseData += data.toString();
+        
+        // Process each complete line
+        const lines = responseData.split('\n');
+        responseData = lines.pop() || ''; // Keep incomplete line for next chunk
+        
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          
+          try {
+            const response = JSON.parse(line.trim());
+            
+            // Check if this is our streaming response
+            if (response.id === request.id && response.result) {
+              // Show final completion state
+              if (response.result._callback_state === 2) { // RKLLM_RUN_FINISH
+                finalPerf = response.result.perf;
+                console.log(`\n      ✅ STREAMING COMPLETE! Generated ${tokenCount} tokens`);
+                if (finalPerf) {
+                  console.log(`      📊 Performance: ${finalPerf.generate_time_ms}ms for ${finalPerf.generate_tokens} tokens`);
+                  console.log(`      💾 Memory: ${finalPerf.memory_usage_mb}MB`);
+                }
+                cleanup();
+                resolve({
+                  tokens: tokens,
+                  fullText: fullText,
+                  finalPerf: finalPerf
+                });
+                return;
+              }
+              
+              // INSTANT TOKEN DISPLAY - Show each token as it arrives
+              if (response.result.text !== null && response.result.text !== undefined) {
+                tokenCount++;
+                
+                // Display token instantly
+                process.stdout.write(response.result.text);
+                
+                // Show token details occasionally for verification
+                if (tokenCount % 10 === 0) {
+                  console.log(`\n      [Token ${tokenCount}: ID=${response.result.token_id}]`);
+                }
+                
+                tokens.push({
+                  text: response.result.text,
+                  token_id: response.result.token_id,
+                  callback_state: response.result._callback_state
+                });
+                fullText += response.result.text;
+              }
+            }
+          } catch (e) {
+            // Invalid JSON line, continue
+          }
+        }
+      };
+
+      // Set up handlers
+      this.socket.on('data', dataHandler);
+
+      // Set longer timeout for streaming
+      timeout = setTimeout(() => {
+        cleanup();
+        if (tokens.length > 0) {
+          // We got some tokens, return partial result
+          console.log(`\n      ⏰ TIMEOUT after ${tokens.length} tokens`);
+          resolve({
+            tokens: tokens,
+            fullText: fullText,
+            finalPerf: finalPerf
+          });
+        } else {
+          reject(new Error('Real-time streaming timeout - no tokens received'));
+        }
+      }, 20000); // 20 second timeout
+
+      // Send request and start real-time display
+      try {
+        console.log('      🎬 LIVE STREAMING (tokens will appear instantly):');
+        console.log('      ▶️  ');
+        this.socket.write(JSON.stringify(request) + '\n');
+      } catch (error) {
+        cleanup();
+        reject(new Error(`Failed to send real-time streaming request: ${error.message}`));
+      }
+    });
+  }
+
+  /**
    * Send request and wait for complete response with proper cleanup
    */
   async sendRequest(method, params = []) {
@@ -131,6 +378,209 @@ class TestClient {
       } catch (error) {
         cleanup();
         reject(new Error(`Failed to send request: ${error.message}`));
+      }
+    });
+  }
+
+  /**
+   * Send request and wait for complete response with proper cleanup - SILENT VERSION
+   */
+  async sendRequestSilent(method, params = []) {
+    if (!this.isConnected || !this.socket) {
+      throw new Error('Not connected to server');
+    }
+
+    const request = {
+      jsonrpc: '2.0',
+      method: method,
+      params: params,
+      id: this.requestId++
+    };
+
+    // No console.log here - silent operation
+
+    return new Promise((resolve, reject) => {
+      let responseData = '';
+      let timeout = null;
+      let dataHandler = null;
+
+      // Clean up function
+      const cleanup = () => {
+        if (timeout) {
+          clearTimeout(timeout);
+          timeout = null;
+        }
+        if (dataHandler && this.socket) {
+          this.socket.removeListener('data', dataHandler);
+        }
+      };
+
+      // Data handler - handle both line-based and complete JSON responses
+      dataHandler = (data) => {
+        responseData += data.toString();
+        
+        // Try to parse the entire accumulated data as JSON first
+        try {
+          const response = JSON.parse(responseData.trim());
+          if (response.id === request.id) {
+            cleanup();
+            // No console.log here - silent operation
+            resolve(response);
+            return;
+          }
+        } catch (e) {
+          // Not complete JSON yet, try line-by-line parsing
+        }
+        
+        // Try to parse each line as a separate JSON response
+        const lines = responseData.split('\n');
+        
+        for (let i = 0; i < lines.length; i++) {
+          const line = lines[i].trim();
+          if (!line) continue;
+          
+          try {
+            const response = JSON.parse(line);
+            
+            // Check if this is the response to our request
+            if (response.id === request.id) {
+              cleanup();
+              // No console.log here - silent operation
+              resolve(response);
+              return;
+            }
+            // Otherwise it might be a streaming response, ignore it for now
+          } catch (e) {
+            // Invalid JSON line, continue
+            continue;
+          }
+        }
+      };
+
+      // Set up handlers
+      this.socket.on('data', dataHandler);
+
+      // Set timeout with method-specific timeouts
+      const timeoutMs = method.includes('logits') ? 8000 : 15000; // Shorter timeout for logits mode
+      timeout = setTimeout(() => {
+        cleanup();
+        reject(new Error(`Request timeout (${timeoutMs}ms) for method: ${method}`));
+      }, timeoutMs);
+
+      // Send request
+      try {
+        this.socket.write(JSON.stringify(request) + '\n');
+      } catch (error) {
+        cleanup();
+        reject(new Error(`Failed to send request: ${error.message}`));
+      }
+    });
+  }
+
+  /**
+   * Send streaming request and capture all tokens as they arrive
+   */
+  async sendStreamingRequest(method, params = []) {
+    if (!this.isConnected || !this.socket) {
+      throw new Error('Not connected to server');
+    }
+
+    const request = {
+      jsonrpc: '2.0',
+      method: method,
+      params: params,
+      id: this.requestId++
+    };
+
+    return new Promise((resolve, reject) => {
+      let tokens = [];
+      let fullText = '';
+      let finalPerf = null;
+      let responseData = '';
+      let timeout = null;
+      let dataHandler = null;
+      let isComplete = false;
+
+      // Clean up function
+      const cleanup = () => {
+        if (timeout) {
+          clearTimeout(timeout);
+          timeout = null;
+        }
+        if (dataHandler && this.socket) {
+          this.socket.removeListener('data', dataHandler);
+        }
+      };
+
+      // Data handler for streaming responses
+      dataHandler = (data) => {
+        responseData += data.toString();
+        
+        // Process each complete line
+        const lines = responseData.split('\n');
+        responseData = lines.pop() || ''; // Keep incomplete line for next chunk
+        
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          
+          try {
+            const response = JSON.parse(line.trim());
+            
+            // Check if this is our streaming response
+            if (response.id === request.id && response.result) {
+              // Check for final completion state
+              if (response.result._callback_state === 2) { // RKLLM_RUN_FINISH
+                finalPerf = response.result.perf;
+                isComplete = true;
+                cleanup();
+                resolve({
+                  tokens: tokens,
+                  fullText: fullText,
+                  finalPerf: finalPerf
+                });
+                return;
+              }
+              
+              // Add token to collection
+              if (response.result.text !== null && response.result.text !== undefined) {
+                tokens.push({
+                  text: response.result.text,
+                  token_id: response.result.token_id,
+                  callback_state: response.result._callback_state
+                });
+                fullText += response.result.text;
+              }
+            }
+          } catch (e) {
+            // Invalid JSON line, continue
+          }
+        }
+      };
+
+      // Set up handlers
+      this.socket.on('data', dataHandler);
+
+      // Set longer timeout for streaming
+      timeout = setTimeout(() => {
+        cleanup();
+        if (tokens.length > 0) {
+          // We got some tokens, return partial result
+          resolve({
+            tokens: tokens,
+            fullText: fullText,
+            finalPerf: finalPerf
+          });
+        } else {
+          reject(new Error('Streaming request timeout - no tokens received'));
+        }
+      }, 20000); // 20 second timeout for streaming
+
+      // Send request
+      try {
+        this.socket.write(JSON.stringify(request) + '\n');
+      } catch (error) {
+        cleanup();
+        reject(new Error(`Failed to send streaming request: ${error.message}`));
       }
     });
   }

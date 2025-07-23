@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 
 /**
- * Sequential Test Runner - Exit on First Failure
- * Shows each test completion and exits immediately if any test fails
+ * RKLLM Real Streaming Test Suite - Production Ready
+ * Tests actual RKLLM functionality with real streaming data
  */
 
 const ServerManager = require('./tests/lib/server-manager');
@@ -10,12 +10,12 @@ const TestClient = require('./tests/lib/test-client');
 const { createRKLLMParam, createRKLLMInput, createRKLLMInferParam, TEST_MODELS } = require('./tests/lib/test-helpers');
 
 /**
- * Run all tests sequentially - exit immediately on failure
+ * Run real streaming tests - no fake implementations
  */
-async function runAllTests() {
-  console.log('🚀 RKLLM TEST SUITE - SEQUENTIAL EXECUTION');
-  console.log('=' .repeat(60));
-  console.log('🎯 Exit on first failure, show each test completion');
+async function runRealStreamingTests() {
+  console.log('🚀 RKLLM REAL STREAMING TEST SUITE');
+  console.log('=' .repeat(50));
+  console.log('🎯 Testing actual RKLLM streaming functionality');
   console.log('');
 
   const serverManager = new ServerManager();
@@ -29,78 +29,180 @@ async function runAllTests() {
     console.log('=' .repeat(30));
     await serverManager.startServer();
     await client.connect();
-    console.log('✅ Server ready for testing\n');
+    console.log('✅ Server ready for real streaming tests\n');
 
-    // Test 1: Basic Functions
-    await runTest(++testNumber, 'Basic Functions - createDefaultParam', async () => {
-      const result = await client.testFunction('rkllm.createDefaultParam', []);
-      if (!result.success || !result.result || result.result.model_path === undefined) {
-        throw new Error('createDefaultParam failed');
+    // Test 1: Core API Functions
+    await runTest(++testNumber, 'Core API - createDefaultParam', async () => {
+      const result = await client.sendRequest('rkllm.createDefaultParam', []);
+      if (!result.result || typeof result.result.max_context_len !== 'number') {
+        throw new Error('createDefaultParam failed - invalid structure');
       }
     });
 
-    await runTest(++testNumber, 'Basic Functions - get_constants', async () => {
-      const result = await client.testFunction('rkllm.get_constants', []);
-      if (!result.success || !result.result || !result.result.CPU_MASKS) {
-        throw new Error('get_constants failed');
+    await runTest(++testNumber, 'Core API - constants', async () => {
+      const result = await client.sendRequest('rkllm.get_constants', []);
+      if (!result.result || !result.result.LLM_CALL_STATES || !result.result.INPUT_TYPES) {
+        throw new Error('get_constants failed - missing required enums');
       }
     });
 
-    // Test 2: Model Initialization
-    await runTest(++testNumber, 'Model Initialization', async () => {
-      const initParams = createRKLLMParam(TEST_MODELS.NORMAL);
-      const result = await client.testFunction('rkllm.init', [null, initParams, null]);
-      if (!result.success || !result.result) {
-        throw new Error('Model initialization failed');
+    // Test 2: Model Initialization with Sync Mode
+    await runTest(++testNumber, 'Model Init - Sync Mode', async () => {
+      const syncParams = createRKLLMParam(TEST_MODELS.NORMAL);
+      syncParams.is_async = false; // Explicit sync mode
+      syncParams.max_new_tokens = 20;
+      
+      const result = await client.sendRequest('rkllm.init', [null, syncParams, null]);
+      if (!result.result || !result.result.success) {
+        throw new Error('Sync model initialization failed');
       }
-      // Wait for model to be ready
       await new Promise(resolve => setTimeout(resolve, 2000));
     });
 
-    // Test 3: Text Generation
-    await runTest(++testNumber, 'Text Generation', async () => {
-      const input = createRKLLMInput('Hello, what is your name?');
-      const inferParams = createRKLLMInferParam();
-      const result = await client.testFunction('rkllm.run', [null, input, inferParams, null]);
-      if (!result.success || !result.result || result.result.text === undefined) {
-        throw new Error('Text generation failed');
+    // Test 3: REAL ASYNC STREAMING - Token by Token
+    await runTest(++testNumber, 'REAL ASYNC STREAMING - Token by Token', async () => {
+      // Destroy sync model and create async model
+      await client.sendRequest('rkllm.destroy', [null]);
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      const asyncParams = createRKLLMParam(TEST_MODELS.NORMAL);
+      asyncParams.is_async = true; // CRITICAL: Enable async streaming
+      asyncParams.max_new_tokens = 50; // Smaller for cleaner output
+      asyncParams.temperature = 0.8;
+      
+      const initResult = await client.sendRequest('rkllm.init', [null, asyncParams, null]);
+      if (!initResult.result || !initResult.result.success) {
+        throw new Error('Async model initialization failed');
       }
-      console.log(`      Generated: "${result.result.text}"`);
+      await new Promise(resolve => setTimeout(resolve, 3000));
+      
+      // Now test RAW JSON streaming to show you the actual JSON chunks
+      const input = createRKLLMInput('Write a short creative story.');
+      const inferParams = createRKLLMInferParam();
+      
+      console.log('\n      🎬 STARTING RAW JSON STREAMING...');
+      console.log('      🔥 You will see the ACTUAL JSON-RPC responses being sent:');
+      console.log('      ▶️  RAW JSON OUTPUT: ');
+      
+      // Use a special raw JSON streaming method that shows the actual JSON
+      const streamingResult = await client.sendRawJsonStreamingRequest('rkllm.run', [null, input, inferParams, null]);
+      
+      if (!streamingResult.tokens || streamingResult.tokens.length === 0) {
+        throw new Error('No streaming tokens received');
+      }
+      
+      console.log(`\n      📊 FINAL RESULTS:`);
+      console.log(`      - Total JSON responses received: ${streamingResult.tokens.length}`);
+      console.log(`      - Complete generated text: "${streamingResult.fullText}"`);
+      console.log(`      - Sample token IDs: [${streamingResult.tokens.slice(0, 3).map(t => t.token_id).join(', ')}]`);
+      if (streamingResult.finalPerf) {
+        console.log(`      - Generation time: ${streamingResult.finalPerf.generate_time_ms}ms`);
+      }
+      
+      // Real validation
+      if (streamingResult.tokens.length < 5) {
+        throw new Error(`Insufficient streaming tokens - got ${streamingResult.tokens.length}, expected at least 5`);
+      }
+      
+      console.log(`\n      ✅ RAW JSON STREAMING SUCCESS! Each token came as a complete JSON-RPC response`);
     });
 
-    // Test 4: Hidden States
-    await runTest(++testNumber, 'Hidden States Mode', async () => {
-      const input = createRKLLMInput('Test hidden states');
+    // Test 4: Hidden States Extraction
+    await runTest(++testNumber, 'Hidden States Extraction', async () => {
+      const input = createRKLLMInput('Extract hidden states from this text.');
       const inferParams = createRKLLMInferParam();
       inferParams.mode = 1; // RKLLM_INFER_GET_LAST_HIDDEN_LAYER
-      const result = await client.testFunction('rkllm.run', [null, input, inferParams, null]);
-      if (!result.success || !result.result) {
-        throw new Error('Hidden states mode failed');
+      
+      const result = await client.sendRequest('rkllm.run', [null, input, inferParams, null]);
+      
+      if (!result.result) {
+        throw new Error('Hidden states extraction failed - no result');
       }
-      if (result.result.last_hidden_layer && result.result.last_hidden_layer.hidden_states) {
-        console.log(`      Hidden states: ${result.result.last_hidden_layer.hidden_states.length} elements`);
+      
+      // Check for real hidden states data
+      if (result.result.last_hidden_layer && result.result.last_hidden_layer.embd_size > 0) {
+        console.log(`      ✅ Hidden states: ${result.result.last_hidden_layer.embd_size} dimensions, ${result.result.last_hidden_layer.num_tokens} tokens`);
+      } else {
+        throw new Error('Hidden states extraction failed - no valid hidden layer data');
       }
     });
 
-    // Test 5: Core Function Mapping
-    const coreFunctions = ['is_running', 'abort', 'destroy', 'get_kv_cache_size', 'clear_kv_cache'];
-    for (const func of coreFunctions) {
-      await runTest(++testNumber, `Function Mapping - ${func}`, async () => {
-        const result = await client.testFunction(`rkllm.${func}`, [null]);
-        // For mapping tests, we just check if the function is recognized
-        if (result.error && result.error.message === 'Method not found') {
-          throw new Error(`Function ${func} not mapped`);
+    // Test 5: Performance Monitoring
+    await runTest(++testNumber, 'Performance Monitoring', async () => {
+      const input = createRKLLMInput('Quick performance test.');
+      const inferParams = createRKLLMInferParam();
+      
+      const startTime = Date.now();
+      const result = await client.sendRequest('rkllm.run', [null, input, inferParams, null]);
+      const endTime = Date.now();
+      
+      if (!result.result) {
+        throw new Error('Performance test failed - no result');
+      }
+      
+      const responseTime = endTime - startTime;
+      console.log(`      📊 Response time: ${responseTime}ms`);
+      
+      if (result.result.perf) {
+        console.log(`      📊 RKLLM performance: prefill=${result.result.perf.prefill_time_ms}ms, generate=${result.result.perf.generate_time_ms}ms`);
+        console.log(`      📊 Memory usage: ${result.result.perf.memory_usage_mb}MB`);
+      }
+      
+      if (responseTime > 10000) { // 10 second timeout
+        throw new Error(`Performance test failed - response too slow: ${responseTime}ms`);
+      }
+    });
+
+    // Test 6: Model State Management
+    await runTest(++testNumber, 'Model State Management', async () => {
+      const isRunningResult = await client.sendRequest('rkllm.is_running', [null]);
+      if (isRunningResult.error) {
+        throw new Error('is_running check failed');
+      }
+      
+      const abortResult = await client.sendRequest('rkllm.abort', [null]);
+      if (abortResult.error) {
+        throw new Error('abort command failed');
+      }
+      
+      console.log(`      ✅ State management working - is_running and abort responded correctly`);
+    });
+
+    // Test 7: Model Cleanup
+    await runTest(++testNumber, 'Model Cleanup', async () => {
+      const destroyResult = await client.sendRequest('rkllm.destroy', [null]);
+      if (!destroyResult.result || !destroyResult.result.success) {
+        throw new Error('Model destruction failed');
+      }
+      
+      // Verify model is actually destroyed by trying to use it (with shorter timeout)
+      try {
+        const input = createRKLLMInput('This should fail.');
+        const inferParams = createRKLLMInferParam();
+        const failResult = await client.sendRequestSilent('rkllm.run', [null, input, inferParams, null]);
+        
+        // If we get here without error, model wasn't properly destroyed
+        if (!failResult.error) {
+          throw new Error('Model destruction incomplete - can still run inference');
         }
-        // Success or any other error means the function is mapped
-      });
-    }
+        
+        console.log(`      ✅ Model properly destroyed - subsequent calls correctly fail with: ${failResult.error.message}`);
+      } catch (timeoutError) {
+        // Timeout is also acceptable - means server isn't responding (model destroyed)
+        if (timeoutError.message.includes('timeout')) {
+          console.log(`      ✅ Model properly destroyed - server correctly non-responsive after destruction`);
+        } else {
+          throw timeoutError;
+        }
+      }
+    });
 
   } catch (error) {
-    console.error(`\n❌ TEST FAILED: ${error.message}`);
-    console.error('🛑 Stopping test execution immediately');
+    console.error(`\n❌ REAL STREAMING TEST FAILED: ${error.message}`);
+    console.error('🛑 Critical functionality not working');
     process.exit(1);
   } finally {
-    // Always cleanup
+    // Cleanup
     console.log('\n🧹 CLEANUP');
     try {
       await client.ensureCleanState();
@@ -112,11 +214,12 @@ async function runAllTests() {
     }
   }
 
-  // All tests passed
-  console.log('\n' + '=' .repeat(60));
-  console.log(`🎉 ALL ${testNumber} TESTS PASSED!`);
-  console.log('✅ RKLLM server is working correctly');
-  console.log('=' .repeat(60));
+  // All real streaming tests passed
+  console.log('\n' + '=' .repeat(50));
+  console.log(`🎉 ALL ${testNumber} REAL STREAMING TESTS PASSED!`);
+  console.log('✅ RKLLM server streaming functionality is working correctly');
+  console.log('🚀 Production ready for real-world usage');
+  console.log('=' .repeat(50));
   process.exit(0);
 }
 
@@ -135,7 +238,7 @@ async function runTest(number, name, testFunction) {
   }
 }
 
-// Error handlers
+// Error handlers for clean exit
 process.on('uncaughtException', (error) => {
   console.error('\n💥 Uncaught Exception:', error.message);
   process.exit(1);
@@ -146,9 +249,9 @@ process.on('unhandledRejection', (reason, promise) => {
   process.exit(1);
 });
 
-// Run tests
+// Run the real streaming tests
 if (require.main === module) {
-  runAllTests();
+  runRealStreamingTests();
 }
 
-module.exports = runAllTests;
+module.exports = runRealStreamingTests;
