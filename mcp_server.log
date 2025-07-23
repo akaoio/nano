@@ -1,4 +1,0 @@
-[2025-07-22 17:43:52.247] INFO [/home/x/Projects/nano/src/lib/system/logger.c:130] logger_init: Logger initialized: level=INFO, json=false, file=mcp_server.log, max_size=10MB
-[2025-07-22 17:44:00.479] INFO [/home/x/Projects/nano/src/lib/system/logger.c:130] logger_init: Logger initialized: level=INFO, json=false, file=mcp_server.log, max_size=10MB
-[2025-07-22 17:44:06.636] INFO [/home/x/Projects/nano/src/lib/system/logger.c:130] logger_init: Logger initialized: level=INFO, json=false, file=mcp_server.log, max_size=10MB
-[2025-07-22 18:08:31.390] INFO [/home/x/Projects/nano/src/lib/system/logger.c:130] logger_init: Logger initialized: level=INFO, json=false, file=mcp_server.log, max_size=10MB

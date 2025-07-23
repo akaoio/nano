@@ -1,1 +1,0 @@
-{"jsonrpc":"2.0","id":"test_mem","method":"test_memory_pressure","params":{"simulate_low_memory":true,"max_memory_mb":50}}

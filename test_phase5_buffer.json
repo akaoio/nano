@@ -1,1 +1,0 @@
-{"jsonrpc":"2.0","id":"test_buffer","method":"test_buffer_optimization","params":{"buffer_sizes":[1024,4096,8192,16384],"operations":1000}}
