@@ -32,7 +32,7 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 
 # RKLLM configuration
 set(RKLLM_REPO_URL "https://github.com/airockchip/rknn-llm.git")
-set(RKLLM_DIR "${CMAKE_SOURCE_DIR}/third_party/rknn-llm")
+set(RKLLM_DIR "${CMAKE_SOURCE_DIR}/external/rknn-llm")
 set(RKLLM_RUNTIME_DIR "${RKLLM_DIR}/rkllm-runtime/Linux/librkllm_api")
 set(RKLLM_LIB_PATH "${RKLLM_RUNTIME_DIR}/aarch64/librkllmrt.so")
 set(RKLLM_HEADER_PATH "${RKLLM_RUNTIME_DIR}/include/rkllm.h")

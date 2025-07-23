@@ -60,7 +60,7 @@ build/
 reports/
 
 # External dependencies (downloaded automatically by CMake)
-third_party/
+external/
 
 # CMake build files in root (should be in build/ directory)
 CMakeCache.txt
