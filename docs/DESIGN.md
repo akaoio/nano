@@ -160,7 +160,7 @@ src/
 - `rkllm.is_running` → `rkllm_is_running(LLMHandle handle)`
 - `rkllm.clear_kv_cache` → `rkllm_clear_kv_cache(LLMHandle handle, int keep_system_prompt, int* start_pos, int* end_pos)`
 - `rkllm.get_kv_cache_size` → `rkllm_get_kv_cache_size(LLMHandle handle, int* cache_sizes)`
-- `rkllm.destroy` → `rkllm_destroy(LLMHandle handle)`  
+- `rkllm.destroy` → `rkllm_destroy(LLMHandle handle)`
 - `rkllm.load_lora` → `rkllm_load_lora(LLMHandle handle, RKLLMLoraAdapter* lora_adapter)`
 - `rkllm.load_prompt_cache` → `rkllm_load_prompt_cache(LLMHandle handle, const char* prompt_cache_path)`
 - `rkllm.release_prompt_cache` → `rkllm_release_prompt_cache(LLMHandle handle)`
