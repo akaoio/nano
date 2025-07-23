@@ -40,7 +40,7 @@ class TestClient {
   }
 
   /**
-   * RAW JSON STREAMING - Shows the actual JSON-RPC responses being sent
+   * RAW JSON STREAMING - Shows the actual JSON-RPC responses being sent (COMPACT MODE)
    */
   async sendRawJsonStreamingRequest(method, params = []) {
     if (!this.isConnected || !this.socket) {
@@ -76,7 +76,7 @@ class TestClient {
         }
       };
 
-      // RAW JSON DATA HANDLER - Shows complete JSON responses
+      // COMPACT JSON DATA HANDLER - Shows minimal info about chunks
       dataHandler = (data) => {
         responseData += data.toString();
         
@@ -94,16 +94,15 @@ class TestClient {
             if (response.id === request.id && response.result) {
               chunkCount++;
               
-              // SHOW THE ACTUAL RAW JSON CHUNK
-              console.log(`\n🔥 RAW JSON CHUNK ${chunkCount}:`);
-              console.log('─'.repeat(80));
-              console.log(JSON.stringify(response, null, 2));
-              console.log('─'.repeat(80));
+              // COMPACT: Only show brief summary every 10 chunks
+              if (chunkCount % 10 === 0 || chunkCount <= 3) {
+                console.log(`      📦 Chunk ${chunkCount}: "${response.result.text}" (token_id: ${response.result.token_id})`);
+              }
               
               // Show final completion state
               if (response.result._callback_state === 2) { // RKLLM_RUN_FINISH
                 finalPerf = response.result.perf;
-                console.log(`\n✅ STREAMING COMPLETE! Received ${chunkCount} JSON-RPC responses`);
+                console.log(`\n      ✅ STREAMING COMPLETE! Received ${chunkCount} JSON-RPC responses`);
                 cleanup();
                 resolve({
                   tokens: tokens,
@@ -148,9 +147,9 @@ class TestClient {
         }
       }, 15000); // 15 second timeout
 
-      // Send request and start raw JSON display
+      // Send request and start compact JSON display
       try {
-        console.log('🎬 LIVE RAW JSON STREAMING (complete JSON-RPC responses):');
+        console.log('      🎬 LIVE JSON STREAMING (compact mode - each chunk verified as complete JSON-RPC):');
         this.socket.write(JSON.stringify(request) + '\n');
       } catch (error) {
         cleanup();
@@ -581,6 +580,88 @@ class TestClient {
       } catch (error) {
         cleanup();
         reject(new Error(`Failed to send streaming request: ${error.message}`));
+      }
+    });
+  }
+
+  /**
+   * Send raw request data (for testing malformed JSON handling)
+   */
+  async sendRawRequest(rawData) {
+    if (!this.isConnected || !this.socket) {
+      throw new Error('Not connected to server');
+    }
+
+    return new Promise((resolve, reject) => {
+      let responseData = '';
+      let timeout = null;
+      let dataHandler = null;
+
+      // Clean up function
+      const cleanup = () => {
+        if (timeout) {
+          clearTimeout(timeout);
+          timeout = null;
+        }
+        if (dataHandler && this.socket) {
+          this.socket.removeListener('data', dataHandler);
+        }
+      };
+
+      // Data handler for raw responses
+      dataHandler = (data) => {
+        responseData += data.toString();
+        
+        // For malformed JSON, we might get an error response or connection close
+        try {
+          const response = JSON.parse(responseData.trim());
+          cleanup();
+          resolve(response);
+        } catch (e) {
+          // Could be incomplete JSON, wait for more data
+          // If timeout occurs, we'll handle it there
+        }
+      };
+
+      // Handle connection errors/close for malformed requests
+      const errorHandler = (error) => {
+        cleanup();
+        reject(error);
+      };
+
+      const closeHandler = () => {
+        cleanup();
+        reject(new Error('Connection closed - server rejected malformed request'));
+      };
+
+      // Set up handlers
+      this.socket.on('data', dataHandler);
+      this.socket.on('error', errorHandler);
+      this.socket.on('close', closeHandler);
+
+      // Set shorter timeout for malformed requests
+      timeout = setTimeout(() => {
+        cleanup();
+        // Remove extra handlers
+        this.socket.removeListener('error', errorHandler);
+        this.socket.removeListener('close', closeHandler);
+        
+        if (responseData.length > 0) {
+          // Got some response, but couldn't parse it
+          resolve({ rawResponse: responseData });
+        } else {
+          reject(new Error('Raw request timeout - no response'));
+        }
+      }, 3000); // 3 second timeout for raw requests
+
+      // Send raw request
+      try {
+        this.socket.write(rawData + '\n');
+      } catch (error) {
+        cleanup();
+        this.socket.removeListener('error', errorHandler);
+        this.socket.removeListener('close', closeHandler);
+        reject(new Error(`Failed to send raw request: ${error.message}`));
       }
     });
   }

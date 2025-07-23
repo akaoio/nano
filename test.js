@@ -76,23 +76,23 @@ async function runRealStreamingTests() {
       }
       await new Promise(resolve => setTimeout(resolve, 3000));
       
-      // Now test RAW JSON streaming to show you the actual JSON chunks
+      // Now test compact JSON streaming verification
       const input = createRKLLMInput('Write a short creative story.');
       const inferParams = createRKLLMInferParam();
       
-      console.log('\n      🎬 STARTING RAW JSON STREAMING...');
-      console.log('      🔥 You will see the ACTUAL JSON-RPC responses being sent:');
-      console.log('      ▶️  RAW JSON OUTPUT: ');
+      console.log('\n      🎬 STARTING COMPACT JSON STREAMING VERIFICATION...');
+      console.log('      🔥 Each token verified as complete JSON-RPC response (compact display):');
+      console.log('      ▶️  COMPACT OUTPUT: ');
       
-      // Use a special raw JSON streaming method that shows the actual JSON
+      // Use compact streaming method that verifies JSON-RPC format without verbose output
       const streamingResult = await client.sendRawJsonStreamingRequest('rkllm.run', [null, input, inferParams, null]);
       
       if (!streamingResult.tokens || streamingResult.tokens.length === 0) {
         throw new Error('No streaming tokens received');
       }
       
-      console.log(`\n      📊 FINAL RESULTS:`);
-      console.log(`      - Total JSON responses received: ${streamingResult.tokens.length}`);
+      console.log(`\n      📊 STREAMING VERIFICATION RESULTS:`);
+      console.log(`      - Total JSON-RPC responses verified: ${streamingResult.tokens.length}`);
       console.log(`      - Complete generated text: "${streamingResult.fullText}"`);
       console.log(`      - Sample token IDs: [${streamingResult.tokens.slice(0, 3).map(t => t.token_id).join(', ')}]`);
       if (streamingResult.finalPerf) {
@@ -104,7 +104,7 @@ async function runRealStreamingTests() {
         throw new Error(`Insufficient streaming tokens - got ${streamingResult.tokens.length}, expected at least 5`);
       }
       
-      console.log(`\n      ✅ RAW JSON STREAMING SUCCESS! Each token came as a complete JSON-RPC response`);
+      console.log(`\n      ✅ JSON-RPC STREAMING VERIFIED! Each token received as complete JSON-RPC response`);
     });
 
     // Test 4: Hidden States Extraction

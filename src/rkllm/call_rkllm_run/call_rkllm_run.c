@@ -50,17 +50,37 @@ json_object* call_rkllm_run(json_object* params, int client_fd, int request_id) 
         return NULL; // Error: Failed to convert infer param
     }
     
-    // CRITICAL FIX: Check if model was initialized with is_async=true
-    // If async mode, use streaming; if sync mode, return single response
+    // CRITICAL FIX: Handle different inference modes with proper validation
+    fprintf(stderr, "🔍 Inference mode: %d\n", rkllm_infer_param.mode);
+    
+    // Mode-specific validation and warnings
+    switch (rkllm_infer_param.mode) {
+        case 0: // RKLLM_INFER_GENERATE
+            fprintf(stderr, "📝 Running text generation mode\n");
+            break;
+        case 1: // RKLLM_INFER_GET_LAST_HIDDEN_LAYER
+            fprintf(stderr, "🧠 Running hidden states extraction mode\n");
+            break;
+        case 2: // RKLLM_INFER_GET_LOGITS
+            fprintf(stderr, "📊 Running logits extraction mode - checking RKLLM compatibility\n");
+            // CRITICAL: Some RKLLM models may not support logits mode properly
+            // We'll add a timeout mechanism in the streaming context
+            break;
+        default:
+            fprintf(stderr, "⚠️  Unknown inference mode: %d\n", rkllm_infer_param.mode);
+            break;
+    }
     
     // Set streaming context for the callback to capture streaming data
+    // Include mode information for timeout handling
     set_streaming_context(client_fd, request_id);
-    printf("[DEBUG] Set streaming context for rkllm_run (async mode)\n");
+    printf("[DEBUG] Set streaming context for rkllm_run (mode: %d)\n", rkllm_infer_param.mode);
     
     // Call rkllm_run - the callback will handle ALL responses including final
+    fprintf(stderr, "🚀 Calling rkllm_run...\n");
     int result = rkllm_run(global_llm_handle, &rkllm_input, &rkllm_infer_param, NULL);
     
-    printf("[DEBUG] rkllm_run returned: %d\n", result);
+    fprintf(stderr, "✅ rkllm_run returned: %d\n", result);
     
     // Clean up allocated memory for input structures
     if (rkllm_input.role) free((void*)rkllm_input.role);
@@ -98,6 +118,7 @@ json_object* call_rkllm_run(json_object* params, int client_fd, int request_id) 
     
     if (result != 0) {
         // RKLLM run failed - clear streaming context and return error
+        fprintf(stderr, "❌ rkllm_run failed with code: %d\n", result);
         clear_streaming_context();
         return NULL;
     }

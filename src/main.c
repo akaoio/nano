@@ -14,6 +14,8 @@
 #include "server/accept_connection/accept_connection.h"
 #include "server/setup_epoll/setup_epoll.h"
 #include "server/cleanup_socket/cleanup_socket.h"
+#include "server/install_signal_handlers/install_signal_handlers.h"
+#include "server/check_shutdown_requested/check_shutdown_requested.h"
 
 // Connection management
 #include "connection/create_connection/create_connection.h"
@@ -54,14 +56,17 @@ int main(int argc, char *argv[]) {
     }
     global_socket_path = socket_path;
 
+    log_message("Starting RKLLM Unix Domain Socket Server with Crash Protection");
+    log_message("Socket path: %s", socket_path);
+
+    // Install hardened signal handlers for crash protection
+    if (install_signal_handlers() != 0) {
+        log_message("Failed to install signal handlers");
+        return EXIT_FAILURE;
+    }
+
     // Install cleanup handlers
     atexit(cleanup_and_exit);
-    signal(SIGINT, signal_handler);
-    signal(SIGTERM, signal_handler);
-    signal(SIGQUIT, signal_handler);
-
-    log_message("Starting RKLLM Unix Domain Socket Server");
-    log_message("Socket path: %s", socket_path);
 
     // Clean up any existing socket file
     if (unlink(socket_path) == 0) {
@@ -125,10 +130,16 @@ int main(int argc, char *argv[]) {
 
     log_message("Server started successfully, waiting for connections");
 
-    // Main event loop
+    // Main event loop with crash protection
     struct epoll_event events[64];
-    while (running) {
+    while (running && !is_shutdown_requested()) {
         int event_count = epoll_wait(epoll_fd, events, 64, 1000); // 1 second timeout
+        
+        // Check for shutdown request from signal handler
+        if (is_shutdown_requested()) {
+            log_message("Shutdown requested by signal handler");
+            break;
+        }
         
         if (event_count < 0) {
             if (errno == EINTR) {
