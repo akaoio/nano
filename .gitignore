@@ -60,4 +60,4 @@ build/
 reports/
 
 # External dependencies (downloaded automatically by CMake)
-src/external/
+third_party/
