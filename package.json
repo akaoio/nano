@@ -1,12 +1,10 @@
 {
   "name": "rkllm-mcp-server",
   "version": "1.0.0",
-  "type": "module",
   "description": "RKLLM MCP Server",
   "main": "src/main.c",
   "scripts": {
-    "test": "cd tests && npm install && node test-runner-simple.js",
-    "test:full": "cd tests && npm install && node test-runner.js",
+    "test": "node test.js",
     "build": "cd build && make",
     "clean": "cd build && make clean"
   },

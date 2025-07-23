@@ -81,7 +81,8 @@ class TestClient {
           const response = JSON.parse(responseData.trim());
           if (response.id === request.id) {
             cleanup();
-            console.log('📥 RESPONSE:', JSON.stringify(response, null, 2));
+            const trimmedResponse = this.trimLongArrays(response);
+            console.log('📥 RESPONSE:', JSON.stringify(trimmedResponse, null, 2));
             resolve(response);
             return;
           }
@@ -102,7 +103,7 @@ class TestClient {
             // Check if this is the response to our request
             if (response.id === request.id) {
               cleanup();
-              console.log('📥 RESPONSE:', JSON.stringify(response, null, 2));
+              const trimmedResponse = this.trimLongArrays(response);
               resolve(response);
               return;
             }
@@ -117,11 +118,12 @@ class TestClient {
       // Set up handlers
       this.socket.on('data', dataHandler);
 
-      // Set timeout
+      // Set timeout with method-specific timeouts
+      const timeoutMs = method.includes('logits') ? 8000 : 15000; // Shorter timeout for logits mode
       timeout = setTimeout(() => {
         cleanup();
-        reject(new Error(`Request timeout for method: ${method}`));
-      }, 15000); // Reduced timeout to 15 seconds
+        reject(new Error(`Request timeout (${timeoutMs}ms) for method: ${method}`));
+      }, timeoutMs);
 
       // Send request
       try {
@@ -176,6 +178,25 @@ class TestClient {
         response: null
       };
     }
+  }
+
+  /**
+   * Trim long arrays in response for readable console output
+   */
+  trimLongArrays(obj, maxItems = 5) {
+    if (Array.isArray(obj)) {
+      if (obj.length > maxItems) {
+        return [...obj.slice(0, maxItems), `... ${obj.length - maxItems} more items`];
+      }
+      return obj;
+    } else if (obj && typeof obj === 'object') {
+      const trimmed = {};
+      for (const [key, value] of Object.entries(obj)) {
+        trimmed[key] = this.trimLongArrays(value, maxItems);
+      }
+      return trimmed;
+    }
+    return obj;
   }
 
   /**
