@@ -23,6 +23,9 @@ int convert_json_to_rkllm_infer_param(json_object* json_obj, RKLLMInferParam* rk
         if (!json_object_is_type(lora_obj, json_type_null)) {
             // Allocate and fill lora_params
             rkllm_infer_param->lora_params = (RKLLMLoraParam*)malloc(sizeof(RKLLMLoraParam));
+            if (!rkllm_infer_param->lora_params) {
+                return -1;  // Memory allocation failed
+            }
             memset(rkllm_infer_param->lora_params, 0, sizeof(RKLLMLoraParam));
             
             // Extract lora_adapter_name
@@ -31,6 +34,10 @@ int convert_json_to_rkllm_infer_param(json_object* json_obj, RKLLMInferParam* rk
                 const char* adapter_name_str = json_object_get_string(adapter_name_obj);
                 if (adapter_name_str) {
                     rkllm_infer_param->lora_params->lora_adapter_name = strdup(adapter_name_str);
+                    if (!rkllm_infer_param->lora_params->lora_adapter_name) {
+                        free(rkllm_infer_param->lora_params);
+                        return -1;  // Memory allocation failed
+                    }
                 }
             }
         }
@@ -42,6 +49,9 @@ int convert_json_to_rkllm_infer_param(json_object* json_obj, RKLLMInferParam* rk
         if (!json_object_is_type(cache_obj, json_type_null)) {
             // Allocate and fill prompt_cache_params
             rkllm_infer_param->prompt_cache_params = (RKLLMPromptCacheParam*)malloc(sizeof(RKLLMPromptCacheParam));
+            if (!rkllm_infer_param->prompt_cache_params) {
+                return -1;  // Memory allocation failed
+            }
             memset(rkllm_infer_param->prompt_cache_params, 0, sizeof(RKLLMPromptCacheParam));
             
             // Extract save_prompt_cache
@@ -56,6 +66,16 @@ int convert_json_to_rkllm_infer_param(json_object* json_obj, RKLLMInferParam* rk
                 const char* cache_path_str = json_object_get_string(cache_path_obj);
                 if (cache_path_str) {
                     rkllm_infer_param->prompt_cache_params->prompt_cache_path = strdup(cache_path_str);
+                    if (!rkllm_infer_param->prompt_cache_params->prompt_cache_path) {
+                        if (rkllm_infer_param->lora_params && rkllm_infer_param->lora_params->lora_adapter_name) {
+                            free(rkllm_infer_param->lora_params->lora_adapter_name);
+                        }
+                        if (rkllm_infer_param->lora_params) {
+                            free(rkllm_infer_param->lora_params);
+                        }
+                        free(rkllm_infer_param->prompt_cache_params);
+                        return -1;  // Memory allocation failed
+                    }
                 }
             }
         }

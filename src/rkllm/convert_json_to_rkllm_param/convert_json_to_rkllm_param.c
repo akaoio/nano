@@ -19,6 +19,9 @@ int convert_json_to_rkllm_param(json_object* json_param, RKLLMParam* param) {
         const char* model_path = json_object_get_string(obj);
         if (model_path && strlen(model_path) > 0) {
             param->model_path = strdup(model_path);
+            if (!param->model_path) {
+                return -1; // Memory allocation failed
+            }
         }
     }
     
@@ -97,6 +100,10 @@ int convert_json_to_rkllm_param(json_object* json_param, RKLLMParam* param) {
         const char* img_start = json_object_get_string(obj);
         if (img_start) {
             param->img_start = strdup(img_start);
+            if (!param->img_start) {
+                if (param->model_path) free((void*)param->model_path);
+                return -1; // Memory allocation failed
+            }
         }
     }
     
@@ -105,6 +112,11 @@ int convert_json_to_rkllm_param(json_object* json_param, RKLLMParam* param) {
         const char* img_end = json_object_get_string(obj);
         if (img_end) {
             param->img_end = strdup(img_end);
+            if (!param->img_end) {
+                if (param->model_path) free((void*)param->model_path);
+                if (param->img_start) free((void*)param->img_start);
+                return -1; // Memory allocation failed
+            }
         }
     }
     
@@ -113,6 +125,12 @@ int convert_json_to_rkllm_param(json_object* json_param, RKLLMParam* param) {
         const char* img_content = json_object_get_string(obj);
         if (img_content) {
             param->img_content = strdup(img_content);
+            if (!param->img_content) {
+                if (param->model_path) free((void*)param->model_path);
+                if (param->img_start) free((void*)param->img_start);
+                if (param->img_end) free((void*)param->img_end);
+                return -1; // Memory allocation failed
+            }
         }
     }
     

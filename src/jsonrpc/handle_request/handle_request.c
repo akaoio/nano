@@ -17,6 +17,7 @@
 #include "../../rkllm/call_rkllm_set_function_tools/call_rkllm_set_function_tools.h"
 #include "../../rkllm/call_rkllm_set_cross_attn_params/call_rkllm_set_cross_attn_params.h"
 #include "../../rkllm/get_rkllm_constants/get_rkllm_constants.h"
+#include "../../utils/log_message/log_message.h"
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -44,7 +45,7 @@ int handle_request(JSONRPCRequest* req, Connection* conn) {
         // CRITICAL FIX: For rkllm.run, NULL return means "async streaming in progress"
         // The callback handles all responses, so don't send error - just return success
         if (!result) {
-            printf("[DEBUG] rkllm.run returned NULL - async streaming active, no response needed\n");
+            LOG_DEBUG_MSG("rkllm.run returned NULL - async streaming active, no response needed");
             return 0; // Success - callback handles responses
         }
     } else if (strcmp(req->method, "rkllm.run_async") == 0) {
@@ -53,9 +54,9 @@ int handle_request(JSONRPCRequest* req, Connection* conn) {
         if (req->id && json_object_is_type(req->id, json_type_int)) {
             request_id = json_object_get_int(req->id);
         }
-        printf("[DEBUG] Calling rkllm.run_async with client_fd=%d, request_id=%d\n", conn->fd, request_id);
+        LOG_DEBUG_MSG("Calling rkllm.run_async with client_fd=%d, request_id=%d", conn->fd, request_id);
         result = call_rkllm_run_async(req->params, conn->fd, request_id);
-        printf("[DEBUG] call_rkllm_run_async returned: %p\n", (void*)result);
+        LOG_DEBUG_MSG("call_rkllm_run_async returned: %p", (void*)result);
     } else if (strcmp(req->method, "rkllm.is_running") == 0) {
         result = call_rkllm_is_running();
     } else if (strcmp(req->method, "rkllm.abort") == 0) {

@@ -6,6 +6,7 @@
 #include <sys/socket.h>
 #include <errno.h>
 #include <string.h>
+#include <limits.h>
 
 // Server functions
 #include "server/create_socket/create_socket.h"
@@ -30,6 +31,10 @@
 // Utility functions
 #include "utils/log_message/log_message.h"
 
+// Configuration
+#include "config/get_server_config/get_server_config.h"
+#include "utils/global_config/global_config.h"
+
 // Global variables for cleanup
 static int server_socket = -1;
 static int epoll_fd = -1;
@@ -40,28 +45,44 @@ static const char* global_socket_path = NULL;
 void cleanup_and_exit(void) {
     if (global_socket_path) {
         unlink(global_socket_path);
-        log_message("Removed socket file on exit: %s", global_socket_path);
+        LOG_INFO_MSG("Removed socket file on exit: %s", global_socket_path);
     }
 }
 
 void signal_handler(int signum) {
     running = 0;
-    log_message("Received signal %d, shutting down gracefully", signum);
+    LOG_INFO_MSG("Received signal %d, shutting down gracefully", signum);
 }
 
 int main(int argc, char *argv[]) {
-    const char *socket_path = getenv("RKLLM_UDS_PATH");
-    if (!socket_path) {
-        socket_path = "/tmp/rkllm.sock";
+    // Load server configuration
+    ServerConfig* config = get_server_config();
+    if (!config) {
+        // Use emergency logging for bootstrap failures
+        emergency_log("Failed to load server configuration");
+        return EXIT_FAILURE;
     }
-    global_socket_path = socket_path;
-
-    log_message("Starting RKLLM Unix Domain Socket Server with Crash Protection");
-    log_message("Socket path: %s", socket_path);
+    
+    global_socket_path = config->socket_path;
+    
+    // Set global configuration for access throughout the application
+    set_global_config(config);
+    
+    // Initialize logging system first
+    init_logging("rkllm-server");
+    
+    // Set log level from configuration
+    set_log_level(config->log_level);
+    
+    LOG_INFO_MSG("Starting RKLLM Unix Domain Socket Server with Crash Protection");
+    LOG_INFO_MSG("Socket path: %s", config->socket_path);
+    LOG_INFO_MSG("Max connections: %d", config->max_connections);
+    LOG_INFO_MSG("Log level: %d", config->log_level);
 
     // Install hardened signal handlers for crash protection
     if (install_signal_handlers() != 0) {
-        log_message("Failed to install signal handlers");
+        LOG_ERROR_MSG("Failed to install signal handlers");
+        free_server_config(config);
         return EXIT_FAILURE;
     }
 
@@ -69,51 +90,57 @@ int main(int argc, char *argv[]) {
     atexit(cleanup_and_exit);
 
     // Clean up any existing socket file
-    if (unlink(socket_path) == 0) {
-        log_message("Removed existing socket file: %s", socket_path);
+    if (unlink(config->socket_path) == 0) {
+        LOG_INFO_MSG("Removed existing socket file: %s", config->socket_path);
     }
 
     // Initialize connection manager
     conn_manager = malloc(sizeof(ConnectionManager));
     if (!conn_manager) {
-        log_message("Failed to allocate connection manager");
+        LOG_ERROR_MSG("Failed to allocate connection manager");
+        free_server_config(config);
         return EXIT_FAILURE;
     }
-    conn_manager->max_connections = 100;
+    conn_manager->max_connections = config->max_connections;
     conn_manager->count = 0;
     conn_manager->connections = calloc(conn_manager->max_connections, sizeof(Connection*));
     if (!conn_manager->connections) {
-        log_message("Failed to allocate connections array");
+        LOG_ERROR_MSG("Failed to allocate connections array");
         free(conn_manager);
+        free_server_config(config);
         return EXIT_FAILURE;
     }
 
     // Create Unix domain socket
-    server_socket = create_socket(socket_path);
+    server_socket = create_socket(config->socket_path);
     if (server_socket < 0) {
-        log_message("Failed to create socket");
+        LOG_ERROR_MSG("Failed to create socket");
+        free_server_config(config);
         return EXIT_FAILURE;
     }
 
     // Bind socket to path
-    if (bind_socket(server_socket, socket_path) < 0) {
-        log_message("Failed to bind socket");
-        cleanup_socket(server_socket, socket_path);
+    if (bind_socket(server_socket, config->socket_path) < 0) {
+        LOG_ERROR_MSG("Failed to bind socket");
+        cleanup_socket(server_socket, config->socket_path);
+        free_server_config(config);
         return EXIT_FAILURE;
     }
 
     // Set socket to listen mode
-    if (listen_socket(server_socket, 128) < 0) {
-        log_message("Failed to listen on socket");
-        cleanup_socket(server_socket, socket_path);
+    if (listen_socket(server_socket, config->listen_backlog) < 0) {
+        LOG_ERROR_MSG("Failed to listen on socket");
+        cleanup_socket(server_socket, config->socket_path);
+        free_server_config(config);
         return EXIT_FAILURE;
     }
 
     // Setup epoll for non-blocking I/O
     epoll_fd = setup_epoll();
     if (epoll_fd < 0) {
-        log_message("Failed to setup epoll");
-        cleanup_socket(server_socket, socket_path);
+        LOG_ERROR_MSG("Failed to setup epoll");
+        cleanup_socket(server_socket, config->socket_path);
+        free_server_config(config);
         return EXIT_FAILURE;
     }
 
@@ -122,22 +149,35 @@ int main(int argc, char *argv[]) {
     event.events = EPOLLIN;
     event.data.fd = server_socket;
     if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, server_socket, &event) < 0) {
-        log_message("Failed to add server socket to epoll: %s", strerror(errno));
+        LOG_ERROR_MSG("Failed to add server socket to epoll: %s", strerror(errno));
         close(epoll_fd);
-        cleanup_socket(server_socket, socket_path);
+        cleanup_socket(server_socket, config->socket_path);
+        free_server_config(config);
         return EXIT_FAILURE;
     }
 
-    log_message("Server started successfully, waiting for connections");
+    LOG_INFO_MSG("Server started successfully, waiting for connections");
+    
+    // Output to stdout for test compatibility
+    printf("Server started successfully\n");
+    fflush(stdout);
 
     // Main event loop with crash protection
-    struct epoll_event events[64];
+    struct epoll_event* events = malloc(config->epoll_max_events * sizeof(struct epoll_event));
+    if (!events) {
+        LOG_ERROR_MSG("Failed to allocate epoll events array");
+        close(epoll_fd);
+        cleanup_socket(server_socket, config->socket_path);
+        free_server_config(config);
+        return EXIT_FAILURE;
+    }
+    
     while (running && !is_shutdown_requested()) {
-        int event_count = epoll_wait(epoll_fd, events, 64, 1000); // 1 second timeout
+        int event_count = epoll_wait(epoll_fd, events, config->epoll_max_events, config->epoll_timeout_ms);
         
         // Check for shutdown request from signal handler
         if (is_shutdown_requested()) {
-            log_message("Shutdown requested by signal handler");
+            LOG_INFO_MSG("Shutdown requested by signal handler");
             break;
         }
         
@@ -145,7 +185,7 @@ int main(int argc, char *argv[]) {
             if (errno == EINTR) {
                 continue; // Signal interrupted, check running flag
             }
-            log_message("epoll_wait failed: %s", strerror(errno));
+            LOG_ERROR_MSG("epoll_wait failed: %s", strerror(errno));
             break;
         }
 
@@ -154,7 +194,7 @@ int main(int argc, char *argv[]) {
                 // New connection request
                 int client_fd = accept_connection(server_socket);
                 if (client_fd >= 0) {
-                    log_message("Accepted new connection: fd=%d", client_fd);
+                    LOG_INFO_MSG("Accepted new connection: fd=%d", client_fd);
                     
                     // Create connection object
                     Connection* conn = create_connection(client_fd);
@@ -164,39 +204,44 @@ int main(int argc, char *argv[]) {
                         client_event.events = EPOLLIN;
                         client_event.data.fd = client_fd;
                         if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, client_fd, &client_event) < 0) {
-                            log_message("Failed to add client to epoll: %s", strerror(errno));
+                            LOG_ERROR_MSG("Failed to add client to epoll: %s", strerror(errno));
                             remove_connection(conn_manager, client_fd);
                             close(client_fd);
                         }
                     } else {
-                        log_message("Failed to create or add connection");
+                        LOG_ERROR_MSG("Failed to create or add connection");
                         close(client_fd);
                     }
                 }
             } else {
                 // Client data available
                 int client_fd = events[i].data.fd;
-                log_message("Data available on client fd=%d", client_fd);
+                LOG_DEBUG_MSG("Data available on client fd=%d", client_fd);
                 
                 // Find connection
                 Connection* conn = find_connection(conn_manager, client_fd);
                 if (conn) {
-                    // Read data from client
-                    char buffer[4096];
-                    ssize_t bytes_read = recv(client_fd, buffer, sizeof(buffer) - 1, 0);
+                    // Read data from client with configurable buffer size
+                    char* buffer = malloc(config->buffer_size);
+                    if (!buffer) {
+                        LOG_ERROR_MSG("Failed to allocate buffer for client fd=%d", client_fd);
+                        continue;
+                    }
+                    
+                    ssize_t bytes_read = recv(client_fd, buffer, config->buffer_size - 1, 0);
                     
                     if (bytes_read > 0) {
                         buffer[bytes_read] = '\0';
-                        log_message("Received data: %s", buffer);
+                        LOG_DEBUG_MSG("Received data: %s", buffer);
                         
                         // Parse JSON-RPC request
                         JSONRPCRequest* req = parse_request(buffer);
                         if (req && req->is_valid) {
-                            log_message("Valid JSON-RPC request: method=%s", req->method);
+                            LOG_INFO_MSG("Valid JSON-RPC request: method=%s", req->method);
                             // Handle the request
                             handle_request(req, conn);
                         } else {
-                            log_message("Invalid JSON-RPC request");
+                            LOG_WARN_MSG("Invalid JSON-RPC request");
                         }
                         
                         // Clean up request
@@ -208,18 +253,20 @@ int main(int argc, char *argv[]) {
                             free(req);
                         }
                     } else if (bytes_read == 0) {
-                        log_message("Client disconnected: fd=%d", client_fd);
+                        LOG_INFO_MSG("Client disconnected: fd=%d", client_fd);
                         epoll_ctl(epoll_fd, EPOLL_CTL_DEL, client_fd, NULL);
                         remove_connection(conn_manager, client_fd);
                         close(client_fd);
                     } else {
-                        log_message("Read error on fd=%d: %s", client_fd, strerror(errno));
+                        LOG_ERROR_MSG("Read error on fd=%d: %s", client_fd, strerror(errno));
                         epoll_ctl(epoll_fd, EPOLL_CTL_DEL, client_fd, NULL);
                         remove_connection(conn_manager, client_fd);
                         close(client_fd);
                     }
+                    
+                    free(buffer);
                 } else {
-                    log_message("Connection not found for fd=%d", client_fd);
+                    LOG_WARN_MSG("Connection not found for fd=%d", client_fd);
                     epoll_ctl(epoll_fd, EPOLL_CTL_DEL, client_fd, NULL);
                     close(client_fd);
                 }
@@ -228,15 +275,18 @@ int main(int argc, char *argv[]) {
     }
 
     // Cleanup
-    log_message("Shutting down server");
+    LOG_INFO_MSG("Shutting down server");
     if (epoll_fd >= 0) {
         close(epoll_fd);
     }
-    cleanup_socket(server_socket, socket_path);
+    cleanup_socket(server_socket, config->socket_path);
     
     // Explicitly remove socket file
-    unlink(socket_path);
-    log_message("Socket file removed: %s", socket_path);
+    unlink(config->socket_path);
+    LOG_INFO_MSG("Socket file removed: %s", config->socket_path);
+    
+    // Free events array
+    free(events);
     
     // Clean up connection manager
     if (conn_manager) {
@@ -250,7 +300,13 @@ int main(int argc, char *argv[]) {
         free(conn_manager);
     }
     
-    log_message("Server shutdown complete");
+    LOG_INFO_MSG("Server shutdown complete");
+    
+    // Free configuration
+    free_server_config(config);
+    
+    // Close logging system
+    close_logging();
 
     return EXIT_SUCCESS;
 }

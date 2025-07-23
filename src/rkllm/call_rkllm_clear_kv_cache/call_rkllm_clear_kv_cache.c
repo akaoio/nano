@@ -39,6 +39,9 @@ json_object* call_rkllm_clear_kv_cache(json_object* params) {
         start_pos_len = json_object_array_length(start_pos_obj);
         if (start_pos_len > 0) {
             start_pos = (int*)malloc(start_pos_len * sizeof(int));
+            if (!start_pos) {
+                return NULL; // Memory allocation failed
+            }
             for (size_t i = 0; i < start_pos_len; i++) {
                 json_object* elem = json_object_array_get_idx(start_pos_obj, i);
                 if (elem && json_object_is_type(elem, json_type_int)) {
@@ -57,6 +60,10 @@ json_object* call_rkllm_clear_kv_cache(json_object* params) {
         end_pos_len = json_object_array_length(end_pos_obj);
         if (end_pos_len > 0) {
             end_pos = (int*)malloc(end_pos_len * sizeof(int));
+            if (!end_pos) {
+                if (start_pos) free(start_pos);
+                return NULL; // Memory allocation failed
+            }
             for (size_t i = 0; i < end_pos_len; i++) {
                 json_object* elem = json_object_array_get_idx(end_pos_obj, i);
                 if (elem && json_object_is_type(elem, json_type_int)) {

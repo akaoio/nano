@@ -3,6 +3,7 @@
 #include "../convert_json_to_rkllm_infer_param/convert_json_to_rkllm_infer_param.h"
 #include "../manage_streaming_context/manage_streaming_context.h"
 #include "../call_rkllm_init/call_rkllm_init.h"
+#include "../../utils/log_message/log_message.h"
 #include <stdbool.h>
 #include <stdio.h>
 #include <rkllm.h>
@@ -26,8 +27,7 @@ typedef struct {
 static volatile int async_timeout = 0;
 void async_timeout_handler(int sig) {
     async_timeout = 1;
-    printf("[DEBUG] Async timeout triggered!\n");
-    fflush(stdout);
+    LOG_DEBUG_MSG("Async timeout triggered!");
 }
 
 json_object* call_rkllm_run_async(json_object* params, int client_fd, int request_id) {
@@ -69,18 +69,15 @@ json_object* call_rkllm_run_async(json_object* params, int client_fd, int reques
     
     // Set streaming context for callback forwarding
     set_streaming_context(client_fd, request_id);
-    printf("[DEBUG] About to call rkllm_run_async...\n");
-    fflush(stdout);
+    LOG_DEBUG_MSG("About to call rkllm_run_async...");
     
     // Call rkllm_run_async with extended patience for model warmup
-    printf("[DEBUG] Calling rkllm_run_async (being patient for model warmup)...\n");
-    fflush(stdout);
+    LOG_DEBUG_MSG("Calling rkllm_run_async (being patient for model warmup)...");
     
     int result = rkllm_run_async(global_llm_handle, &rkllm_input, &rkllm_infer_param, NULL);
     
-    // Debug: Log the result
-    printf("[DEBUG] rkllm_run_async returned: %d\n", result);
-    fflush(stdout);
+    // Log the result for monitoring
+    LOG_DEBUG_MSG("rkllm_run_async returned: %d", result);
     
     // Clean up allocated memory for input structures
     if (rkllm_input.role) free((void*)rkllm_input.role);

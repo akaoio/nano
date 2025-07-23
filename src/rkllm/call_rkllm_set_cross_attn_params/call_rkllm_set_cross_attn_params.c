@@ -51,6 +51,9 @@ json_object* call_rkllm_set_cross_attn_params(json_object* params) {
         size_t k_cache_len = json_object_array_length(k_cache_obj);
         if (k_cache_len > 0) {
             cross_attn_params.encoder_k_cache = (float*)malloc(k_cache_len * sizeof(float));
+            if (!cross_attn_params.encoder_k_cache) {
+                return NULL; // Memory allocation failed
+            }
             for (size_t i = 0; i < k_cache_len; i++) {
                 json_object* elem = json_object_array_get_idx(k_cache_obj, i);
                 if (elem && json_object_is_type(elem, json_type_double)) {
@@ -67,6 +70,10 @@ json_object* call_rkllm_set_cross_attn_params(json_object* params) {
         size_t v_cache_len = json_object_array_length(v_cache_obj);
         if (v_cache_len > 0) {
             cross_attn_params.encoder_v_cache = (float*)malloc(v_cache_len * sizeof(float));
+            if (!cross_attn_params.encoder_v_cache) {
+                if (cross_attn_params.encoder_k_cache) free(cross_attn_params.encoder_k_cache);
+                return NULL; // Memory allocation failed
+            }
             for (size_t i = 0; i < v_cache_len; i++) {
                 json_object* elem = json_object_array_get_idx(v_cache_obj, i);
                 if (elem && json_object_is_type(elem, json_type_double)) {
@@ -83,6 +90,11 @@ json_object* call_rkllm_set_cross_attn_params(json_object* params) {
         size_t mask_len = json_object_array_length(mask_obj);
         if (mask_len > 0) {
             cross_attn_params.encoder_mask = (float*)malloc(mask_len * sizeof(float));
+            if (!cross_attn_params.encoder_mask) {
+                if (cross_attn_params.encoder_k_cache) free(cross_attn_params.encoder_k_cache);
+                if (cross_attn_params.encoder_v_cache) free(cross_attn_params.encoder_v_cache);
+                return NULL; // Memory allocation failed
+            }
             for (size_t i = 0; i < mask_len; i++) {
                 json_object* elem = json_object_array_get_idx(mask_obj, i);
                 if (elem && json_object_is_type(elem, json_type_double)) {
@@ -99,6 +111,12 @@ json_object* call_rkllm_set_cross_attn_params(json_object* params) {
         size_t pos_len = json_object_array_length(pos_obj);
         if (pos_len > 0) {
             cross_attn_params.encoder_pos = (int32_t*)malloc(pos_len * sizeof(int32_t));
+            if (!cross_attn_params.encoder_pos) {
+                if (cross_attn_params.encoder_k_cache) free(cross_attn_params.encoder_k_cache);
+                if (cross_attn_params.encoder_v_cache) free(cross_attn_params.encoder_v_cache);
+                if (cross_attn_params.encoder_mask) free(cross_attn_params.encoder_mask);
+                return NULL; // Memory allocation failed
+            }
             for (size_t i = 0; i < pos_len; i++) {
                 json_object* elem = json_object_array_get_idx(pos_obj, i);
                 if (elem && json_object_is_type(elem, json_type_int)) {

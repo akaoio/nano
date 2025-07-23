@@ -3,6 +3,8 @@
 #include "../convert_rkllm_result_to_json/convert_rkllm_result_to_json.h"
 #include "../manage_streaming_context/manage_streaming_context.h"
 #include "../../jsonrpc/format_response/format_response.h"
+#include "../../utils/log_message/log_message.h"
+#include "../../utils/global_config/global_config.h"
 #include <stdbool.h>
 #include <stdio.h>
 #include <rkllm.h>
@@ -26,14 +28,14 @@ void timeout_handler(int sig) {
 }
 
 int global_rkllm_callback(RKLLMResult* result, void* userdata, LLMCallState state) {
-    // Debug: Log callback invocation
-    printf("[DEBUG] Callback called - state: %d, text: %s\n", state, result ? (result->text ? result->text : "NULL") : "result=NULL");
+    // Log callback invocation for monitoring
+    LOG_DEBUG_MSG("Callback called - state: %d, text: %s", state, result ? (result->text ? result->text : "NULL") : "result=NULL");
     
     // Get current streaming context
     StreamingContext* context = get_streaming_context();
     if (!context) {
         // No active streaming context - ignore callback (during init)
-        printf("[DEBUG] No streaming context, ignoring callback\n");
+        LOG_DEBUG_MSG("No streaming context, ignoring callback");
         return 0;
     }
     
@@ -139,8 +141,10 @@ json_object* call_rkllm_init(json_object* params) {
     // Reset timeout flag
     init_timeout = 0;
     
-    // Set alarm for timeout
-    alarm(30); // 30 second timeout
+    // Set alarm for configurable timeout
+    int timeout_seconds = get_init_timeout() / 1000; // Convert ms to seconds
+    if (timeout_seconds <= 0) timeout_seconds = 30; // Fallback to 30 seconds
+    alarm(timeout_seconds);
     
     // Call rkllm_init directly  
     int init_result = rkllm_init(&global_llm_handle, &rkllm_param, global_rkllm_callback);

@@ -39,6 +39,9 @@ json_object* call_rkllm_load_lora(json_object* params) {
         if (json_object_is_type(path_obj, json_type_string)) {
             const char* path_str = json_object_get_string(path_obj);
             lora_adapter.lora_adapter_path = strdup(path_str);
+            if (!lora_adapter.lora_adapter_path) {
+                return NULL; // Memory allocation failed
+            }
         }
     }
     
@@ -48,6 +51,10 @@ json_object* call_rkllm_load_lora(json_object* params) {
         if (json_object_is_type(name_obj, json_type_string)) {
             const char* name_str = json_object_get_string(name_obj);
             lora_adapter.lora_adapter_name = strdup(name_str);
+            if (!lora_adapter.lora_adapter_name) {
+                if (lora_adapter.lora_adapter_path) free(lora_adapter.lora_adapter_path);
+                return NULL; // Memory allocation failed
+            }
         }
     }
     

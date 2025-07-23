@@ -17,6 +17,9 @@ int convert_json_to_rkllm_input(json_object* json_obj, RKLLMInput* rkllm_input) 
         const char* role_str = json_object_get_string(role_obj);
         if (role_str) {
             rkllm_input->role = strdup(role_str);
+            if (!rkllm_input->role) {
+                return -1;  // Memory allocation failed
+            }
         }
     }
     
@@ -41,6 +44,10 @@ int convert_json_to_rkllm_input(json_object* json_obj, RKLLMInput* rkllm_input) 
                 const char* prompt_str = json_object_get_string(prompt_obj);
                 if (prompt_str) {
                     rkllm_input->prompt_input = strdup(prompt_str);
+                    if (!rkllm_input->prompt_input) {
+                        if (rkllm_input->role) free(rkllm_input->role);
+                        return -1;  // Memory allocation failed
+                    }
                 }
             }
             break;
@@ -57,6 +64,9 @@ int convert_json_to_rkllm_input(json_object* json_obj, RKLLMInput* rkllm_input) 
                         int array_len = json_object_array_length(ids_obj);
                         if (array_len > 0) {
                             rkllm_input->token_input.input_ids = (int32_t*)malloc(array_len * sizeof(int32_t));
+                            if (!rkllm_input->token_input.input_ids) {
+                                return -1;  // Memory allocation failed
+                            }
                             rkllm_input->token_input.n_tokens = array_len;
                             
                             for (int i = 0; i < array_len; i++) {
@@ -81,6 +91,9 @@ int convert_json_to_rkllm_input(json_object* json_obj, RKLLMInput* rkllm_input) 
                         int array_len = json_object_array_length(embed_array_obj);
                         if (array_len > 0) {
                             rkllm_input->embed_input.embed = (float*)malloc(array_len * sizeof(float));
+                            if (!rkllm_input->embed_input.embed) {
+                                return -1;  // Memory allocation failed
+                            }
                             rkllm_input->embed_input.n_tokens = array_len;
                             
                             for (int i = 0; i < array_len; i++) {
@@ -104,6 +117,13 @@ int convert_json_to_rkllm_input(json_object* json_obj, RKLLMInput* rkllm_input) 
                     const char* prompt_str = json_object_get_string(prompt_obj);
                     if (prompt_str) {
                         rkllm_input->multimodal_input.prompt = strdup(prompt_str);
+                        if (!rkllm_input->multimodal_input.prompt) {
+                            if (rkllm_input->role) free(rkllm_input->role);
+                            if (rkllm_input->prompt_input) free(rkllm_input->prompt_input);
+                            if (rkllm_input->token_input.input_ids) free(rkllm_input->token_input.input_ids);
+                            if (rkllm_input->embed_input.embed) free(rkllm_input->embed_input.embed);
+                            return -1;  // Memory allocation failed
+                        }
                     }
                 }
                 
@@ -114,6 +134,14 @@ int convert_json_to_rkllm_input(json_object* json_obj, RKLLMInput* rkllm_input) 
                         int array_len = json_object_array_length(img_embed_obj);
                         if (array_len > 0) {
                             rkllm_input->multimodal_input.image_embed = (float*)malloc(array_len * sizeof(float));
+                            if (!rkllm_input->multimodal_input.image_embed) {
+                                if (rkllm_input->role) free(rkllm_input->role);
+                                if (rkllm_input->prompt_input) free(rkllm_input->prompt_input);
+                                if (rkllm_input->token_input.input_ids) free(rkllm_input->token_input.input_ids);
+                                if (rkllm_input->embed_input.embed) free(rkllm_input->embed_input.embed);
+                                if (rkllm_input->multimodal_input.prompt) free(rkllm_input->multimodal_input.prompt);
+                                return -1;  // Memory allocation failed
+                            }
                             
                             for (int i = 0; i < array_len; i++) {
                                 json_object* embed_val_obj = json_object_array_get_idx(img_embed_obj, i);

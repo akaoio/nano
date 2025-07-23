@@ -3,6 +3,7 @@
 #include "../convert_json_to_rkllm_infer_param/convert_json_to_rkllm_infer_param.h"
 #include "../call_rkllm_init/call_rkllm_init.h"
 #include "../manage_streaming_context/manage_streaming_context.h"
+#include "../../utils/log_message/log_message.h"
 #include <stdbool.h>
 #include <stdio.h>
 #include <rkllm.h>
@@ -51,36 +52,36 @@ json_object* call_rkllm_run(json_object* params, int client_fd, int request_id) 
     }
     
     // CRITICAL FIX: Handle different inference modes with proper validation
-    fprintf(stderr, "🔍 Inference mode: %d\n", rkllm_infer_param.mode);
+    LOG_INFO_MSG("Inference mode: %d", rkllm_infer_param.mode);
     
     // Mode-specific validation and warnings
     switch (rkllm_infer_param.mode) {
         case 0: // RKLLM_INFER_GENERATE
-            fprintf(stderr, "📝 Running text generation mode\n");
+            LOG_INFO_MSG("Running text generation mode");
             break;
         case 1: // RKLLM_INFER_GET_LAST_HIDDEN_LAYER
-            fprintf(stderr, "🧠 Running hidden states extraction mode\n");
+            LOG_INFO_MSG("Running hidden states extraction mode");
             break;
         case 2: // RKLLM_INFER_GET_LOGITS
-            fprintf(stderr, "📊 Running logits extraction mode - checking RKLLM compatibility\n");
+            LOG_INFO_MSG("Running logits extraction mode - checking RKLLM compatibility");
             // CRITICAL: Some RKLLM models may not support logits mode properly
             // We'll add a timeout mechanism in the streaming context
             break;
         default:
-            fprintf(stderr, "⚠️  Unknown inference mode: %d\n", rkllm_infer_param.mode);
+            LOG_WARN_MSG("Unknown inference mode: %d", rkllm_infer_param.mode);
             break;
     }
     
     // Set streaming context for the callback to capture streaming data
     // Include mode information for timeout handling
     set_streaming_context(client_fd, request_id);
-    printf("[DEBUG] Set streaming context for rkllm_run (mode: %d)\n", rkllm_infer_param.mode);
+    LOG_DEBUG_MSG("Set streaming context for rkllm_run (mode: %d)", rkllm_infer_param.mode);
     
     // Call rkllm_run - the callback will handle ALL responses including final
-    fprintf(stderr, "🚀 Calling rkllm_run...\n");
+    LOG_INFO_MSG("Calling rkllm_run...");
     int result = rkllm_run(global_llm_handle, &rkllm_input, &rkllm_infer_param, NULL);
     
-    fprintf(stderr, "✅ rkllm_run returned: %d\n", result);
+    LOG_INFO_MSG("rkllm_run returned: %d", result);
     
     // Clean up allocated memory for input structures
     if (rkllm_input.role) free((void*)rkllm_input.role);
@@ -118,7 +119,7 @@ json_object* call_rkllm_run(json_object* params, int client_fd, int request_id) 
     
     if (result != 0) {
         // RKLLM run failed - clear streaming context and return error
-        fprintf(stderr, "❌ rkllm_run failed with code: %d\n", result);
+        LOG_ERROR_MSG("rkllm_run failed with code: %d", result);
         clear_streaming_context();
         return NULL;
     }
@@ -126,6 +127,6 @@ json_object* call_rkllm_run(json_object* params, int client_fd, int request_id) 
     // CRITICAL FIX: For async mode, return NULL to indicate "no immediate response"
     // The callback function will handle ALL responses to the client
     // Do NOT clear streaming context here - callback will clear it when done
-    printf("[DEBUG] Async mode: returning NULL (callback handles responses)\n");
+    LOG_DEBUG_MSG("Async mode: returning NULL (callback handles responses)");
     return NULL; // No immediate response - callback handles everything
 }

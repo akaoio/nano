@@ -21,7 +21,7 @@ class ServerManager {
       console.log('🚀 Starting RKLLM server...');
       
       // Build server executable path
-      const serverPath = path.join(__dirname, '../../build/rkllm_uds_server');
+      const serverPath = path.join(__dirname, '../../build/server');
       
       // Check if server executable exists
       if (!fs.existsSync(serverPath)) {

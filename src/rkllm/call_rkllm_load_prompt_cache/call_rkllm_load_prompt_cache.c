@@ -1,5 +1,8 @@
 #include "call_rkllm_load_prompt_cache.h"
 #include "../call_rkllm_init/call_rkllm_init.h"
+#include "../../utils/log_message/log_message.h"
+#include "../../utils/constants/constants.h"
+#include "../../utils/safe_string/safe_string.h"
 #include <rkllm.h>
 #include <stdio.h>
 #include <string.h>
@@ -51,9 +54,12 @@ json_object* call_rkllm_load_prompt_cache(json_object* params) {
     // Check if file exists before calling RKLLM function to prevent crashes
     struct stat stat_buf;
     if (stat(prompt_cache_path, &stat_buf) != 0) {
-        char error_msg[512];
-        snprintf(error_msg, sizeof(error_msg), "Prompt cache file does not exist: %s (errno: %d - %s)", 
-                 prompt_cache_path, errno, strerror(errno));
+        char error_msg[ERROR_MESSAGE_BUFFER_SIZE];
+        if (safe_snprintf(error_msg, sizeof(error_msg), "Prompt cache file does not exist: %s (errno: %d - %s)", 
+                         prompt_cache_path, errno, strerror(errno)) < 0) {
+            // Fallback error message if formatting fails
+            safe_strcpy(error_msg, "Prompt cache file does not exist", sizeof(error_msg));
+        }
         
         json_object_object_add(error_obj, "code", json_object_new_int(-32000));
         json_object_object_add(error_obj, "message", json_object_new_string(error_msg));
@@ -67,7 +73,7 @@ json_object* call_rkllm_load_prompt_cache(json_object* params) {
         return error_obj;
     }
     
-    fprintf(stderr, "🔍 Loading prompt cache from: %s\n", prompt_cache_path);
+    LOG_INFO_MSG("Loading prompt cache from: %s", prompt_cache_path);
     
     // Call rkllm_load_prompt_cache with proper error handling
     int result = rkllm_load_prompt_cache(global_llm_handle, prompt_cache_path);
@@ -82,18 +88,20 @@ json_object* call_rkllm_load_prompt_cache(json_object* params) {
         json_object_object_add(result_obj, "message", json_object_new_string("Prompt cache loaded successfully"));
         json_object_object_add(result_obj, "cache_path", json_object_new_string(prompt_cache_path));
         
-        fprintf(stderr, "✅ Prompt cache loaded successfully: %s\n", prompt_cache_path);
+        LOG_INFO_MSG("Prompt cache loaded successfully: %s", prompt_cache_path);
         return result_obj;
     } else {
         // RKLLM function failed - return proper error
         json_object* error_result = json_object_new_object();
-        char error_msg[256];
-        snprintf(error_msg, sizeof(error_msg), "RKLLM load_prompt_cache failed with code: %d", result);
+        char error_msg[SMALL_ERROR_BUFFER_SIZE];
+        if (safe_snprintf(error_msg, sizeof(error_msg), "RKLLM load_prompt_cache failed with code: %d", result) < 0) {
+            safe_strcpy(error_msg, "RKLLM load_prompt_cache failed", sizeof(error_msg));
+        }
         
         json_object_object_add(error_result, "code", json_object_new_int(-32000));
         json_object_object_add(error_result, "message", json_object_new_string(error_msg));
         
-        fprintf(stderr, "❌ Prompt cache loading failed: %s (code: %d)\n", prompt_cache_path, result);
+        LOG_ERROR_MSG("Prompt cache loading failed: %s (code: %d)", prompt_cache_path, result);
         return error_result;
     }
 }

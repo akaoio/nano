@@ -29,6 +29,10 @@ char* format_response(json_object* id, json_object* result) {
     char* result_str = NULL;
     if (json_str) {
         result_str = strdup(json_str);
+        if (!result_str) {
+            json_object_put(response);
+            return NULL; // Memory allocation failed
+        }
     }
     
     json_object_put(response);
