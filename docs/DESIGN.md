@@ -85,9 +85,10 @@ src/
 1. Client sends JSON-RPC request with `rkllm.run_async` method
 2. Server registers callback context linking request to client
 3. Server calls `rkllm_run_async` with unified callback handler
-4. Each token from RKLLM triggers callback
-5. Callback immediately formats and sends JSON-RPC notification to client
-6. Client receives real-time stream of tokens with no buffering
+4. **INSTANT FORWARDING**: When RKLLM callback fires, server immediately sends data back to client
+5. **1:1 DATA MAPPING**: All callback data (params, values, keys) mapped exactly as received from RKLLM
+6. **ZERO PROCESSING**: No buffering, no transformation, no interpretation - pure passthrough
+7. Client receives real-time stream with exact RKLLM structure
 
 ### Standard Request Format (Exact RKLLM API Mapping)
 ```json
@@ -115,34 +116,38 @@ src/
 ```
 
 ### Streaming Response Format (Exact RKLLMResult Structure)
+**CRITICAL**: Server sends callback data with **ZERO modification** - exact 1:1 mapping from RKLLM callback to JSON-RPC response.
+
 ```json
 {
   "jsonrpc": "2.0",
-  "id": 123,
+  "id": 123,                     // Same ID from original request
   "result": {
-    "text": "Hello",             // const char* text
-    "token_id": 1234,        // int32_t token_id
-    "last_hidden_layer": {   // RKLLMResultLastHiddenLayer
-      "hidden_states": null, // const float* hidden_states (array not shown)
-      "embd_size": 768,      // int embd_size
-      "num_tokens": 1        // int num_tokens
+    "text": "Hello",                 // const char* text (exactly as from RKLLM)
+    "token_id": 1234,            // int32_t token_id (exactly as from RKLLM)
+    "last_hidden_layer": {       // RKLLMResultLastHiddenLayer (exactly as from RKLLM)
+      "hidden_states": null,     // const float* hidden_states (raw RKLLM data)
+      "embd_size": 768,          // int embd_size (raw RKLLM value)
+      "num_tokens": 1            // int num_tokens (raw RKLLM value)
     },
-    "logits": {              // RKLLMResultLogits
-      "logits": null,        // const float* logits (array not shown)
-      "vocab_size": 32000,   // int vocab_size
-      "num_tokens": 1        // int num_tokens
+    "logits": {                  // RKLLMResultLogits (exactly as from RKLLM)
+      "logits": null,            // const float* logits (raw RKLLM data)
+      "vocab_size": 32000,       // int vocab_size (raw RKLLM value)
+      "num_tokens": 1            // int num_tokens (raw RKLLM value)
     },
-    "perf": {                // RKLLMPerfStat
-      "prefill_time_ms": 10.5,    // float prefill_time_ms
-      "prefill_tokens": 10,       // int prefill_tokens
-      "generate_time_ms": 5.2,    // float generate_time_ms
-      "generate_tokens": 1,       // int generate_tokens
-      "memory_usage_mb": 1024.5   // float memory_usage_mb
+    "perf": {                    // RKLLMPerfStat (exactly as from RKLLM)
+      "prefill_time_ms": 10.5,   // float prefill_time_ms (raw RKLLM value)
+      "prefill_tokens": 10,      // int prefill_tokens (raw RKLLM value)
+      "generate_time_ms": 5.2,   // float generate_time_ms (raw RKLLM value)
+      "generate_tokens": 1,      // int generate_tokens (raw RKLLM value)
+      "memory_usage_mb": 1024.5  // float memory_usage_mb (raw RKLLM value)
     },
-    "_callback_state": 1     // LLMCallState (callback parameter)
+    "_callback_state": 1         // LLMCallState state (raw RKLLM callback parameter)
   }
 }
 ```
+
+**Developer Guarantee**: Every field, every value, every structure mirrors exactly what RKLLM provides - no server interpretation or modification.
 
 ## Complete API Reference (1:1 RKLLM Mapping)
 
@@ -421,7 +426,18 @@ LD_LIBRARY_PATH=../src/external/rkllm ./rkllm_uds_server
 The system uses minimal configuration via environment variables:
 - `RKLLM_UDS_PATH`: Socket path (default: `/tmp/rkllm.sock`)
 - `RKLLM_MAX_CLIENTS`: Maximum concurrent clients
-- `RKLLM_MODEL_PATH`: Path to RKLLM model file
+
+**Hardware Limitations**: 
+- Only **ONE model** can be loaded at a time due to NPU memory constraints
+- Only **ONE instance** of a model can run at a time
+- All clients share the same loaded model instance
+- Model switching requires destroying the current model and loading a new one
+
+**Server Philosophy**: 
+- The server is a **dumb worker** that only responds to client JSON-RPC requests
+- No automatic model loading or pre-configuration
+- No default behaviors - clients must explicitly request all operations
+- Server waits passively for client commands via `rkllm.init`, `rkllm.run_async`, etc.
 
 ## Performance Targets
 
