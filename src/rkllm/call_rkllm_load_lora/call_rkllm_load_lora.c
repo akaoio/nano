@@ -12,22 +12,34 @@ extern int global_llm_initialized;
 json_object* call_rkllm_load_lora(json_object* params) {
     // Validate that model is initialized
     if (!global_llm_initialized || !global_llm_handle) {
-        return NULL; // Error: Model not initialized
+        json_object* error_result = json_object_new_object();
+        json_object_object_add(error_result, "code", json_object_new_int(-32000));
+        json_object_object_add(error_result, "message", json_object_new_string("Model not initialized - call rkllm.init first"));
+        return error_result;
     }
     
     if (!params || !json_object_is_type(params, json_type_array)) {
-        return NULL; // Error: Invalid parameters
+        json_object* error_result = json_object_new_object();
+        json_object_object_add(error_result, "code", json_object_new_int(-32602));
+        json_object_object_add(error_result, "message", json_object_new_string("Invalid parameters - expected array"));
+        return error_result;
     }
     
     // Expect 2 parameters: [handle, lora_adapter]
     if (json_object_array_length(params) < 2) {
-        return NULL; // Error: Insufficient parameters
+        json_object* error_result = json_object_new_object();
+        json_object_object_add(error_result, "code", json_object_new_int(-32602));
+        json_object_object_add(error_result, "message", json_object_new_string("Insufficient parameters - expected [handle, lora_adapter]"));
+        return error_result;
     }
     
-    // Get RKLLMLoraAdapter (parameter 1)
+    // Get lora_adapter (parameter 1)
     json_object* lora_obj = json_object_array_get_idx(params, 1);
     if (!lora_obj || !json_object_is_type(lora_obj, json_type_object)) {
-        return NULL; // Error: Invalid lora_adapter parameter
+        json_object* error_result = json_object_new_object();
+        json_object_object_add(error_result, "code", json_object_new_int(-32602));
+        json_object_object_add(error_result, "message", json_object_new_string("Invalid lora_adapter parameter - expected object"));
+        return error_result;
     }
     
     // Convert JSON to RKLLMLoraAdapter structure
@@ -40,7 +52,10 @@ json_object* call_rkllm_load_lora(json_object* params) {
             const char* path_str = json_object_get_string(path_obj);
             lora_adapter.lora_adapter_path = strdup(path_str);
             if (!lora_adapter.lora_adapter_path) {
-                return NULL; // Memory allocation failed
+                json_object* error_result = json_object_new_object();
+                json_object_object_add(error_result, "code", json_object_new_int(-32000));
+                json_object_object_add(error_result, "message", json_object_new_string("Memory allocation failed"));
+                return error_result;
             }
         }
     }
@@ -53,7 +68,10 @@ json_object* call_rkllm_load_lora(json_object* params) {
             lora_adapter.lora_adapter_name = strdup(name_str);
             if (!lora_adapter.lora_adapter_name) {
                 if (lora_adapter.lora_adapter_path) free(lora_adapter.lora_adapter_path);
-                return NULL; // Memory allocation failed
+                json_object* error_result = json_object_new_object();
+                json_object_object_add(error_result, "code", json_object_new_int(-32000));
+                json_object_object_add(error_result, "message", json_object_new_string("Memory allocation failed"));
+                return error_result;
             }
         }
     }
@@ -84,6 +102,9 @@ json_object* call_rkllm_load_lora(json_object* params) {
         return result_obj;
     } else {
         // Error occurred
-        return NULL;
+        json_object* error_result = json_object_new_object();
+        json_object_object_add(error_result, "code", json_object_new_int(-32000));
+        json_object_object_add(error_result, "message", json_object_new_string("Failed to load LoRA adapter"));
+        return error_result;
     }
 }

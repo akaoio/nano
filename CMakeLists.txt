@@ -63,6 +63,42 @@ if(NOT EXISTS ${RKLLM_HEADER_PATH})
 endif()
 
 # =============================================================================
+# RKNN LIBRARY DOWNLOAD
+# =============================================================================
+
+# RKNN configuration
+set(RKNN_REPO_URL "https://github.com/airockchip/rknn-toolkit2.git")
+set(RKNN_DIR "${CMAKE_SOURCE_DIR}/external/rknn-toolkit2")
+set(RKNN_RUNTIME_DIR "${RKNN_DIR}/rknpu2/runtime/Linux/librknn_api")
+set(RKNN_LIB_PATH "${RKNN_RUNTIME_DIR}/aarch64/librknnrt.so")
+set(RKNN_HEADER_PATH "${RKNN_RUNTIME_DIR}/include/rknn_api.h")
+
+# Check if RKNN is already downloaded
+if(NOT EXISTS ${RKNN_DIR})
+    message(STATUS "RKNN not found. Downloading from ${RKNN_REPO_URL}...")
+    execute_process(
+        COMMAND git clone --depth 1 ${RKNN_REPO_URL} ${RKNN_DIR}
+        RESULT_VARIABLE GIT_RESULT
+        OUTPUT_VARIABLE GIT_OUTPUT
+        ERROR_VARIABLE GIT_ERROR
+    )
+    if(NOT GIT_RESULT EQUAL 0)
+        message(FATAL_ERROR "Failed to clone RKNN repository: ${GIT_ERROR}")
+    endif()
+else()
+    message(STATUS "RKNN already exists at ${RKNN_DIR}")
+endif()
+
+# Verify RKNN files exist
+if(NOT EXISTS ${RKNN_LIB_PATH})
+    message(FATAL_ERROR "RKNN library not found at ${RKNN_LIB_PATH}")
+endif()
+
+if(NOT EXISTS ${RKNN_HEADER_PATH})
+    message(FATAL_ERROR "RKNN header not found at ${RKNN_HEADER_PATH}")
+endif()
+
+# =============================================================================
 # DEPENDENCIES
 # =============================================================================
 
@@ -81,12 +117,14 @@ pkg_check_modules(JSON_C REQUIRED json-c)
 include_directories(
     ${CMAKE_SOURCE_DIR}/src
     ${RKLLM_RUNTIME_DIR}/include
+    ${RKNN_RUNTIME_DIR}/include
     ${JSON_C_INCLUDE_DIRS}
 )
 
 # Link directories
 link_directories(
     ${RKLLM_RUNTIME_DIR}/aarch64
+    ${RKNN_RUNTIME_DIR}/aarch64
     ${JSON_C_LIBRARY_DIRS}
 )
 
@@ -107,15 +145,16 @@ add_executable(server ${SERVER_SOURCES})
 target_link_libraries(server
     ${CMAKE_THREAD_LIBS_INIT}
     rkllmrt
+    rknnrt
     ${JSON_C_LIBRARIES}
 )
 
 # Compiler options
 target_compile_options(server PRIVATE ${JSON_C_CFLAGS_OTHER})
 
-# Set RPATH for RKLLM library
+# Set RPATH for RKLLM and RKNN libraries
 set_target_properties(server PROPERTIES
-    INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/lib:${RKLLM_RUNTIME_DIR}/aarch64"
+    INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/lib:${RKLLM_RUNTIME_DIR}/aarch64:${RKNN_RUNTIME_DIR}/aarch64"
     BUILD_WITH_INSTALL_RPATH TRUE
 )
 
@@ -129,6 +168,12 @@ set_target_properties(server PROPERTIES
 add_custom_command(TARGET server POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy ${RKLLM_LIB_PATH} ${CMAKE_BINARY_DIR}/
     COMMENT "Copying RKLLM library to build directory"
+)
+
+# Copy RKNN library to build directory
+add_custom_command(TARGET server POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy ${RKNN_LIB_PATH} ${CMAKE_BINARY_DIR}/
+    COMMENT "Copying RKNN library to build directory"
 )
 
 # =============================================================================
@@ -316,6 +361,9 @@ message(STATUS "  C Standard: C${CMAKE_C_STANDARD}")
 message(STATUS "  RKLLM repository: ${RKLLM_REPO_URL}")
 message(STATUS "  RKLLM library: ${RKLLM_LIB_PATH}")
 message(STATUS "  RKLLM header: ${RKLLM_HEADER_PATH}")
+message(STATUS "  RKNN repository: ${RKNN_REPO_URL}")
+message(STATUS "  RKNN library: ${RKNN_LIB_PATH}")
+message(STATUS "  RKNN header: ${RKNN_HEADER_PATH}")
 message(STATUS "  json-c version: ${JSON_C_VERSION}")
 message(STATUS "  Build directory: ${CMAKE_BINARY_DIR}")
 message(STATUS "  Output executable: ${CMAKE_BINARY_DIR}/server")

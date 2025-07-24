@@ -11,22 +11,34 @@ extern int global_llm_initialized;
 json_object* call_rkllm_set_cross_attn_params(json_object* params) {
     // Validate that model is initialized
     if (!global_llm_initialized || !global_llm_handle) {
-        return NULL; // Error: Model not initialized
+        json_object* error_result = json_object_new_object();
+        json_object_object_add(error_result, "code", json_object_new_int(-32000));
+        json_object_object_add(error_result, "message", json_object_new_string("Model not initialized - call rkllm.init first"));
+        return error_result;
     }
     
     if (!params || !json_object_is_type(params, json_type_array)) {
-        return NULL; // Error: Invalid parameters
+        json_object* error_result = json_object_new_object();
+        json_object_object_add(error_result, "code", json_object_new_int(-32602));
+        json_object_object_add(error_result, "message", json_object_new_string("Invalid parameters - expected array"));
+        return error_result;
     }
     
     // Expect 2 parameters: [handle, cross_attn_params]
     if (json_object_array_length(params) < 2) {
-        return NULL; // Error: Insufficient parameters
+        json_object* error_result = json_object_new_object();
+        json_object_object_add(error_result, "code", json_object_new_int(-32602));
+        json_object_object_add(error_result, "message", json_object_new_string("Insufficient parameters - expected [handle, cross_attn_params]"));
+        return error_result;
     }
     
     // Get cross_attn_params (parameter 1)
     json_object* cross_attn_obj = json_object_array_get_idx(params, 1);
     if (!cross_attn_obj || !json_object_is_type(cross_attn_obj, json_type_object)) {
-        return NULL; // Error: Invalid cross_attn_params parameter
+        json_object* error_result = json_object_new_object();
+        json_object_object_add(error_result, "code", json_object_new_int(-32602));
+        json_object_object_add(error_result, "message", json_object_new_string("Invalid cross_attn_params parameter - expected object"));
+        return error_result;
     }
     
     // Convert JSON to RKLLMCrossAttnParam structure
@@ -36,12 +48,18 @@ json_object* call_rkllm_set_cross_attn_params(json_object* params) {
     json_object* num_tokens_obj;
     if (!json_object_object_get_ex(cross_attn_obj, "num_tokens", &num_tokens_obj) ||
         !json_object_is_type(num_tokens_obj, json_type_int)) {
-        return NULL; // Error: num_tokens is required
+        json_object* error_result = json_object_new_object();
+        json_object_object_add(error_result, "code", json_object_new_int(-32602));
+        json_object_object_add(error_result, "message", json_object_new_string("num_tokens is required and must be an integer"));
+        return error_result;
     }
     cross_attn_params.num_tokens = json_object_get_int(num_tokens_obj);
     
     if (cross_attn_params.num_tokens <= 0) {
-        return NULL; // Error: Invalid num_tokens
+        json_object* error_result = json_object_new_object();
+        json_object_object_add(error_result, "code", json_object_new_int(-32602));
+        json_object_object_add(error_result, "message", json_object_new_string("num_tokens must be greater than 0"));
+        return error_result;
     }
     
     // Extract encoder_k_cache array (optional)
@@ -52,7 +70,10 @@ json_object* call_rkllm_set_cross_attn_params(json_object* params) {
         if (k_cache_len > 0) {
             cross_attn_params.encoder_k_cache = (float*)malloc(k_cache_len * sizeof(float));
             if (!cross_attn_params.encoder_k_cache) {
-                return NULL; // Memory allocation failed
+                json_object* error_result = json_object_new_object();
+                json_object_object_add(error_result, "code", json_object_new_int(-32000));
+                json_object_object_add(error_result, "message", json_object_new_string("Memory allocation failed for encoder_k_cache"));
+                return error_result;
             }
             for (size_t i = 0; i < k_cache_len; i++) {
                 json_object* elem = json_object_array_get_idx(k_cache_obj, i);
@@ -72,7 +93,10 @@ json_object* call_rkllm_set_cross_attn_params(json_object* params) {
             cross_attn_params.encoder_v_cache = (float*)malloc(v_cache_len * sizeof(float));
             if (!cross_attn_params.encoder_v_cache) {
                 if (cross_attn_params.encoder_k_cache) free(cross_attn_params.encoder_k_cache);
-                return NULL; // Memory allocation failed
+                json_object* error_result = json_object_new_object();
+                json_object_object_add(error_result, "code", json_object_new_int(-32000));
+                json_object_object_add(error_result, "message", json_object_new_string("Memory allocation failed for encoder_v_cache"));
+                return error_result;
             }
             for (size_t i = 0; i < v_cache_len; i++) {
                 json_object* elem = json_object_array_get_idx(v_cache_obj, i);
@@ -93,7 +117,10 @@ json_object* call_rkllm_set_cross_attn_params(json_object* params) {
             if (!cross_attn_params.encoder_mask) {
                 if (cross_attn_params.encoder_k_cache) free(cross_attn_params.encoder_k_cache);
                 if (cross_attn_params.encoder_v_cache) free(cross_attn_params.encoder_v_cache);
-                return NULL; // Memory allocation failed
+                json_object* error_result = json_object_new_object();
+                json_object_object_add(error_result, "code", json_object_new_int(-32000));
+                json_object_object_add(error_result, "message", json_object_new_string("Memory allocation failed for encoder_mask"));
+                return error_result;
             }
             for (size_t i = 0; i < mask_len; i++) {
                 json_object* elem = json_object_array_get_idx(mask_obj, i);
@@ -115,7 +142,10 @@ json_object* call_rkllm_set_cross_attn_params(json_object* params) {
                 if (cross_attn_params.encoder_k_cache) free(cross_attn_params.encoder_k_cache);
                 if (cross_attn_params.encoder_v_cache) free(cross_attn_params.encoder_v_cache);
                 if (cross_attn_params.encoder_mask) free(cross_attn_params.encoder_mask);
-                return NULL; // Memory allocation failed
+                json_object* error_result = json_object_new_object();
+                json_object_object_add(error_result, "code", json_object_new_int(-32000));
+                json_object_object_add(error_result, "message", json_object_new_string("Memory allocation failed for encoder_pos"));
+                return error_result;
             }
             for (size_t i = 0; i < pos_len; i++) {
                 json_object* elem = json_object_array_get_idx(pos_obj, i);
@@ -145,6 +175,9 @@ json_object* call_rkllm_set_cross_attn_params(json_object* params) {
         return result_obj;
     } else {
         // Error occurred
-        return NULL;
+        json_object* error_result = json_object_new_object();
+        json_object_object_add(error_result, "code", json_object_new_int(-32000));
+        json_object_object_add(error_result, "message", json_object_new_string("Failed to set cross-attention parameters"));
+        return error_result;
     }
 }

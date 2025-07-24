@@ -1,8 +1,12 @@
-# RKLLM Unix Domain Socket Server - Complete Design Document
+# RKLLM + RKNN Unix Domain Socket Server - Complete Design Document
 
 ## Executive Summary
 
-The RKLLM Unix Domain Socket Server is a high-performance, ultra-modular C implementation that provides direct access to Rockchip's RKLLM library through a single Unix Domain Socket. The system eliminates transport complexity while maintaining real-time streaming capabilities through a pure JSON-RPC 2.0 interface with 1:1 RKLLM API mapping.
+The RKLLM + RKNN Unix Domain Socket Server is a high-performance, ultra-modular C implementation that provides direct access to Rockchip's RKLLM and RKNN libraries through a single Unix Domain Socket. The system eliminates transport complexity while maintaining real-time streaming capabilities through a pure JSON-RPC 2.0 interface with 1:1 API mapping.
+
+**Supported Libraries:**
+- **RKLLM**: Language model inference (`.rkllm` files)
+- **RKNN**: Vision model inference (`.rknn` files)
 
 ## Development Rules (MANDATORY)
 
@@ -32,13 +36,26 @@ src/
 │   └── send_to_connection/
 │       ├── send_to_connection.c
 │       └── send_to_connection.h
-└── rkllm/
-    ├── call_rkllm_run_async/
-    │   ├── call_rkllm_run_async.c
-    │   └── call_rkllm_run_async.h
-    └── rkllm_callback/
-        ├── rkllm_callback.c
-        └── rkllm_callback.h
+├── rkllm/
+│   ├── call_rkllm_run_async/
+│   │   ├── call_rkllm_run_async.c
+│   │   └── call_rkllm_run_async.h
+│   └── rkllm_callback/
+│       ├── rkllm_callback.c
+│       └── rkllm_callback.h
+└── rknn/
+    ├── call_rknn_init/
+    │   ├── call_rknn_init.c
+    │   └── call_rknn_init.h
+    ├── call_rknn_query/
+    │   ├── call_rknn_query.c
+    │   └── call_rknn_query.h
+    ├── call_rknn_run/
+    │   ├── call_rknn_run.c
+    │   └── call_rknn_run.h
+    └── call_rknn_destroy/
+        ├── call_rknn_destroy.c
+        └── call_rknn_destroy.h
 ```
 
 **Note**: This project implements only the C server. External clients (Python, Go, Rust, etc.) connect to this server via Unix Domain Socket.
@@ -49,10 +66,11 @@ src/
 
 ### Core Design Principles
 1. **Single Transport**: Unix Domain Socket only (/tmp/rkllm.sock)
-2. **Direct RKLLM Integration**: No proxy abstraction, direct function calls
+2. **Direct Library Integration**: No proxy abstraction, direct function calls to both RKLLM and RKNN
 3. **Pure JSON-RPC 2.0**: No MCP wrapper, industry standard protocol
 4. **Event-Driven**: epoll-based non-blocking I/O for high concurrency
 5. **Zero-Copy Streaming**: Direct callback routing from RKLLM to clients
+6. **Primitive API Only**: 1:1 mapping to library functions, no high-level orchestration
 6. **1:1 RKLLM Mapping**: Exact parameter names, types, and structures
 
 ### Data Flow Architecture

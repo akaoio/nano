@@ -1,8 +1,8 @@
 #include "call_rkllm_run.h"
-#include "../convert_json_to_rkllm_input/convert_json_to_rkllm_input.h"
-#include "../convert_json_to_rkllm_infer_param/convert_json_to_rkllm_infer_param.h"
 #include "../call_rkllm_init/call_rkllm_init.h"
 #include "../manage_streaming_context/manage_streaming_context.h"
+#include "../../jsonrpc/extract_string_param/extract_string_param.h"
+#include "../../jsonrpc/extract_int_param/extract_int_param.h"
 #include "../../utils/log_message/log_message.h"
 #include <stdbool.h>
 #include <stdio.h>
@@ -17,39 +17,75 @@ extern int global_llm_initialized;
 json_object* call_rkllm_run(json_object* params, int client_fd, int request_id) {
     // Validate that model is initialized
     if (!global_llm_initialized || !global_llm_handle) {
-        return NULL; // Error: Model not initialized
+        json_object* error_result = json_object_new_object();
+        json_object_object_add(error_result, "code", json_object_new_int(-32000));
+        json_object_object_add(error_result, "message", json_object_new_string("Model not initialized - call rkllm.init first"));
+        return error_result;
     }
     
     if (!params || !json_object_is_type(params, json_type_array)) {
-        return NULL; // Error: Invalid parameters
+        json_object* error_result = json_object_new_object();
+        json_object_object_add(error_result, "code", json_object_new_int(-32602));
+        json_object_object_add(error_result, "message", json_object_new_string("Invalid parameters - expected array"));
+        return error_result;
     }
     
     // Expect 4 parameters: [handle, rkllm_input, rkllm_infer_params, userdata]
     if (json_object_array_length(params) < 4) {
-        return NULL; // Error: Insufficient parameters
+        json_object* error_result = json_object_new_object();
+        json_object_object_add(error_result, "code", json_object_new_int(-32602));
+        json_object_object_add(error_result, "message", json_object_new_string("Insufficient parameters - expected [handle, rkllm_input, rkllm_infer_params, userdata]"));
+        return error_result;
     }
     
-    // Get RKLLMInput (parameter 1)
+    // Get RKLLMInput (parameter 1) - convert using individual extraction functions
     json_object* input_obj = json_object_array_get_idx(params, 1);
     if (!input_obj) {
-        return NULL;
+        json_object* error_result = json_object_new_object();
+        json_object_object_add(error_result, "code", json_object_new_int(-32602));
+        json_object_object_add(error_result, "message", json_object_new_string("Invalid input parameter"));
+        return error_result;
     }
     
     RKLLMInput rkllm_input;
-    if (convert_json_to_rkllm_input(input_obj, &rkllm_input) != 0) {
-        return NULL; // Error: Failed to convert input
+    memset(&rkllm_input, 0, sizeof(RKLLMInput));
+    
+    // Extract input_type
+    rkllm_input.input_type = extract_int_param(input_obj, "input_type", RKLLM_INPUT_PROMPT);
+    
+    // Extract role
+    char* role = extract_string_param(input_obj, "role", "user");
+    if (role) {
+        rkllm_input.role = role;  // Don't free - RKLLM keeps reference
     }
     
-    // Get RKLLMInferParam (parameter 2)
+    // Handle union based on input_type
+    switch (rkllm_input.input_type) {
+        case RKLLM_INPUT_PROMPT: {
+            char* prompt = extract_string_param(input_obj, "prompt_input", NULL);
+            if (prompt) {
+                rkllm_input.prompt_input = prompt;  // Don't free - RKLLM keeps reference
+            }
+            break;
+        }
+        // Add other input types as needed
+    }
+    
+    // Get RKLLMInferParam (parameter 2) - convert using individual extraction functions
     json_object* infer_obj = json_object_array_get_idx(params, 2);
     if (!infer_obj) {
-        return NULL;
+        json_object* error_result = json_object_new_object();
+        json_object_object_add(error_result, "code", json_object_new_int(-32602));
+        json_object_object_add(error_result, "message", json_object_new_string("Invalid inference parameter"));
+        return error_result;
     }
     
     RKLLMInferParam rkllm_infer_param;
-    if (convert_json_to_rkllm_infer_param(infer_obj, &rkllm_infer_param) != 0) {
-        return NULL; // Error: Failed to convert infer param
-    }
+    memset(&rkllm_infer_param, 0, sizeof(RKLLMInferParam));
+    
+    // Extract mode
+    rkllm_infer_param.mode = extract_int_param(infer_obj, "mode", 0);
+    rkllm_infer_param.keep_history = extract_int_param(infer_obj, "keep_history", 0);
     
     // CRITICAL FIX: Handle different inference modes with proper validation
     LOG_INFO_MSG("Inference mode: %d", rkllm_infer_param.mode);
@@ -64,8 +100,6 @@ json_object* call_rkllm_run(json_object* params, int client_fd, int request_id) 
             break;
         case 2: // RKLLM_INFER_GET_LOGITS
             LOG_INFO_MSG("Running logits extraction mode - checking RKLLM compatibility");
-            // CRITICAL: Some RKLLM models may not support logits mode properly
-            // We'll add a timeout mechanism in the streaming context
             break;
         default:
             LOG_WARN_MSG("Unknown inference mode: %d", rkllm_infer_param.mode);
@@ -73,7 +107,6 @@ json_object* call_rkllm_run(json_object* params, int client_fd, int request_id) 
     }
     
     // Set streaming context for the callback to capture streaming data
-    // Include mode information for timeout handling
     set_streaming_context(client_fd, request_id);
     LOG_DEBUG_MSG("Set streaming context for rkllm_run (mode: %d)", rkllm_infer_param.mode);
     
@@ -83,50 +116,18 @@ json_object* call_rkllm_run(json_object* params, int client_fd, int request_id) 
     
     LOG_INFO_MSG("rkllm_run returned: %d", result);
     
-    // Clean up allocated memory for input structures
-    if (rkllm_input.role) free((void*)rkllm_input.role);
-    
-    switch (rkllm_input.input_type) {
-        case RKLLM_INPUT_PROMPT:
-            if (rkllm_input.prompt_input) free((void*)rkllm_input.prompt_input);
-            break;
-        case RKLLM_INPUT_TOKEN:
-            if (rkllm_input.token_input.input_ids) free(rkllm_input.token_input.input_ids);
-            break;
-        case RKLLM_INPUT_EMBED:
-            if (rkllm_input.embed_input.embed) free(rkllm_input.embed_input.embed);
-            break;
-        case RKLLM_INPUT_MULTIMODAL:
-            if (rkllm_input.multimodal_input.prompt) free(rkllm_input.multimodal_input.prompt);
-            if (rkllm_input.multimodal_input.image_embed) free(rkllm_input.multimodal_input.image_embed);
-            break;
-    }
-    
-    // Clean up infer param structures
-    if (rkllm_infer_param.lora_params) {
-        if (rkllm_infer_param.lora_params->lora_adapter_name) {
-            free((void*)rkllm_infer_param.lora_params->lora_adapter_name);
-        }
-        free(rkllm_infer_param.lora_params);
-    }
-    
-    if (rkllm_infer_param.prompt_cache_params) {
-        if (rkllm_infer_param.prompt_cache_params->prompt_cache_path) {
-            free((void*)rkllm_infer_param.prompt_cache_params->prompt_cache_path);
-        }
-        free(rkllm_infer_param.prompt_cache_params);
-    }
-    
     if (result != 0) {
         // RKLLM run failed - clear streaming context and return error
         LOG_ERROR_MSG("rkllm_run failed with code: %d", result);
         clear_streaming_context();
-        return NULL;
+        json_object* error_result = json_object_new_object();
+        json_object_object_add(error_result, "code", json_object_new_int(-32000));
+        json_object_object_add(error_result, "message", json_object_new_string("RKLLM run failed"));
+        return error_result;
     }
     
     // CRITICAL FIX: For async mode, return NULL to indicate "no immediate response"
     // The callback function will handle ALL responses to the client
-    // Do NOT clear streaming context here - callback will clear it when done
     LOG_DEBUG_MSG("Async mode: returning NULL (callback handles responses)");
     return NULL; // No immediate response - callback handles everything
 }

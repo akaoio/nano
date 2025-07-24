@@ -11,7 +11,10 @@ extern int global_llm_initialized;
 json_object* call_rkllm_get_kv_cache_size(void) {
     // Validate that model is initialized
     if (!global_llm_initialized || !global_llm_handle) {
-        return NULL; // Error: Model not initialized
+        json_object* error_result = json_object_new_object();
+        json_object_object_add(error_result, "code", json_object_new_int(-32000));
+        json_object_object_add(error_result, "message", json_object_new_string("Model not initialized - call rkllm.init first"));
+        return error_result;
     }
     
     // Allocate array for cache sizes (assuming max 8 batches for safety)
@@ -38,6 +41,9 @@ json_object* call_rkllm_get_kv_cache_size(void) {
         return result_obj;
     } else {
         // Error occurred
-        return NULL;
+        json_object* error_result = json_object_new_object();
+        json_object_object_add(error_result, "code", json_object_new_int(-32001));
+        json_object_object_add(error_result, "message", json_object_new_string("Failed to retrieve KV cache size"));
+        return error_result;
     }
 }

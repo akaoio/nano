@@ -1,8 +1,11 @@
+#define _POSIX_C_SOURCE 200809L
+
 #include "call_rkllm_init.h"
-#include "../convert_json_to_rkllm_param/convert_json_to_rkllm_param.h"
-#include "../convert_rkllm_result_to_json/convert_rkllm_result_to_json.h"
 #include "../manage_streaming_context/manage_streaming_context.h"
 #include "../../jsonrpc/format_response/format_response.h"
+#include "../../jsonrpc/extract_string_param/extract_string_param.h"
+#include "../../jsonrpc/extract_int_param/extract_int_param.h"
+#include "../../jsonrpc/extract_float_param/extract_float_param.h"
 #include "../../utils/log_message/log_message.h"
 #include "../../utils/global_config/global_config.h"
 #include <stdbool.h>
@@ -12,6 +15,7 @@
 #include <pthread.h>
 #include <stdlib.h>
 #include <time.h>
+#include <sys/types.h>
 #include <sys/socket.h>
 #include <unistd.h>
 #include <signal.h>
@@ -39,10 +43,21 @@ int global_rkllm_callback(RKLLMResult* result, void* userdata, LLMCallState stat
         return 0;
     }
     
-    // Convert RKLLM result to JSON with 1:1 mapping
-    json_object* result_json = convert_rkllm_result_to_json(result, state);
-    if (!result_json) {
-        return 0;
+    // Convert RKLLM result to JSON using individual functions
+    json_object* result_json = json_object_new_object();
+    if (result) {
+        // Add text field
+        if (result->text) {
+            json_object_object_add(result_json, "text", json_object_new_string(result->text));
+        } else {
+            json_object_object_add(result_json, "text", NULL);
+        }
+        
+        // Add token_id field
+        json_object_object_add(result_json, "token_id", json_object_new_int(result->token_id));
+        
+        // Add callback state
+        json_object_object_add(result_json, "_callback_state", json_object_new_int(state));
     }
     
     // Create JSON-RPC response with streaming data
@@ -98,10 +113,12 @@ void* rkllm_init_thread(void* arg) {
 }
 
 json_object* call_rkllm_init(json_object* params) {
-    // Note: This function returns the result object only
-    // The JSON-RPC response wrapper is handled by format_response
+    // Note: This function now works with individual JSON extraction functions
     if (!params || !json_object_is_type(params, json_type_array)) {
-        return NULL; // Error handling done by caller
+        json_object* error_result = json_object_new_object();
+        json_object_object_add(error_result, "code", json_object_new_int(-32602));
+        json_object_object_add(error_result, "message", json_object_new_string("Invalid parameters - expected array"));
+        return error_result;
     }
     
     // Only ONE model can be loaded at a time - destroy existing if needed
@@ -112,23 +129,33 @@ json_object* call_rkllm_init(json_object* params) {
     }
     
     // Get second parameter (RKLLMParam object) - params[1] per DESIGN.md
-    // params[0] = null (LLMHandle managed by server)  
-    // params[1] = RKLLMParam structure
-    // params[2] = null (LLMResultCallback managed by server)
     json_object* param_obj = json_object_array_get_idx(params, 1);
     if (!param_obj) {
-        return NULL; // Error handling done by caller
+        json_object* error_result = json_object_new_object();
+        json_object_object_add(error_result, "code", json_object_new_int(-32602));
+        json_object_object_add(error_result, "message", json_object_new_string("Missing RKLLMParam parameter"));
+        return error_result;
     }
     
-    // Convert JSON to RKLLMParam
-    RKLLMParam rkllm_param;
-    if (convert_json_to_rkllm_param(param_obj, &rkllm_param) != 0) {
-        return NULL; // Error handling done by caller
+    // Convert JSON to RKLLMParam using individual extraction functions
+    RKLLMParam rkllm_param = rkllm_createDefaultParam();
+    
+    // Extract model_path - REQUIRED field
+    char* model_path = extract_string_param(param_obj, "model_path", NULL);
+    if (!model_path) {
+        json_object* error_result = json_object_new_object();
+        json_object_object_add(error_result, "code", json_object_new_int(-32602));
+        json_object_object_add(error_result, "message", json_object_new_string("model_path is required"));
+        return error_result;
     }
-    // Validate model_path is provided
-    if (!rkllm_param.model_path || strlen(rkllm_param.model_path) == 0) {
-        return NULL; // Error handling done by caller
-    }
+    
+    // Extract other parameters using individual functions
+    rkllm_param.max_context_len = extract_int_param(param_obj, "max_context_len", rkllm_param.max_context_len);
+    rkllm_param.max_new_tokens = extract_int_param(param_obj, "max_new_tokens", rkllm_param.max_new_tokens);
+    rkllm_param.top_k = extract_int_param(param_obj, "top_k", rkllm_param.top_k);
+    rkllm_param.top_p = extract_float_param(param_obj, "top_p", rkllm_param.top_p);
+    rkllm_param.temperature = extract_float_param(param_obj, "temperature", rkllm_param.temperature);
+    rkllm_param.repeat_penalty = extract_float_param(param_obj, "repeat_penalty", rkllm_param.repeat_penalty);
     
     // Install signal handler for timeout
     struct sigaction old_action;
@@ -156,25 +183,28 @@ json_object* call_rkllm_init(json_object* params) {
     // Check if timeout occurred
     if (init_timeout) {
         // Timeout occurred during init
-        return NULL;
+        if (model_path) free(model_path);
+        json_object* error_result = json_object_new_object();
+        json_object_object_add(error_result, "code", json_object_new_int(-32000));
+        json_object_object_add(error_result, "message", json_object_new_string("Model initialization timeout"));
+        return error_result;
     }
     
-    // DON'T free strings yet - RKLLM library may retain pointers to them
-    // They will be freed when the model is destroyed or reinitialized
-    // if (rkllm_param.model_path) free((void*)rkllm_param.model_path);
-    // if (rkllm_param.img_start) free((void*)rkllm_param.img_start);
-    // if (rkllm_param.img_end) free((void*)rkllm_param.img_end);
-    // if (rkllm_param.img_content) free((void*)rkllm_param.img_content);
+    // Clean up allocated strings
+    if (model_path) free(model_path);
     
     if (init_result != 0) {
-        // RKLLM init failed - return NULL for error handling by caller
-        return NULL;
+        // RKLLM init failed - return proper error instead of NULL
+        json_object* error_result = json_object_new_object();
+        json_object_object_add(error_result, "code", json_object_new_int(-32000));
+        json_object_object_add(error_result, "message", json_object_new_string("RKLLM initialization failed"));
+        return error_result;
     }
     
     // Success - mark as initialized
     global_llm_initialized = 1;
     
-    // Return success result object only
+    // Return success result
     json_object* result = json_object_new_object();
     json_object_object_add(result, "success", json_object_new_boolean(1));
     json_object_object_add(result, "message", json_object_new_string("Model initialized successfully"));

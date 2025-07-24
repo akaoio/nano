@@ -11,16 +11,25 @@ extern int global_llm_initialized;
 json_object* call_rkllm_set_function_tools(json_object* params) {
     // Validate that model is initialized
     if (!global_llm_initialized || !global_llm_handle) {
-        return NULL; // Error: Model not initialized
+        json_object* error_result = json_object_new_object();
+        json_object_object_add(error_result, "code", json_object_new_int(-32000));
+        json_object_object_add(error_result, "message", json_object_new_string("Model not initialized - call rkllm.init first"));
+        return error_result;
     }
     
     if (!params || !json_object_is_type(params, json_type_array)) {
-        return NULL; // Error: Invalid parameters
+        json_object* error_result = json_object_new_object();
+        json_object_object_add(error_result, "code", json_object_new_int(-32602));
+        json_object_object_add(error_result, "message", json_object_new_string("Invalid parameters - expected array"));
+        return error_result;
     }
     
     // Expect 4 parameters: [handle, system_prompt, tools, tool_response_str]
     if (json_object_array_length(params) < 4) {
-        return NULL; // Error: Insufficient parameters
+        json_object* error_result = json_object_new_object();
+        json_object_object_add(error_result, "code", json_object_new_int(-32602));
+        json_object_object_add(error_result, "message", json_object_new_string("Insufficient parameters - expected [handle, system_prompt, tools, tool_response_str]"));
+        return error_result;
     }
     
     // Get system_prompt (parameter 1)
@@ -67,6 +76,9 @@ json_object* call_rkllm_set_function_tools(json_object* params) {
         return result_obj;
     } else {
         // Error occurred
-        return NULL;
+        json_object* error_result = json_object_new_object();
+        json_object_object_add(error_result, "code", json_object_new_int(-32001));
+        json_object_object_add(error_result, "message", json_object_new_string("Failed to set function tools configuration"));
+        return error_result;
     }
 }

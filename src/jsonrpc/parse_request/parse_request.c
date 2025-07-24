@@ -28,7 +28,9 @@ JSONRPCRequest* parse_request(const char* json_str) {
         if (version && strcmp(version, "2.0") == 0) {
             req->jsonrpc = strdup(version);
             if (!req->jsonrpc) {
-                return -1; // Memory allocation failed
+                free(req);
+                json_object_put(root);
+                return NULL; // Memory allocation failed
             }
         }
     }
@@ -41,7 +43,9 @@ JSONRPCRequest* parse_request(const char* json_str) {
             req->method = strdup(method);
             if (!req->method) {
                 if (req->jsonrpc) free((void*)req->jsonrpc);
-                return -1; // Memory allocation failed
+                free(req);
+                json_object_put(root);
+                return NULL; // Memory allocation failed
             }
         }
     }

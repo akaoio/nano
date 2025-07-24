@@ -11,16 +11,25 @@ extern int global_llm_initialized;
 json_object* call_rkllm_clear_kv_cache(json_object* params) {
     // Validate that model is initialized
     if (!global_llm_initialized || !global_llm_handle) {
-        return NULL; // Error: Model not initialized
+        json_object* error_result = json_object_new_object();
+        json_object_object_add(error_result, "code", json_object_new_int(-32000));
+        json_object_object_add(error_result, "message", json_object_new_string("Model not initialized - call rkllm.init first"));
+        return error_result;
     }
     
     if (!params || !json_object_is_type(params, json_type_array)) {
-        return NULL; // Error: Invalid parameters
+        json_object* error_result = json_object_new_object();
+        json_object_object_add(error_result, "code", json_object_new_int(-32602));
+        json_object_object_add(error_result, "message", json_object_new_string("Invalid parameters - expected array"));
+        return error_result;
     }
     
     // Expect 4 parameters: [handle, keep_system_prompt, start_pos, end_pos]
     if (json_object_array_length(params) < 4) {
-        return NULL; // Error: Insufficient parameters
+        json_object* error_result = json_object_new_object();
+        json_object_object_add(error_result, "code", json_object_new_int(-32602));
+        json_object_object_add(error_result, "message", json_object_new_string("Insufficient parameters - expected [handle, keep_system_prompt, start_pos, end_pos]"));
+        return error_result;
     }
     
     // Get keep_system_prompt (parameter 1)
@@ -40,7 +49,10 @@ json_object* call_rkllm_clear_kv_cache(json_object* params) {
         if (start_pos_len > 0) {
             start_pos = (int*)malloc(start_pos_len * sizeof(int));
             if (!start_pos) {
-                return NULL; // Memory allocation failed
+                json_object* error_result = json_object_new_object();
+                json_object_object_add(error_result, "code", json_object_new_int(-32000));
+                json_object_object_add(error_result, "message", json_object_new_string("Memory allocation failed"));
+                return error_result;
             }
             for (size_t i = 0; i < start_pos_len; i++) {
                 json_object* elem = json_object_array_get_idx(start_pos_obj, i);
@@ -62,7 +74,10 @@ json_object* call_rkllm_clear_kv_cache(json_object* params) {
             end_pos = (int*)malloc(end_pos_len * sizeof(int));
             if (!end_pos) {
                 if (start_pos) free(start_pos);
-                return NULL; // Memory allocation failed
+                json_object* error_result = json_object_new_object();
+                json_object_object_add(error_result, "code", json_object_new_int(-32000));
+                json_object_object_add(error_result, "message", json_object_new_string("Memory allocation failed"));
+                return error_result;
             }
             for (size_t i = 0; i < end_pos_len; i++) {
                 json_object* elem = json_object_array_get_idx(end_pos_obj, i);
@@ -90,6 +105,9 @@ json_object* call_rkllm_clear_kv_cache(json_object* params) {
         return result_obj;
     } else {
         // Error occurred
-        return NULL;
+        json_object* error_result = json_object_new_object();
+        json_object_object_add(error_result, "code", json_object_new_int(-32000));
+        json_object_object_add(error_result, "message", json_object_new_string("Failed to clear KV cache"));
+        return error_result;
     }
 }

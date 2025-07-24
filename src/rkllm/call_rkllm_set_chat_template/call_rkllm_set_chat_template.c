@@ -1,5 +1,6 @@
 #include "call_rkllm_set_chat_template.h"
 #include "../call_rkllm_init/call_rkllm_init.h"
+#include "../../jsonrpc/extract_string_param/extract_string_param.h"
 #include <rkllm.h>
 #include <stdio.h>
 #include <string.h>
@@ -11,62 +12,75 @@ extern int global_llm_initialized;
 json_object* call_rkllm_set_chat_template(json_object* params) {
     // Validate that model is initialized
     if (!global_llm_initialized || !global_llm_handle) {
-        return NULL; // Error: Model not initialized
+        json_object* error_result = json_object_new_object();
+        json_object_object_add(error_result, "code", json_object_new_int(-32000));
+        json_object_object_add(error_result, "message", json_object_new_string("Model not initialized - call rkllm.init first"));
+        return error_result;
     }
     
     if (!params || !json_object_is_type(params, json_type_array)) {
-        return NULL; // Error: Invalid parameters
+        json_object* error_result = json_object_new_object();
+        json_object_object_add(error_result, "code", json_object_new_int(-32602));
+        json_object_object_add(error_result, "message", json_object_new_string("Invalid parameters - expected array"));
+        return error_result;
     }
     
-    // Expect 4 parameters: [handle, system_prompt, prompt_prefix, prompt_postfix]
-    if (json_object_array_length(params) < 4) {
-        return NULL; // Error: Insufficient parameters
+    // Expect 2 parameters: [handle, template_config_object]
+    if (json_object_array_length(params) < 2) {
+        json_object* error_result = json_object_new_object();
+        json_object_object_add(error_result, "code", json_object_new_int(-32602));
+        json_object_object_add(error_result, "message", json_object_new_string("Insufficient parameters - expected [handle, template_config]"));
+        return error_result;
     }
     
-    // Get system_prompt (parameter 1)
-    json_object* system_obj = json_object_array_get_idx(params, 1);
-    const char* system_prompt = NULL;
-    if (system_obj && json_object_is_type(system_obj, json_type_string)) {
-        system_prompt = json_object_get_string(system_obj);
+    // Get template configuration object (parameter 1)
+    json_object* config_obj = json_object_array_get_idx(params, 1);
+    if (!config_obj || !json_object_is_type(config_obj, json_type_object)) {
+        json_object* error_result = json_object_new_object();
+        json_object_object_add(error_result, "code", json_object_new_int(-32602));
+        json_object_object_add(error_result, "message", json_object_new_string("Invalid template configuration - expected object"));
+        return error_result;
     }
     
-    // Get prompt_prefix (parameter 2)
-    json_object* prefix_obj = json_object_array_get_idx(params, 2);
-    const char* prompt_prefix = NULL;
-    if (prefix_obj && json_object_is_type(prefix_obj, json_type_string)) {
-        prompt_prefix = json_object_get_string(prefix_obj);
-    }
+    // Extract template parameters using individual extraction functions
+    char* system_prompt = extract_string_param(config_obj, "system_prompt", NULL);
+    char* prompt_prefix = extract_string_param(config_obj, "prompt_prefix", NULL);  
+    char* prompt_postfix = extract_string_param(config_obj, "prompt_postfix", NULL);
     
-    // Get prompt_postfix (parameter 3)
-    json_object* postfix_obj = json_object_array_get_idx(params, 3);
-    const char* prompt_postfix = NULL;
-    if (postfix_obj && json_object_is_type(postfix_obj, json_type_string)) {
-        prompt_postfix = json_object_get_string(postfix_obj);
+    // Handle chat_template field if provided (alternative format)
+    if (!system_prompt && !prompt_prefix && !prompt_postfix) {
+        char* chat_template = extract_string_param(config_obj, "chat_template", NULL);
+        if (chat_template) {
+            // Use chat_template as system_prompt for now
+            system_prompt = chat_template;
+        } else {
+            // Cleanup and return error
+            json_object* error_result = json_object_new_object();
+            json_object_object_add(error_result, "code", json_object_new_int(-32602));
+            json_object_object_add(error_result, "message", json_object_new_string("No template configuration provided"));
+            return error_result;
+        }
     }
     
     // Call rkllm_set_chat_template
     int result = rkllm_set_chat_template(global_llm_handle, system_prompt, prompt_prefix, prompt_postfix);
+    
+    // Clean up allocated strings
+    if (system_prompt) free(system_prompt);
+    if (prompt_prefix) free(prompt_prefix);
+    if (prompt_postfix) free(prompt_postfix);
     
     if (result == 0) {
         // Success
         json_object* result_obj = json_object_new_object();
         json_object_object_add(result_obj, "success", json_object_new_boolean(1));
         json_object_object_add(result_obj, "message", json_object_new_string("Chat template set successfully"));
-        
-        // Include template details in response
-        if (system_prompt) {
-            json_object_object_add(result_obj, "system_prompt", json_object_new_string(system_prompt));
-        }
-        if (prompt_prefix) {
-            json_object_object_add(result_obj, "prompt_prefix", json_object_new_string(prompt_prefix));
-        }
-        if (prompt_postfix) {
-            json_object_object_add(result_obj, "prompt_postfix", json_object_new_string(prompt_postfix));
-        }
-        
         return result_obj;
     } else {
         // Error occurred
-        return NULL;
+        json_object* error_result = json_object_new_object();
+        json_object_object_add(error_result, "code", json_object_new_int(-32000));
+        json_object_object_add(error_result, "message", json_object_new_string("Failed to set chat template"));
+        return error_result;
     }
 }

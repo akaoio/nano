@@ -6,6 +6,14 @@ class TestClient {
     this.socket = null;
     this.requestId = 1;
     this.isConnected = false;
+    this.requestTimeout = 15000; // Default timeout
+  }
+
+  /**
+   * Set timeout for requests
+   */
+  setTimeout(timeoutMs) {
+    this.requestTimeout = timeoutMs;
   }
 
   async connect() {
@@ -364,12 +372,11 @@ class TestClient {
       // Set up handlers
       this.socket.on('data', dataHandler);
 
-      // Set timeout with method-specific timeouts
-      const timeoutMs = method.includes('logits') ? 8000 : 15000; // Shorter timeout for logits mode
+      // Use the configurable timeout
       timeout = setTimeout(() => {
         cleanup();
-        reject(new Error(`Request timeout (${timeoutMs}ms) for method: ${method}`));
-      }, timeoutMs);
+        reject(new Error(`Request timeout (${this.requestTimeout}ms) for method: ${method}`));
+      }, this.requestTimeout);
 
       // Send request
       try {
