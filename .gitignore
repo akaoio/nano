@@ -78,3 +78,6 @@ package-lock.json
 
 # Build directories
 build/
+
+# VS Code browsing database
+.vscode/browse.vc.*
