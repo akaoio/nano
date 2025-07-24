@@ -5,6 +5,12 @@
   "main": "src/main.c",
   "scripts": {
     "test": "node test.js",
+    "test:basic": "node test.js",
+    "test:advanced": "node tests/advanced-rkllm-functions.test.js",
+    "test:robustness": "node tests/server-robustness.test.js",
+    "test:performance": "node tests/performance-benchmark.test.js",
+    "test:comprehensive": "node tests/comprehensive-test-suite.js",
+    "test:all": "node tests/comprehensive-test-suite.js",
     "build": "cd build && make",
     "clean": "cd build && make clean"
   },
