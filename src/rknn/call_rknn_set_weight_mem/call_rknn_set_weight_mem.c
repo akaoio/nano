@@ -1,4 +1,5 @@
 #include "call_rknn_set_weight_mem.h"
+#include "../../jsonrpc/extract_string_param/extract_string_param.h"
 #include <rknn_api.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -9,49 +10,42 @@ extern int global_rknn_initialized;
 
 json_object* call_rknn_set_weight_mem(json_object* params) {
     if (!params || !json_object_is_type(params, json_type_object)) {
-        return NULL;
+        json_object* error_result = json_object_new_object();
+        json_object_object_add(error_result, "code", json_object_new_int(-32602));
+        json_object_object_add(error_result, "message", json_object_new_string("Invalid parameters"));
+        return error_result;
     }
     
-    // Get context - can be global or specific context
+    // Get context using jsonrpc function
     rknn_context context;
-    json_object* context_obj;
-    if (json_object_object_get_ex(params, "context", &context_obj)) {
-        if (json_object_is_type(context_obj, json_type_string)) {
-            const char* context_str = json_object_get_string(context_obj);
-            if (strcmp(context_str, "global") == 0) {
-                if (!global_rknn_initialized || global_rknn_context == 0) {
-                    json_object* error_result = json_object_new_object();
-                    json_object_object_add(error_result, "success", json_object_new_boolean(0));
-                    json_object_object_add(error_result, "error", json_object_new_string("Global RKNN context not initialized"));
-                    return error_result;
-                }
-                context = global_rknn_context;
-            } else {
-                sscanf(context_str, "%p", (void**)&context);
-            }
-        } else if (json_object_is_type(context_obj, json_type_int)) {
-            context = (rknn_context)json_object_get_int64(context_obj);
-        } else {
-            return NULL;
-        }
-    } else {
+    char* context_str = extract_string_param(params, "context", "global");
+    
+    if (strcmp(context_str, "global") == 0) {
         if (!global_rknn_initialized || global_rknn_context == 0) {
+            free(context_str);
             json_object* error_result = json_object_new_object();
-            json_object_object_add(error_result, "success", json_object_new_boolean(0));
-            json_object_object_add(error_result, "error", json_object_new_string("Global RKNN context not initialized"));
+            json_object_object_add(error_result, "code", json_object_new_int(-32000));
+            json_object_object_add(error_result, "message", json_object_new_string("Global RKNN context not initialized"));
             return error_result;
         }
         context = global_rknn_context;
+    } else {
+        sscanf(context_str, "%p", (void**)&context);
+    }
+    free(context_str);
+    
+    // Get mem parameter (pointer string) using jsonrpc function
+    char* mem_str = extract_string_param(params, "mem", NULL);
+    if (!mem_str) {
+        json_object* error_result = json_object_new_object();
+        json_object_object_add(error_result, "code", json_object_new_int(-32602));
+        json_object_object_add(error_result, "message", json_object_new_string("mem parameter is required"));
+        return error_result;
     }
     
-    // Get mem parameter (pointer string)
-    json_object* mem_obj;
-    if (!json_object_object_get_ex(params, "mem", &mem_obj)) {
-        return NULL;
-    }
-    const char* mem_str = json_object_get_string(mem_obj);
     rknn_tensor_mem* mem;
     sscanf(mem_str, "%p", (void**)&mem);
+    free(mem_str);
     
     // Call RKNN function
     int ret = rknn_set_weight_mem(context, mem);

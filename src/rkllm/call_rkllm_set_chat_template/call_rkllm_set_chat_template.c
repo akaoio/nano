@@ -18,23 +18,21 @@ json_object* call_rkllm_set_chat_template(json_object* params) {
         return error_result;
     }
     
-    if (!params || !json_object_is_type(params, json_type_array)) {
+    if (!params || !json_object_is_type(params, json_type_object)) {
         json_object* error_result = json_object_new_object();
         json_object_object_add(error_result, "code", json_object_new_int(-32602));
-        json_object_object_add(error_result, "message", json_object_new_string("Invalid parameters - expected array"));
+        json_object_object_add(error_result, "message", json_object_new_string("Invalid parameters - expected object"));
         return error_result;
     }
     
-    // Expect 2 parameters: [handle, template_config_object]
-    if (json_object_array_length(params) < 2) {
+    // Get template configuration from object parameters
+    json_object* config_obj;
+    if (!json_object_object_get_ex(params, "template_config", &config_obj)) {
         json_object* error_result = json_object_new_object();
         json_object_object_add(error_result, "code", json_object_new_int(-32602));
-        json_object_object_add(error_result, "message", json_object_new_string("Insufficient parameters - expected [handle, template_config]"));
+        json_object_object_add(error_result, "message", json_object_new_string("Missing required parameter: template_config"));
         return error_result;
     }
-    
-    // Get template configuration object (parameter 1)
-    json_object* config_obj = json_object_array_get_idx(params, 1);
     if (!config_obj || !json_object_is_type(config_obj, json_type_object)) {
         json_object* error_result = json_object_new_object();
         json_object_object_add(error_result, "code", json_object_new_int(-32602));

@@ -1,27 +1,31 @@
 #include "call_rknn_query.h"
 #include "../call_rknn_init/call_rknn_init.h"
+#include "../../jsonrpc/extract_string_param/extract_string_param.h"
 #include <stdio.h>
 #include <string.h>
 
 json_object* call_rknn_query(json_object* params) {
     if (!global_rknn_initialized || global_rknn_context == 0) {
-        return NULL;
+        json_object* error_result = json_object_new_object();
+        json_object_object_add(error_result, "code", json_object_new_int(-32000));
+        json_object_object_add(error_result, "message", json_object_new_string("Global RKNN context not initialized"));
+        return error_result;
     }
     
     if (!params || !json_object_is_type(params, json_type_object)) {
-        return NULL;
+        json_object* error_result = json_object_new_object();
+        json_object_object_add(error_result, "code", json_object_new_int(-32602));
+        json_object_object_add(error_result, "message", json_object_new_string("Invalid parameters"));
+        return error_result;
     }
     
-    // Extract query type parameter
-    json_object* query_type_obj = NULL;
-    if (!json_object_object_get_ex(params, "query_type", &query_type_obj)) {
-        // Default to SDK version query
-        query_type_obj = json_object_new_string("sdk_version");
-    }
-    
-    const char* query_type_str = json_object_get_string(query_type_obj);
+    // Extract query type parameter using jsonrpc function
+    char* query_type_str = extract_string_param(params, "query_type", "sdk_version");
     if (!query_type_str) {
-        return NULL;
+        json_object* error_result = json_object_new_object();
+        json_object_object_add(error_result, "code", json_object_new_int(-32602));
+        json_object_object_add(error_result, "message", json_object_new_string("query_type parameter is required"));
+        return error_result;
     }
     
     json_object* result = json_object_new_object();
@@ -101,5 +105,6 @@ json_object* call_rknn_query(json_object* params) {
     }
     
     json_object_object_add(result, "success", json_object_new_boolean(1));
+    free(query_type_str);
     return result;
 }

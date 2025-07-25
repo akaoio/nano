@@ -26,29 +26,15 @@ json_object* call_rkllm_run_async(json_object* params, int client_fd, int reques
         return error_result;
     }
     
-    if (!params || !json_object_is_type(params, json_type_array)) {
+    if (!params || !json_object_is_type(params, json_type_object)) {
         json_object* error_result = json_object_new_object();
         json_object_object_add(error_result, "code", json_object_new_int(-32602));
-        json_object_object_add(error_result, "message", json_object_new_string("Invalid parameters - expected array"));
+        json_object_object_add(error_result, "message", json_object_new_string("Invalid parameters - expected object"));
         return error_result;
     }
     
-    // Expect 4 parameters: [handle, rkllm_input, rkllm_infer_params, userdata]
-    if (json_object_array_length(params) < 4) {
-        json_object* error_result = json_object_new_object();
-        json_object_object_add(error_result, "code", json_object_new_int(-32602));
-        json_object_object_add(error_result, "message", json_object_new_string("Insufficient parameters - expected [handle, rkllm_input, rkllm_infer_params, userdata]"));
-        return error_result;
-    }
-    
-    // Get RKLLMInput (parameter 1) - convert using individual extraction functions
-    json_object* input_obj = json_object_array_get_idx(params, 1);
-    if (!input_obj) {
-        json_object* error_result = json_object_new_object();
-        json_object_object_add(error_result, "code", json_object_new_int(-32602));
-        json_object_object_add(error_result, "message", json_object_new_string("Invalid input parameter"));
-        return error_result;
-    }
+    // Use params directly as the input object - standardized format
+    json_object* input_obj = params;
     
     RKLLMInput rkllm_input;
     memset(&rkllm_input, 0, sizeof(RKLLMInput));

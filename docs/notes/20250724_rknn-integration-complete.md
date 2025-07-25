@@ -1,4 +1,4 @@
-# 20250724 RKNN Integration Complete
+# RKNN Integration Complete
 
 **Date**: 2025-07-24  
 **Status**: COMPLETED  
@@ -51,16 +51,7 @@ rknn.init, rknn.query, rknn.run, rknn.destroy
 ✅ **One Function Per File**: Architecture rule strictly followed  
 ✅ **Build Success**: Both libraries compile and link correctly
 
-## What Clients Can Now Build
-
-With both primitive APIs available, clients can orchestrate:
-
-1. **Multimodal AI**: Combine .rknn (vision) + .rkllm (language) models
-2. **Image Description**: Process images → generate text descriptions
-3. **Visual Question Answering**: Answer questions about images  
-4. **Custom Workflows**: Any vision-language combination
-
-## Example Client Workflow
+## Client Workflow Example
 
 ```bash
 # 1. Load vision model
@@ -76,47 +67,23 @@ With both primitive APIs available, clients can orchestrate:
 # 5. Client processes vision output (client-side)
 # 6. Run language inference with vision context
 {"method":"rkllm.run","params":{"prompt":"...","vision_context":"..."}}
-
-# 7. Client handles streaming text output
 ```
 
 ## Files Modified/Created
-
-### Build System
 - `CMakeLists.txt` - Added RKNN toolkit integration
-
-### Core Implementation  
 - `src/rknn/call_rknn_init/` - Vision model initialization
 - `src/rknn/call_rknn_query/` - Model information queries
 - `src/rknn/call_rknn_run/` - Vision inference execution
 - `src/rknn/call_rknn_destroy/` - Resource cleanup
-
-### JSON-RPC Integration
 - `src/jsonrpc/handle_request/handle_request.c` - Added RKNN method dispatching
 
-### Documentation
-- `docs/issues/rknn_multimodal_support.md` - Updated to primitive scope
-- `docs/plan/implementation_plan_rknn.md` - Updated to primitive scope  
-- `docs/DESIGN.md` - Added RKNN architecture info
-
 ## Testing Status
-
 ✅ **Build Test**: Server compiles successfully with both libraries  
 ✅ **Primitive Functions**: All RKNN wrappers implemented and working  
 ✅ **JSON-RPC Dispatch**: Methods route correctly to RKNN functions  
 🔄 **Client Integration**: Ready for client multimodal applications
 
-## Next Steps (Client-Side)
-
-The server work is complete. Clients can now build:
-
-1. **Image preprocessing pipelines** (resize, normalize, tensor conversion)
-2. **Multimodal orchestration logic** (coordinate vision + language models)
-3. **Application-specific workflows** (description, Q&A, analysis, etc.)
-4. **Streaming interfaces** (real-time multimodal inference)
-
 ## Architecture Success
-
 ✅ **Ultra-modular**: One function per file maintained  
 ✅ **Primitive focus**: No server bloat with high-level features  
 ✅ **Client flexibility**: Full control over multimodal workflows  

@@ -1,5 +1,7 @@
 #include "call_rkllm_clear_kv_cache.h"
 #include "../call_rkllm_init/call_rkllm_init.h"
+#include "../../jsonrpc/extract_int_param/extract_int_param.h"
+#include "../../jsonrpc/extract_array_param/extract_array_param.h"
 #include <rkllm.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -17,30 +19,23 @@ json_object* call_rkllm_clear_kv_cache(json_object* params) {
         return error_result;
     }
     
-    if (!params || !json_object_is_type(params, json_type_array)) {
+    if (!params || !json_object_is_type(params, json_type_object)) {
         json_object* error_result = json_object_new_object();
         json_object_object_add(error_result, "code", json_object_new_int(-32602));
-        json_object_object_add(error_result, "message", json_object_new_string("Invalid parameters - expected array"));
+        json_object_object_add(error_result, "message", json_object_new_string("Invalid parameters - expected object"));
         return error_result;
     }
     
-    // Expect 4 parameters: [handle, keep_system_prompt, start_pos, end_pos]
-    if (json_object_array_length(params) < 4) {
-        json_object* error_result = json_object_new_object();
-        json_object_object_add(error_result, "code", json_object_new_int(-32602));
-        json_object_object_add(error_result, "message", json_object_new_string("Insufficient parameters - expected [handle, keep_system_prompt, start_pos, end_pos]"));
-        return error_result;
-    }
-    
-    // Get keep_system_prompt (parameter 1)
-    json_object* keep_obj = json_object_array_get_idx(params, 1);
+    // Get keep_system_prompt from object parameters
+    json_object* keep_obj;
     int keep_system_prompt = 0;
-    if (keep_obj && json_object_is_type(keep_obj, json_type_int)) {
+    if (json_object_object_get_ex(params, "keep_system_prompt", &keep_obj) && json_object_is_type(keep_obj, json_type_int)) {
         keep_system_prompt = json_object_get_int(keep_obj);
     }
     
-    // Get start_pos array (parameter 2)
-    json_object* start_pos_obj = json_object_array_get_idx(params, 2);
+    // Get start_pos array from object parameters
+    json_object* start_pos_obj;
+    json_object_object_get_ex(params, "start_pos", &start_pos_obj);
     int* start_pos = NULL;
     size_t start_pos_len = 0;
     
@@ -63,8 +58,9 @@ json_object* call_rkllm_clear_kv_cache(json_object* params) {
         }
     }
     
-    // Get end_pos array (parameter 3)
-    json_object* end_pos_obj = json_object_array_get_idx(params, 3);
+    // Get end_pos array from object parameters
+    json_object* end_pos_obj;
+    json_object_object_get_ex(params, "end_pos", &end_pos_obj);
     int* end_pos = NULL;
     size_t end_pos_len = 0;
     

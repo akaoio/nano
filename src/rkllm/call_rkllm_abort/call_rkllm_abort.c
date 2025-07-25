@@ -1,6 +1,7 @@
 #include "call_rkllm_abort.h"
 #include "../call_rkllm_init/call_rkllm_init.h"
 #include "../manage_streaming_context/manage_streaming_context.h"
+#include "../../jsonrpc/format_response/format_response.h"
 #include <stdbool.h>
 #include <rkllm.h>
 #include <json-c/json.h>

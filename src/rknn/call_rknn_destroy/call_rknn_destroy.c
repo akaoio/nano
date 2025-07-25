@@ -11,7 +11,10 @@ json_object* call_rknn_destroy(json_object* params) {
         global_rknn_initialized = 0;
         
         if (ret != RKNN_SUCC) {
-            return NULL;
+            json_object* error_result = json_object_new_object();
+            json_object_object_add(error_result, "code", json_object_new_int(-32000));
+            json_object_object_add(error_result, "message", json_object_new_string("Failed to destroy RKNN context"));
+            return error_result;
         }
     }
     

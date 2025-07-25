@@ -17,39 +17,31 @@ json_object* call_rkllm_set_function_tools(json_object* params) {
         return error_result;
     }
     
-    if (!params || !json_object_is_type(params, json_type_array)) {
+    if (!params || !json_object_is_type(params, json_type_object)) {
         json_object* error_result = json_object_new_object();
         json_object_object_add(error_result, "code", json_object_new_int(-32602));
-        json_object_object_add(error_result, "message", json_object_new_string("Invalid parameters - expected array"));
+        json_object_object_add(error_result, "message", json_object_new_string("Invalid parameters - expected object"));
         return error_result;
     }
     
-    // Expect 4 parameters: [handle, system_prompt, tools, tool_response_str]
-    if (json_object_array_length(params) < 4) {
-        json_object* error_result = json_object_new_object();
-        json_object_object_add(error_result, "code", json_object_new_int(-32602));
-        json_object_object_add(error_result, "message", json_object_new_string("Insufficient parameters - expected [handle, system_prompt, tools, tool_response_str]"));
-        return error_result;
-    }
-    
-    // Get system_prompt (parameter 1)
-    json_object* system_obj = json_object_array_get_idx(params, 1);
+    // Get system_prompt from object parameters
+    json_object* system_obj;
     const char* system_prompt = NULL;
-    if (system_obj && json_object_is_type(system_obj, json_type_string)) {
+    if (json_object_object_get_ex(params, "system_prompt", &system_obj) && json_object_is_type(system_obj, json_type_string)) {
         system_prompt = json_object_get_string(system_obj);
     }
     
-    // Get tools (parameter 2) - JSON-formatted string
-    json_object* tools_obj = json_object_array_get_idx(params, 2);
+    // Get tools from object parameters - JSON-formatted string
+    json_object* tools_obj;
     const char* tools = NULL;
-    if (tools_obj && json_object_is_type(tools_obj, json_type_string)) {
+    if (json_object_object_get_ex(params, "tools", &tools_obj) && json_object_is_type(tools_obj, json_type_string)) {
         tools = json_object_get_string(tools_obj);
     }
     
-    // Get tool_response_str (parameter 3)
-    json_object* response_obj = json_object_array_get_idx(params, 3);
+    // Get tool_response_str from object parameters
+    json_object* response_obj;
     const char* tool_response_str = NULL;
-    if (response_obj && json_object_is_type(response_obj, json_type_string)) {
+    if (json_object_object_get_ex(params, "tool_response_str", &response_obj) && json_object_is_type(response_obj, json_type_string)) {
         tool_response_str = json_object_get_string(response_obj);
     }
     

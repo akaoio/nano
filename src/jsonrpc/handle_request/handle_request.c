@@ -38,6 +38,7 @@
 #include "../../rknn/call_rknn_dup_context/call_rknn_dup_context.h"
 #include "../../rknn/call_rknn_set_core_mask/call_rknn_set_core_mask.h"
 #include "../../rknn/call_rknn_set_batch_core_num/call_rknn_set_batch_core_num.h"
+#include "../../image_processing/call_process_image/call_process_image.h"
 #include "../../utils/log_message/log_message.h"
 #include <stdio.h>
 #include <string.h>
@@ -145,6 +146,14 @@ int handle_request(JSONRPCRequest* req, Connection* conn) {
         result = call_rknn_set_core_mask(req->params);
     } else if (strcmp(req->method, "rknn.set_batch_core_num") == 0) {
         result = call_rknn_set_batch_core_num(req->params);
+        
+    // Image processing methods
+    } else if (strcmp(req->method, "image.init_processor") == 0) {
+        result = call_init_image_processor(req->params);
+    } else if (strcmp(req->method, "image.process") == 0) {
+        result = call_process_image(req->params);
+    } else if (strcmp(req->method, "image.cleanup_processor") == 0) {
+        result = call_cleanup_image_processor();
     } else {
         return send_error_response(conn, req->id, -32601, "Method not found");
     }

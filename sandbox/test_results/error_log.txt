@@ -1,0 +1,25 @@
+Comprehensive Multimodal Test FAILURE
+=====================================
+Failed at: ${new Date().toISOString()}
+Error: ${error.message}
+Stack: ${error.stack}
+
+Commands that were running:
+{
+    "command": "cd build && ./server",
+    "name": "Server",
+    "delay": 0
+  },
+  {
+    "command": "sleep 8 && cd sandbox && node correct_multimodal_test.js",
+    "name": "Client Test",
+    "delay": 8000
+  }
+
+Possible issues to investigate:
+1. Check if models exist at specified paths
+2. Verify server can bind to socket path: ${socketPath}
+3. Check image files exist in tests/images/
+4. Validate NPU cores are available
+5. Ensure sufficient memory for model loading
+6. Check for library dependencies (librkllmrt.so, librknnrt.so)

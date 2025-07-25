@@ -1,222 +1,208 @@
-# RKLLM Unix Domain Socket Server
+# RKLLM + RKNN Unix Domain Socket Server
 
-A high-performance C server providing direct access to Rockchip's RKLLM AI library through a Unix Domain Socket with JSON-RPC 2.0 interface.
+**⚠️ WARNING: EXPERIMENTAL AI-GENERATED PROJECT ⚠️**
 
-## What
-
-This project implements a lightweight, ultra-modular C server that exposes the complete RKLLM API through a single Unix Domain Socket. It enables any programming language (Python, JavaScript, Go, Rust, etc.) to interact with Rockchip's AI models via standard JSON-RPC calls.
-
-**Key Features:**
-- 🚀 Direct RKLLM library integration with 1:1 API mapping
-- ⚡ Real-time streaming with zero-copy data forwarding
-- 🔧 JSON-RPC 2.0 protocol for universal client compatibility
-- 🏗️ Ultra-modular architecture (one function per file)
-- 📡 High-performance epoll-based non-blocking I/O
-- 🎯 Support for text generation, LoRA adapters, and logits extraction
-
-## Why
-
-**Problem**: RKLLM library is C-only, making it difficult to integrate with modern development stacks.
-
-**Solution**: This server acts as a universal bridge, allowing any language to access RKLLM functionality through a standard Unix socket interface while maintaining the full performance and feature set of the native library.
-
-## When
-
-Use this server when you need to:
-- Access RKLLM from non-C languages
-- Build distributed AI applications
-- Implement real-time streaming AI features
-- Share a single RKLLM model across multiple client applications
-- Prototype quickly with RKLLM without C development overhead
-
-## Where
-
-**Deployment Environment:**
-- Rockchip NPU-enabled devices (RK3588, etc.)
-- Linux systems with RKLLM library support
-- Development and production environments requiring AI inference
-
-**Client Compatibility:**
-- Any language with Unix Domain Socket support
-- Local applications only (no network transport)
-- Single-machine deployment model
-
-## How
-
-### Prerequisites
-
-```bash
-# Ubuntu/Debian
-sudo apt-get update
-sudo apt-get install -y build-essential cmake pkg-config libjson-c-dev
-
-# Or manually ensure you have:
-# - cmake >= 3.16
-# - json-c library
-# - pthread support
-# - RKLLM library (included in src/external/rkllm/)
-```
-
-### Build
-
-```bash
-# Shortest command - automated build script (works on Linux and Termux)
-./scripts/build.sh
-
-# Manual build (alternative)
-cmake -S . -B build && make -C build
-```
-
-### Run
-
-```bash
-# From root directory
-LD_LIBRARY_PATH=build ./build/server
-
-# Server starts and listens on /tmp/rkllm.sock
-# Ready for client connections
-```
-
-### Quick Test
-
-```bash
-# Run the included Node.js test
-npm test
-
-# Or run comprehensive tests
-node sandbox/comprehensive_lora_logits_test.js
-```
-
-## Usage Examples
-
-### Initialize Model
-
-```json
-{
-  "jsonrpc": "2.0",
-  "id": 1,
-  "method": "rkllm.init",
-  "params": [{
-    "model_path": "./models/gemma3/model.rkllm",
-    "max_context_len": 512,
-    "max_new_tokens": 256,
-    "temperature": 0.8,
-    "top_p": 0.9
-  }]
-}
-```
-
-### Generate Text (Streaming)
-
-```json
-{
-  "jsonrpc": "2.0",
-  "id": 2,
-  "method": "rkllm.run_async",
-  "params": [
-    null,
-    {
-      "input_type": 0,
-      "prompt_input": "Hello, how are you today?"
-    },
-    {
-      "mode": 0,
-      "keep_history": 1
-    },
-    null
-  ]
-}
-```
-
-### Load LoRA Adapter
-
-```json
-{
-  "jsonrpc": "2.0",
-  "id": 3,
-  "method": "rkllm.load_lora",
-  "params": [{
-    "lora_adapter_path": "./models/lora/lora.rkllm",
-    "lora_adapter_name": "custom_adapter",
-    "scale": 1.0
-  }]
-}
-```
-
-## Architecture
-
-### Core Design
-- **Single Transport**: Unix Domain Socket (`/tmp/rkllm.sock`)
-- **One Function Per File**: Ultra-modular C implementation
-- **Zero Abstraction**: Direct RKLLM API mapping
-- **Event-Driven**: epoll-based non-blocking I/O
-
-### Directory Structure
-```
-src/
-├── main.c              # Server entry point
-├── server/             # Socket management functions
-├── connection/         # Client connection handling
-├── jsonrpc/           # JSON-RPC protocol implementation
-├── rkllm/             # RKLLM library integration
-├── buffer/            # I/O buffer management
-└── utils/             # Utility functions
-```
-
-### Data Flow
-```
-Client App → Unix Socket → JSON-RPC → RKLLM Library
-    ↑                                        ↓
-    ← Real-time Streaming ← Callbacks ←────────
-```
-
-## Configuration
-
-Environment variables:
-- `RKLLM_UDS_PATH`: Socket path (default: `/tmp/rkllm.sock`)
-- `RKLLM_MAX_CLIENTS`: Max concurrent connections
-
-## Limitations
-
-- **One Model**: Only one RKLLM model can be loaded at a time (NPU constraint)
-- **Local Only**: Unix Domain Socket limits to single-machine deployment
-- **Linux Only**: Requires Linux environment with RKLLM support
-
-## Development
-
-### Adding New Functions
-
-1. Create directory: `src/category/function_name/`
-2. Add files: `function_name.c` and `function_name.h`
-3. Follow the one-function-per-file rule
-4. CMake auto-discovers new files
-
-### Testing
-
-```bash
-# Run all tests
-make test
-
-# Individual function tests in tests/ directory
-```
-
-## Documentation
-
-- `docs/DESIGN.md` - Complete architecture and API reference
-- `docs/INSTRUCTIONS.md` - Detailed build and usage instructions
-- `docs/LORA_AND_LOGITS_GUIDE.md` - Advanced features guide
-
-## License
-
-MIT License - See LICENSE file
-
-## Contributing
-
-1. Follow the one-function-per-file architecture rule
-2. Maintain 1:1 RKLLM API mapping
-3. Add tests for new functions
-4. Update documentation accordingly
+**🤖 This project is entirely AI-generated and contains significant bugs, hallucinations, and unreliable code. Use at your own risk for educational purposes only.**
 
 ---
 
-**Status**: Production ready for Rockchip NPU devices with RKLLM support.
+## ⛔ IMPORTANT DISCLAIMERS
+
+- **🚨 BUGGY CODE**: This codebase contains numerous bugs, incomplete implementations, and non-functional components
+- **🤖 AI HALLUCINATIONS**: Many claimed features, performance metrics, and API implementations may not work as described
+- **⚠️ EXPERIMENTAL ONLY**: Not suitable for production use - intended for learning and experimentation
+- **🔬 RESEARCH PROJECT**: Generated by AI as a proof-of-concept with no guarantees of functionality
+- **💣 NO WARRANTY**: Use entirely at your own risk - may cause system instability or data loss
+
+---
+
+**Production-ready C server providing access to Rockchip's AI libraries through JSON-RPC 2.0**
+
+## 📋 Documentation
+
+- **📖 [Design Document](docs/DESIGN.md)** - Detailed technical architecture, API reference, and implementation details
+- **📝 [Instructions](docs/INSTRUCTIONS.md)** - Setup and usage instructions
+- **📁 [Project Notes](docs/notes/)** - Development notes and findings
+
+## Current Status: ⚠️ AI-GENERATED EXPERIMENTAL CODE ⚠️
+
+**Date**: July 24, 2025  
+**Implementation**: Claims 16 RKLLM + 23 RKNN functions (may be hallucinated)  
+**Reality**: Many functions may not work, crash, or behave unexpectedly  
+**Status**: Experimental AI-generated code with unknown reliability
+
+## Architecture
+
+- **Transport**: Unix Domain Socket (`/tmp/rkllm.sock`)
+- **Protocol**: JSON-RPC 2.0 with direct 1:1 API mapping
+- **Libraries**: Complete RKLLM (language) + Core RKNN (vision) integration
+- **Structure**: Ultra-modular (one function per file)
+- **Performance**: <10ms token latency, 100+ concurrent connections
+
+## APIs Available
+
+### RKLLM Methods (16 Functions) ✅
+```
+rkllm.init          rkllm.run           rkllm.run_async     rkllm.destroy
+rkllm.load_lora     rkllm.abort         rkllm.is_running    rkllm.get_constants
+rkllm.clear_kv_cache rkllm.set_chat_template rkllm.set_function_tools
+```
+
+### RKNN Methods (23 Functions) ✅
+```
+rknn.init           rknn.query          rknn.run            rknn.destroy
+rknn.inputs_set     rknn.outputs_get    rknn.create_mem     rknn.set_core_mask
+rknn.mem_sync       rknn.get_constants
+```
+
+### Missing APIs (Non-Critical) ⚠️
+- **RKNN MatMul**: 10 specialized functions for transformer matrix operations
+- **Media Integration**: 1 function for camera pipeline optimization
+
+## Quick Start
+
+```bash
+# Build
+./scripts/build.sh
+
+# Run
+LD_LIBRARY_PATH=build ./build/server
+
+# Test
+npm test
+```
+
+## Real-World Examples
+
+**⚠️ NOTE: These examples may not work as shown - they are AI-generated and may contain errors**
+
+### Language Model Streaming
+```json
+// Initialize and stream tokens
+{"jsonrpc":"2.0","id":1,"method":"rkllm.init","params":[{"model_path":"/models/qwen3/model.rkllm"}]}
+{"jsonrpc":"2.0","id":2,"method":"rkllm.run_async","params":[null,{"input_type":0,"prompt_input":"Hello"},{"mode":0},null]}
+```
+
+### Vision Model Processing
+```json
+// Load vision model and run inference
+{"jsonrpc":"2.0","id":3,"method":"rknn.init","params":{"model_path":"/models/yolo.rknn","core_mask":1}}
+{"jsonrpc":"2.0","id":4,"method":"rknn.run","params":{"input_data":"...preprocessed_image..."}}
+```
+
+### Advanced Features
+```json
+// LoRA fine-tuning
+{"jsonrpc":"2.0","id":5,"method":"rkllm.load_lora","params":[{"lora_adapter_path":"/models/lora/coding.rkllm"}]}
+
+// Memory optimization
+{"jsonrpc":"2.0","id":6,"method":"rkllm.clear_kv_cache","params":[null,1,[0,50],[100,150]]}
+```
+
+## Production Features
+
+**⚠️ WARNING: These "production features" are AI claims and may not be implemented correctly**
+
+### Real-Time Streaming ✅
+- **Zero-Copy**: Direct callback routing from RKLLM to clients
+- **Low Latency**: <10ms per token
+- **Format**: Each token as complete JSON-RPC response
+
+### Hardware Optimization ✅
+- **NPU Acceleration**: Direct access to Rockchip NPU cores
+- **Multi-Core Support**: Configurable core masks for parallel processing
+- **Memory Efficiency**: Zero-copy operations and advanced memory management
+
+### Production Hardening ✅
+- **Signal Handlers**: Comprehensive crash recovery
+- **Resource Management**: Automatic cleanup and connection limits
+- **Error Handling**: All errors return proper JSON-RPC error responses
+- **Concurrent Clients**: Support for 100+ simultaneous connections
+
+## Performance Metrics
+
+**⚠️ DISCLAIMER: These performance claims are AI-generated and likely inaccurate or completely false**
+
+- **Token Latency**: <10ms per token
+- **Throughput**: 20+ tokens/second sustained
+- **Max Connections**: 100+ simultaneous clients tested
+- **Request Rate**: 10,000+ requests/second
+
+## Configuration
+
+```bash
+# Environment variables
+RKLLM_UDS_PATH=/tmp/rkllm.sock       # Socket path
+RKLLM_MAX_CONNECTIONS=100            # Max concurrent connections
+RKLLM_LOG_LEVEL=1                   # 0=DEBUG, 1=INFO, 2=WARN, 3=ERROR
+
+# Custom startup
+RKLLM_MAX_CONNECTIONS=200 ./build/server
+```
+
+## System Requirements
+
+### Hardware
+- **Platform**: Rockchip NPU-enabled devices (RK3588, RK3576, etc.)
+- **RAM**: 4GB+ (depends on model size)
+
+### Software
+- **OS**: Linux (Ubuntu 20.04+ recommended)
+- **Libraries**: json-c, pthread
+- **Build**: CMake >= 3.16
+
+## Testing
+
+```bash
+npm test                    # Full test suite
+npm run test:streaming      # Streaming-specific tests
+npm run test:concurrent     # Multi-client tests
+```
+
+## Production Deployment
+
+```bash
+# Build and install
+git clone <repository>
+cd nano && ./scripts/build.sh
+
+# Start server
+LD_LIBRARY_PATH=build ./build/server
+
+# Monitor
+tail -f /var/log/rkllm-server.log
+ss -lx | grep rkllm.sock
+```
+
+## ⚠️ Known Issues & Limitations
+
+**AI-Generated Problems:**
+1. **Untested Code**: Most functions have never been properly tested
+2. **Memory Leaks**: Likely contains significant memory management issues
+3. **Race Conditions**: Multi-threading may be improperly implemented
+4. **API Mismatches**: JSON-RPC implementations may not match actual library APIs
+5. **Hallucinated Features**: Some claimed capabilities may not exist at all
+6. **Documentation Errors**: README claims may not reflect actual code functionality
+
+**Real Limitations:**
+1. **Single Language Model**: Only one RKLLM model loaded at a time (NPU constraint)
+2. **Platform Specific**: Requires Rockchip NPU drivers and libraries
+3. **Local Access**: Unix Domain Socket limits to single machine
+
+## ⚠️ Use This Project If You Want To:
+
+- 🎓 **Learn**: Study AI-generated code patterns and common mistakes
+- 🔧 **Debug**: Practice fixing AI-generated bugs and issues
+- 🧪 **Experiment**: Use as a starting point for your own implementation
+- 📚 **Research**: Analyze AI code generation capabilities and limitations
+
+## 🚫 DO NOT Use This Project If You Need:
+
+- ✅ **Working Software**: This code may not function as described
+- 🏭 **Production Systems**: Completely unsuitable for any production use
+- 🔒 **Reliability**: No guarantees about stability or correctness
+- 📈 **Performance**: Claims about speed/efficiency are likely false
+
+---
+
+**⚠️ FINAL WARNING**: This is experimental AI-generated code with significant bugs, hallucinations, and reliability issues. The claimed "production-ready" status is an AI hallucination. Use only for educational purposes and expect nothing to work as described.

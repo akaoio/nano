@@ -1,4 +1,6 @@
 #include "call_rknn_init.h"
+#include "../../jsonrpc/extract_string_param/extract_string_param.h"
+#include "../../jsonrpc/extract_int_param/extract_int_param.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -10,7 +12,10 @@ int global_rknn_initialized = 0;
 
 json_object* call_rknn_init(json_object* params) {
     if (!params || !json_object_is_type(params, json_type_object)) {
-        return NULL;
+        json_object* error_result = json_object_new_object();
+        json_object_object_add(error_result, "code", json_object_new_int(-32602));
+        json_object_object_add(error_result, "message", json_object_new_string("Invalid parameters"));
+        return error_result;
     }
     
     // Only ONE model can be loaded at a time - destroy existing if needed
@@ -20,29 +25,27 @@ json_object* call_rknn_init(json_object* params) {
         global_rknn_initialized = 0;
     }
     
-    // Extract parameters
-    json_object* model_path_obj = NULL;
-    json_object* core_mask_obj = NULL;
-    
-    if (!json_object_object_get_ex(params, "model_path", &model_path_obj)) {
-        return NULL;
-    }
-    
-    const char* model_path = json_object_get_string(model_path_obj);
+    // Extract parameters using jsonrpc functions
+    char* model_path = extract_string_param(params, "model_path", NULL);
     if (!model_path || strlen(model_path) == 0) {
-        return NULL;
+        free(model_path);
+        json_object* error_result = json_object_new_object();
+        json_object_object_add(error_result, "code", json_object_new_int(-32602));
+        json_object_object_add(error_result, "message", json_object_new_string("model_path parameter is required"));
+        return error_result;
     }
     
     // Core mask is optional, default to 0 (auto)
-    uint32_t core_mask = 0;
-    if (json_object_object_get_ex(params, "core_mask", &core_mask_obj)) {
-        core_mask = json_object_get_int(core_mask_obj);
-    }
+    uint32_t core_mask = (uint32_t)extract_int_param(params, "core_mask", 0);
     
     // Read model file
     FILE* file = fopen(model_path, "rb");
     if (!file) {
-        return NULL;
+        free(model_path);
+        json_object* error_result = json_object_new_object();
+        json_object_object_add(error_result, "code", json_object_new_int(-32000));
+        json_object_object_add(error_result, "message", json_object_new_string("Cannot open model file"));
+        return error_result;
     }
     
     fseek(file, 0, SEEK_END);
@@ -51,13 +54,21 @@ json_object* call_rknn_init(json_object* params) {
     
     if (file_size <= 0) {
         fclose(file);
-        return NULL;
+        free(model_path);
+        json_object* error_result = json_object_new_object();
+        json_object_object_add(error_result, "code", json_object_new_int(-32000));
+        json_object_object_add(error_result, "message", json_object_new_string("Invalid model file size"));
+        return error_result;
     }
     
     void* model_data = malloc(file_size);
     if (!model_data) {
         fclose(file);
-        return NULL;
+        free(model_path);
+        json_object* error_result = json_object_new_object();
+        json_object_object_add(error_result, "code", json_object_new_int(-32000));
+        json_object_object_add(error_result, "message", json_object_new_string("Memory allocation failed"));
+        return error_result;
     }
     
     size_t read_size = fread(model_data, 1, file_size, file);
@@ -65,7 +76,11 @@ json_object* call_rknn_init(json_object* params) {
     
     if (read_size != (size_t)file_size) {
         free(model_data);
-        return NULL;
+        free(model_path);
+        json_object* error_result = json_object_new_object();
+        json_object_object_add(error_result, "code", json_object_new_int(-32000));
+        json_object_object_add(error_result, "message", json_object_new_string("Failed to read model file"));
+        return error_result;
     }
     
     // Initialize RKNN context
@@ -74,7 +89,11 @@ json_object* call_rknn_init(json_object* params) {
     
     if (ret != RKNN_SUCC) {
         global_rknn_context = 0;
-        return NULL;
+        free(model_path);
+        json_object* error_result = json_object_new_object();
+        json_object_object_add(error_result, "code", json_object_new_int(-32000));
+        json_object_object_add(error_result, "message", json_object_new_string("RKNN initialization failed"));
+        return error_result;
     }
     
     // Set core mask if specified
@@ -83,7 +102,11 @@ json_object* call_rknn_init(json_object* params) {
         if (ret != RKNN_SUCC) {
             rknn_destroy(global_rknn_context);
             global_rknn_context = 0;
-            return NULL;
+            free(model_path);
+            json_object* error_result = json_object_new_object();
+            json_object_object_add(error_result, "code", json_object_new_int(-32000));
+            json_object_object_add(error_result, "message", json_object_new_string("Failed to set core mask"));
+            return error_result;
         }
     }
     
@@ -96,5 +119,6 @@ json_object* call_rknn_init(json_object* params) {
     json_object_object_add(result, "message", json_object_new_string("Vision model initialized successfully"));
     json_object_object_add(result, "context", json_object_new_int64((int64_t)global_rknn_context));
     
+    free(model_path);
     return result;
 }

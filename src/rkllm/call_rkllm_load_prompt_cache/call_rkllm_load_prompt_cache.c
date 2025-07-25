@@ -23,21 +23,19 @@ json_object* call_rkllm_load_prompt_cache(json_object* params) {
         return error_obj;
     }
     
-    if (!params || !json_object_is_type(params, json_type_array)) {
+    if (!params || !json_object_is_type(params, json_type_object)) {
         json_object_object_add(error_obj, "code", json_object_new_int(-32602));
-        json_object_object_add(error_obj, "message", json_object_new_string("Invalid parameters - expected array"));
+        json_object_object_add(error_obj, "message", json_object_new_string("Invalid parameters - expected object"));
         return error_obj;
     }
     
-    // Expect 2 parameters: [handle, prompt_cache_path]
-    if (json_object_array_length(params) < 2) {
+    // Get prompt_cache_path from object parameters
+    json_object* path_obj;
+    if (!json_object_object_get_ex(params, "prompt_cache_path", &path_obj)) {
         json_object_object_add(error_obj, "code", json_object_new_int(-32602));
-        json_object_object_add(error_obj, "message", json_object_new_string("Insufficient parameters - expected [handle, prompt_cache_path]"));
+        json_object_object_add(error_obj, "message", json_object_new_string("Missing required parameter: prompt_cache_path"));
         return error_obj;
     }
-    
-    // Get prompt_cache_path (parameter 1)
-    json_object* path_obj = json_object_array_get_idx(params, 1);
     if (!path_obj || !json_object_is_type(path_obj, json_type_string)) {
         json_object_object_add(error_obj, "code", json_object_new_int(-32602));
         json_object_object_add(error_obj, "message", json_object_new_string("Invalid prompt_cache_path parameter - expected string"));

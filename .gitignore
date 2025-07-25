@@ -58,6 +58,7 @@ node_modules/
 models/
 build/
 reports/
+*.log
 
 # External dependencies (downloaded automatically by CMake)
 external/

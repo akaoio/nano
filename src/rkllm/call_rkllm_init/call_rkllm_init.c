@@ -6,6 +6,7 @@
 #include "../../jsonrpc/extract_string_param/extract_string_param.h"
 #include "../../jsonrpc/extract_int_param/extract_int_param.h"
 #include "../../jsonrpc/extract_float_param/extract_float_param.h"
+#include "../../jsonrpc/extract_object_param/extract_object_param.h"
 #include "../../utils/log_message/log_message.h"
 #include "../../utils/global_config/global_config.h"
 #include <stdbool.h>
@@ -113,11 +114,11 @@ void* rkllm_init_thread(void* arg) {
 }
 
 json_object* call_rkllm_init(json_object* params) {
-    // Note: This function now works with individual JSON extraction functions
-    if (!params || !json_object_is_type(params, json_type_array)) {
+    // Standardized: Accept JSON object parameters directly
+    if (!params || !json_object_is_type(params, json_type_object)) {
         json_object* error_result = json_object_new_object();
         json_object_object_add(error_result, "code", json_object_new_int(-32602));
-        json_object_object_add(error_result, "message", json_object_new_string("Invalid parameters - expected array"));
+        json_object_object_add(error_result, "message", json_object_new_string("Invalid parameters - expected object"));
         return error_result;
     }
     
@@ -128,20 +129,8 @@ json_object* call_rkllm_init(json_object* params) {
         global_llm_initialized = 0;
     }
     
-    // Get second parameter (RKLLMParam object) - params[1] per DESIGN.md
-    json_object* param_obj = json_object_array_get_idx(params, 1);
-    if (!param_obj) {
-        json_object* error_result = json_object_new_object();
-        json_object_object_add(error_result, "code", json_object_new_int(-32602));
-        json_object_object_add(error_result, "message", json_object_new_string("Missing RKLLMParam parameter"));
-        return error_result;
-    }
-    
-    // Convert JSON to RKLLMParam using individual extraction functions
-    RKLLMParam rkllm_param = rkllm_createDefaultParam();
-    
-    // Extract model_path - REQUIRED field
-    char* model_path = extract_string_param(param_obj, "model_path", NULL);
+    // Extract model_path - REQUIRED field (directly from params)
+    char* model_path = extract_string_param(params, "model_path", NULL);
     if (!model_path) {
         json_object* error_result = json_object_new_object();
         json_object_object_add(error_result, "code", json_object_new_int(-32602));
@@ -149,13 +138,38 @@ json_object* call_rkllm_init(json_object* params) {
         return error_result;
     }
     
-    // Extract other parameters using individual functions
-    rkllm_param.max_context_len = extract_int_param(param_obj, "max_context_len", rkllm_param.max_context_len);
-    rkllm_param.max_new_tokens = extract_int_param(param_obj, "max_new_tokens", rkllm_param.max_new_tokens);
-    rkllm_param.top_k = extract_int_param(param_obj, "top_k", rkllm_param.top_k);
-    rkllm_param.top_p = extract_float_param(param_obj, "top_p", rkllm_param.top_p);
-    rkllm_param.temperature = extract_float_param(param_obj, "temperature", rkllm_param.temperature);
-    rkllm_param.repeat_penalty = extract_float_param(param_obj, "repeat_penalty", rkllm_param.repeat_penalty);
+    // Convert JSON to RKLLMParam using individual extraction functions
+    RKLLMParam rkllm_param = rkllm_createDefaultParam();
+    
+    // Get nested param object for RKLLM parameters
+    json_object* param_obj = extract_object_param(params, "param");
+    if (param_obj) {
+        // Extract parameters from nested param object
+        rkllm_param.max_context_len = extract_int_param(param_obj, "max_context_len", rkllm_param.max_context_len);
+        rkllm_param.max_new_tokens = extract_int_param(param_obj, "max_new_tokens", rkllm_param.max_new_tokens);
+        rkllm_param.top_k = extract_int_param(param_obj, "top_k", rkllm_param.top_k);
+        rkllm_param.top_p = extract_float_param(param_obj, "top_p", rkllm_param.top_p);
+        rkllm_param.temperature = extract_float_param(param_obj, "temperature", rkllm_param.temperature);
+        rkllm_param.repeat_penalty = extract_float_param(param_obj, "repeat_penalty", rkllm_param.repeat_penalty);
+        // num_npu_core is handled through model initialization, not RKLLMParam
+    }
+    
+    // Set model path - CRITICAL!
+    rkllm_param.model_path = model_path;
+    
+    // Add critical multimodal parameters like the working example
+    rkllm_param.skip_special_token = true;
+    rkllm_param.img_start = "<|vision_start|>";
+    rkllm_param.img_end = "<|vision_end|>";
+    rkllm_param.img_content = "<|image_pad|>";
+    rkllm_param.extend_param.base_domain_id = 1;
+    
+    // Debug logging
+    LOG_INFO_MSG("RKLLM Init Debug - model_path: %s", model_path);
+    LOG_INFO_MSG("RKLLM Init Debug - max_context_len: %d", rkllm_param.max_context_len);
+    LOG_INFO_MSG("RKLLM Init Debug - max_new_tokens: %d", rkllm_param.max_new_tokens);
+    LOG_INFO_MSG("RKLLM Init Debug - temperature: %f", rkllm_param.temperature);
+    LOG_INFO_MSG("RKLLM Init Debug - top_k: %d", rkllm_param.top_k);
     
     // Install signal handler for timeout
     struct sigaction old_action;
